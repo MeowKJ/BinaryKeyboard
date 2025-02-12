@@ -45,5 +45,3 @@ markdown
 ## 7. 上传代码
 
 初次使用时，可能需要断开板子与电脑的连接，然后按住 **BOOT** 按钮进入 Bootloader 模式。你可以编译并上传代码到开发板。
-
-<img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300">
