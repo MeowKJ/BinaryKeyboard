@@ -16,6 +16,7 @@ void KeysDataInit(void)
         initDefaultConfig();
         saveKeysToEEPROM();
     }
+    
     loadKeysFromEEPROM();
 }
 
@@ -82,4 +83,12 @@ void loadKeysFromEEPROM(void)
         const uint8_t low  = eeprom_read_byte(addr+2);
         keySettings[i].value = ((uint16_t)high << 8) | low;
     }
+}
+
+void readRawDataFromEEPROM(uint8_t *buf)
+{
+  buf[0] = HOST_READ;
+  for (uint8_t i = 0; i < 26; i++) {
+    buf[i + 1] = eeprom_read_byte(i);
+  }
 }

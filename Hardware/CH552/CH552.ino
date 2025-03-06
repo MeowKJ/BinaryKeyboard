@@ -2,9 +2,10 @@
 #error "This program needs to be compiled with a USER USB setting"
 #endif
 
-#include "config.h"
-#include "src/KeysDataHandler/KeysDataHandler.h"
-#include "src/CustomUSBHID/CustomUSBHID.h"
+#include "src/config.h"
+#include "src/KeysDataHandler.h"
+#include "src/CustomUSBHID.h"
+#include "src/USBHandler.h"
 
 #ifdef USE_KNOB
 
@@ -12,7 +13,7 @@
 
 const uint8_t keyPins[KEY_COUNT] = { KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, ENCODER_KEY };
 bool encoderLeftPrev = false;
-
+const uint8_t key = KEY_HOME;
 #endif
 
 
@@ -104,11 +105,4 @@ void loop() {
 #ifdef USE_KNOB
   handleEncoderRotation();
 #endif
-
-  // // LED状态指示（心跳功能）
-  // static uint32_t ledTimer = 0;
-  // if (millis() - ledTimer > 1000) {
-  //   digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-  //   ledTimer = millis();
-  // }
 }

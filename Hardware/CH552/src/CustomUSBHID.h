@@ -56,45 +56,42 @@
 #define KEY_F23 0xFA
 #define KEY_F24 0xFB
 
-enum ConsumerKeycode
-{
+enum ConsumerKeycode {
   // 系统控制
-  CONSUMER_POWER = 0x30, // 电源键
-  CONSUMER_SLEEP = 0x32, // 睡眠键
+  CONSUMER_POWER = 0x30,  // 电源键
+  CONSUMER_SLEEP = 0x32,  // 睡眠键
 
   // 媒体控制
-  MEDIA_PLAY_PAUSE = 0xCD, // 播放/暂停
-  MEDIA_STOP = 0xB7,       // 停止
-  MEDIA_NEXT = 0xB5,       // 下一曲
-  MEDIA_PREVIOUS = 0xB6,   // 上一曲
+  MEDIA_PLAY_PAUSE = 0xCD,  // 播放/暂停
+  MEDIA_STOP = 0xB7,        // 停止
+  MEDIA_NEXT = 0xB5,        // 下一曲
+  MEDIA_PREVIOUS = 0xB6,    // 上一曲
 
   // 音量控制
-  MEDIA_VOLUME_MUTE = 0xE2, // 静音
-  MEDIA_VOLUME_UP = 0xE9,   // 音量加
-  MEDIA_VOLUME_DOWN = 0xEA, // 音量减
+  MEDIA_VOLUME_MUTE = 0xE2,  // 静音
+  MEDIA_VOLUME_UP = 0xE9,    // 音量加
+  MEDIA_VOLUME_DOWN = 0xEA,  // 音量减
 
   // 浏览器快捷键
-  CONSUMER_BROWSER_HOME = 0x223,    // 浏览器主页
-  CONSUMER_BROWSER_BACK = 0x224,    // 后退
-  CONSUMER_BROWSER_FORWARD = 0x225, // 前进
-  CONSUMER_BROWSER_REFRESH = 0x227, // 刷新
+  CONSUMER_BROWSER_HOME = 0x223,     // 浏览器主页
+  CONSUMER_BROWSER_BACK = 0x224,     // 后退
+  CONSUMER_BROWSER_FORWARD = 0x225,  // 前进
+  CONSUMER_BROWSER_REFRESH = 0x227,  // 刷新
 
   // 应用启动
-  CONSUMER_EMAIL_READER = 0x18A, // 启动邮件程序
-  CONSUMER_CALCULATOR = 0x192,   // 启动计算器
-  CONSUMER_EXPLORER = 0x194      // 启动文件资源管理器
+  CONSUMER_EMAIL_READER = 0x18A,  // 启动邮件程序
+  CONSUMER_CALCULATOR = 0x192,    // 启动计算器
+  CONSUMER_EXPLORER = 0x194       // 启动文件资源管理器
 };
 
-enum MOUSE_BUTTON
-{
+enum MOUSE_BUTTON {
   MOUSE_LEFT = 1,
   MOUSE_RIGHT = 2,
   MOUSE_MIDDLE = 4,
 };
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
   void USBInit(void);
@@ -119,9 +116,10 @@ extern "C"
   uint8_t Mouse_click(__data uint8_t k);
   uint8_t Mouse_move(__data int8_t x, __xdata int8_t y);
   uint8_t Mouse_scroll(__data int8_t tilt);
-
+  uint8_t send_test();
+  uint8_t send_custom_data(__data uint8_t cmd);
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
 #endif
