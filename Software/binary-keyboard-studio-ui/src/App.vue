@@ -6,8 +6,8 @@
       <h1>设备已连接: {{ deviceStore.device?.productName }} ( {{ deviceStore.getDeviceModelName() }} )</h1>
     </div>
 
-    <KnobKeyboard v-if="deviceStore.device && (deviceStore.deviceModelNumber === KEYBOARD_MODEL.KNOB)" />
-
+    <KnobKeyboard v-if="deviceStore.device && (deviceStore.deviceModelNumber === KEYBOARD_MODEL.KNOB)"
+      v-model:key-config-list="deviceStore.keyboardKeyMappings" />
 
     <DeviceInfoCard :deviceInfoList="deviceStore.getDeviceInfoList()" @onDisconnect="disconnectDevice"
       v-show="deviceStore.device" />
@@ -41,16 +41,6 @@ const initDevice = async () => {
 
   }
 }
-
-// // 键盘事件处理
-// const handleKeyPress = (event: KeyboardEvent) => {
-//   console.log('Pressed:', event.key, 'Code:', event.code, event.metaKey, event.ctrlKey, event.altKey, event.shiftKey);
-// };
-
-// // 生命周期管理
-// onMounted(() => {
-//   document.addEventListener('keydown', handleKeyPress);
-// });
 
 
 const onGetReport = async (event: HIDInputReportEvent) => {

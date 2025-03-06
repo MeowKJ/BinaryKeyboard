@@ -18,3 +18,7 @@ export const KEYBOARD_MODEL = {
   KNOB: 2,
   FIVE_KEY: 3,
 };
+
+export const KEY_TYPE_KETBOARD = 0x01; // 键盘
+export const KEY_TYPE_MEDIA = 0x02; // 媒体
+export const KEY_TYPE_MOUSE = 0x03; // 鼠标
