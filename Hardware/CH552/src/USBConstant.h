@@ -14,7 +14,7 @@
 
 #define KEYBOARD_EPADDR 0x81
 #define KEYBOARD_LED_EPADDR 0x01
-#define KEYBOARD_MOUSE_EPSIZE 9
+#define KEYBOARD_MOUSE_EPSIZE 32
 
 /** Type define for the device configuration descriptor structure. This must be
  * defined in the application code, as the configuration descriptor contains
