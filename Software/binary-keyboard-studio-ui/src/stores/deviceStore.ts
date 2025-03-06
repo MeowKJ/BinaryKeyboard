@@ -62,18 +62,6 @@ export const useDeviceStore = defineStore("device", () => {
   };
 
   /**
-   * 设置按键映射
-   * @param {number} index 按键索引（0-7）
-   * @param {KeyMapping} mapping 按键映射对象
-   */
-  const setKeyMapping = (index: number, mapping: KeyMapping) => {
-    if (index < 0 || index >= 8) {
-      throw new Error("按键索引必须在 0 到 7 之间");
-    }
-    keyboardKeyMappings.value[index] = mapping;
-  };
-
-  /**
    * 从 Uint8Array 数据设置按键映射
    * @param {Uint8Array} data 数据数组
    */
@@ -93,10 +81,9 @@ export const useDeviceStore = defineStore("device", () => {
     device,
     deviceFirmwareVersion,
     deviceModelNumber,
-    keyboardKeyMappings: readonly(keyboardKeyMappings),
+    keyboardKeyMappings,
     getDeviceModelName,
     getDeviceInfoList,
-    setKeyMapping,
     setKeyboardKeyMappingsFromUint8Array,
     getKeyboardKeyMappingsAsUint8Array,
   };

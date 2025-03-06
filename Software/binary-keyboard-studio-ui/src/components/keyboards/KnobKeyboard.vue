@@ -1,14 +1,47 @@
 <template>
     <div class="keyboard-container">
         <div class="button-grid">
-            <NormalButton label="1" type="square" />
+            <NormalButton :index="1" label="1" type="circle" @click="openDialog(1)" />
+            <NormalButton :index="1" label="1" type="square" @click="openDialog(2)" />
+            <NormalButton :index="1" label="1" type="vertical-bar" />
+            <NormalButton :index="1" label="1" type="square" />
+            <NormalButton :index="1" label="1" type="square" />
         </div>
+        <KeySelector v-model:visible="seletorVisible" :current-index="currentIndex" />
+
     </div>
 </template>
 
 <script setup lang="ts">
-import Button from 'primevue/button';
-import NormalButton from '../buttons/NormalButton.vue';
+import { computed, onMounted } from 'vue';
+
+import type { KeyMapping } from '@/types/keyboard';
+import NormalButton from '@/widgets/buttons/NormalButton.vue';
+import KeySelector from '@/widgets/KeySelector.vue';
+
+import { ref } from 'vue';
+
+const props = defineProps<{ keyConfigList: KeyMapping[] }>();
+const emit = defineEmits(["update:keyConfigList"]);
+
+
+const keyMappingList = computed({
+    get: () => props.keyConfigList,
+    set: (newValue) => emit("update:keyConfigList", newValue),
+});
+const seletorVisible = ref(false);
+
+const currentIndex = ref(0)  // 当前激活的按钮索引
+
+
+const openDialog = (index: number) => {
+    seletorVisible.value = true;
+    currentIndex.value = index;
+
+    console.log('openDialog:', index);
+    console.log('keyMappingList:', keyMappingList.value);
+};
+
 </script>
 
 <style scoped>
