@@ -4,7 +4,6 @@ import {
   parseKeyMappingsFromUint8Array,
   convertKeyMappingsToUint8Array,
 } from "@/utils/keyMappingConverter";
-import type { KeyMapping } from "@/types/keyboard";
 
 export const useDeviceStore = defineStore("device", () => {
   // 设备信息
@@ -13,7 +12,7 @@ export const useDeviceStore = defineStore("device", () => {
   const deviceModelNumber = ref<number>(0);
 
   // 按键映射配置（初始化 8 个空配置）
-  const keyboardKeyMappings = ref<KeyMapping[]>(
+  const keyMappingsList = ref<KeyMapping[]>(
     Array(8).fill({ type: 0, modifier: 0, key: 0 })
   );
 
@@ -65,26 +64,26 @@ export const useDeviceStore = defineStore("device", () => {
    * 从 Uint8Array 数据设置按键映射
    * @param {Uint8Array} data 数据数组
    */
-  const setKeyboardKeyMappingsFromUint8Array = (data: Uint8Array) => {
-    keyboardKeyMappings.value = parseKeyMappingsFromUint8Array(data);
+  const setkeyMappingsListFromUint8Array = (data: Uint8Array) => {
+    keyMappingsList.value = parseKeyMappingsFromUint8Array(data);
   };
 
   /**
    * 获取当前的按键映射数据
    * @returns {Uint8Array} 当前的按键映射数据
    */
-  const getKeyboardKeyMappingsAsUint8Array = () => {
-    return convertKeyMappingsToUint8Array(keyboardKeyMappings.value);
+  const getkeyMappingsListAsUint8Array = () => {
+    return convertKeyMappingsToUint8Array(keyMappingsList.value);
   };
 
   return {
     device,
     deviceFirmwareVersion,
     deviceModelNumber,
-    keyboardKeyMappings,
+    keyMappingsList,
     getDeviceModelName,
     getDeviceInfoList,
-    setKeyboardKeyMappingsFromUint8Array,
-    getKeyboardKeyMappingsAsUint8Array,
+    setkeyMappingsListFromUint8Array,
+    getkeyMappingsListAsUint8Array,
   };
 });

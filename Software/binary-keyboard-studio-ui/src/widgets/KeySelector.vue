@@ -45,31 +45,57 @@
 
 <script setup lang="ts">
 
-import type { KeyboardConfig, KeyMapping } from '@/types/keyboard';
-import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA } from '@/utils/deviceConstants';
-import { keyboardConfigToModifier, keyboardConfigToRawHID, modifierToKeyboardConfig } from '@/utils/keyboardHIDConverter';
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, onUnmounted } from 'vue';
 
 
 import { useDeviceStore } from '@/stores/deviceStore';
-
-const deviceStore = useDeviceStore();
-
-const keyMappingList = computed({
-    get: () => deviceStore.keyboardKeyMappings,
-    set: (newValue) => deviceStore.keyboardKeyMappings = newValue,
-});
+import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA, KEY_TYPE_MOUSE } from '@/utils/deviceConstants';
 
 const props = defineProps<{ visible: boolean; currentIndex: number }>();
-const emit = defineEmits(["update:visible", "update:keyMapping"]);
+const emit = defineEmits(["update:visible"]);
+const deviceStore = useDeviceStore();
+
 
 const dialogVisible = computed({
-    get: () => props.visible,
-    set: (value) => emit("update:visible", value),
+    get: () => {
+        if (props.visible) onDialogOpen();
+        return props.visible
+    },
+    set: (val) => {
+        emit("update:visible", val);
+        if (!val) onDialogClose();
+    },
+});
+
+const onDialogOpen = () => {
+    // 载入键位配置
+    console.log("onDialogOpen");
+    const currentKeyMapping = deviceStore.keyMappingsList[props.currentIndex];
+    switch (currentKeyMapping.type) {
+        case KEY_TYPE_KETBOARD:
+            console.log("KEY_TYPE_KETBOARD");
+            tapValue.value = "0";
+            keyConfig.value = currentKeyMapping.value
+            break;
+        case KEY_TYPE_MOUSE:
+            break;
+        case KEY_TYPE_MEDIA:
+            break;
+
+    }
+}
+const onDialogClose = () => {
+    // do something
+};
+
+const KeyMappingList = computed(() => {
+    return deviceStore.keyMappingsList.values;
 });
 
 
 const tapValue = ref("0");
+
+
 
 // --------------处理键盘配置--------------''
 const keyConfig = ref<KeyboardConfig>({

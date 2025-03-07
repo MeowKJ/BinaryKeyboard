@@ -1,20 +1,14 @@
 <template>
-
-    <Button :label="label" :class="getClassName()" severity="secondary" @click="seletorVisible = true" raised />
+    <Button :label="label" :class="getClassName()" severity="secondary" raised />
 </template>
 
 <script setup lang="ts">
 
-import { ref } from "vue";
-
-const seletorVisible = ref(false);
 const props = defineProps<{
     label: string;
     type: "circle" | "square" | "vertical-bar" | "horizontal-bar";
     index: number
 }>();
-
-import KeySelector from "@/widgets/KeySelector.vue";
 
 const getClassName = () => {
     switch (props.type) {
