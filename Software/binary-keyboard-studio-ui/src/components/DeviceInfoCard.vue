@@ -1,4 +1,6 @@
 <template>
+    <Divider />
+
     <Card class="device-info">
         <template #header>
             <h2>设备信息</h2>
@@ -17,7 +19,7 @@
     </Card>
 </template>
 
-<script setup>
+<script lang="ts" setup>
 defineProps({
     deviceInfoList: Array, // 设备信息列表
 });
