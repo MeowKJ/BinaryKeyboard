@@ -1,13 +1,14 @@
 <template>
-    <Button :label="label" :class="getClassName()" severity="secondary" raised />
+    <Button :label="label" :class="[getClassName(), { 'active-button': index === currentIndex }]" severity="secondary"
+        raised />
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps<{
     label: string;
     type: "circle" | "square" | "vertical-bar" | "horizontal-bar";
-    index: number
+    index: number;
+    currentIndex: number;
 }>();
 
 const getClassName = () => {
@@ -41,5 +42,13 @@ const getClassName = () => {
 
 .wide-button {
     grid-column: span 2;
+}
+
+.active-button {
+    border: 3px solid var(--p-button-outlined-primary-border-color);
+}
+
+.active-button:hover {
+    border: 3px solid var(--p-button-outlined-primary-border-color) !important;
 }
 </style>

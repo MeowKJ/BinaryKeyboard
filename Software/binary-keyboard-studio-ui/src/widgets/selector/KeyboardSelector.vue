@@ -1,114 +1,42 @@
 <template>
-
-    <Dialog v-model:visible="dialogVisible" :style="{ width: '25rem' }">
-
-        <template #header>
-            <span class="font-bold" style="font-size: 1.5em;">设置键位</span>
-        </template>
-
-
-        <Tabs v-model:value="tapValue">
-            <TabList>
-                <Tab value="0">键盘</Tab>
-                <Tab value="1">多媒体</Tab>
-                <Tab value="2">鼠标</Tab>
-            </TabList>
-            <TabPanels>
-                <TabPanel value="0">
-                    <div class="tab-panels">
-                        <p>正在读取键盘输入...</p>
-                        <p><Button :label="keyConfig.key || keyConfig.code || '无输入'" variant="outlined" size="large" />
-                        </p>
-                        <p class="modifierRow">
-                            <span class="modifireKeysLabel">Left: </span>
-                            <SelectButton v-model="leftModifierKeysValue" :options="modifierKeysList" multiple />
-                        </p>
-                        <p class="modifierRow">
-                            <span class="modifireKeysLabel">Right: </span>
-                            <SelectButton v-model="rightModifierKeysValue" :options="modifierKeysList" multiple />
-                        </p>
-                        <p> {{ getKeyNameCombination() }}</p>
-                    </div>
-                </TabPanel>
-                <TabPanel value="1">
-                    <p class="m-0"></p>
-                </TabPanel>
-                <TabPanel value="2">
-                    <p class="m-0"></p>
-                </TabPanel>
-            </TabPanels>
-        </Tabs>
-        <template #footer>
-        </template>
-    </Dialog>
+    <div class="tab-panels">
+        <p>
+            <span>{{ isListening ? "正在监听键盘输入..." : "点击按钮从键盘录入" }}</span>
+        </p>
+        <Divider />
+        <p>
+            <Button @click="toggleListenKeyboard" :label="buttonLabel" variant="outlined" size="large" />
+        </p>
+        <p class="modifierRow">
+            <span class="modifireKeysLabel">Left: </span>
+            <SelectButton v-model="leftModifierKeysValue" :options="modifierKeysList" multiple />
+        </p>
+        <p class="modifierRow">
+            <span class="modifireKeysLabel">Right: </span>
+            <SelectButton v-model="rightModifierKeysValue" :options="modifierKeysList" multiple />
+        </p>
+        <p> {{ getKeyNameCombination() }}</p>
+    </div>
 </template>
 
 <script setup lang="ts">
+import type { KeyboardConfig } from '@/types';
+import { computed, watch, onUnmounted, ref } from 'vue';
 
-import { computed, ref, watch, onUnmounted } from 'vue';
+const props = defineProps<{ keyConfig: KeyboardConfig; tapValue: string; }>();
+const emit = defineEmits(["update:keyConfig", "onKeyboardListen"]);
 
-
-import { useDeviceStore } from '@/stores/deviceStore';
-import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA, KEY_TYPE_MOUSE } from '@/utils/deviceConstants';
-
-const props = defineProps<{ visible: boolean; currentIndex: number }>();
-const emit = defineEmits(["update:visible"]);
-const deviceStore = useDeviceStore();
-
-
-const dialogVisible = computed({
-    get: () => {
-        if (props.visible) onDialogOpen();
-        return props.visible
+const keyConfig = computed({
+    get() {
+        return props.keyConfig;
     },
-    set: (val) => {
-        emit("update:visible", val);
-        if (!val) onDialogClose();
-    },
-});
-
-const onDialogOpen = () => {
-    // 载入键位配置
-    console.log("onDialogOpen");
-    const currentKeyMapping = deviceStore.keyMappingsList[props.currentIndex];
-    switch (currentKeyMapping.type) {
-        case KEY_TYPE_KETBOARD:
-            console.log("KEY_TYPE_KETBOARD");
-            tapValue.value = "0";
-            keyConfig.value = currentKeyMapping.value
-            break;
-        case KEY_TYPE_MOUSE:
-            break;
-        case KEY_TYPE_MEDIA:
-            break;
-
+    set(newValue) {
+        emit('update:keyConfig', newValue);
     }
-}
-const onDialogClose = () => {
-    // do something
-};
-
-const KeyMappingList = computed(() => {
-    return deviceStore.keyMappingsList.values;
 });
 
-
-const tapValue = ref("0");
-
-
-
-// --------------处理键盘配置--------------''
-const keyConfig = ref<KeyboardConfig>({
-    leftMetaKey: false,
-    leftCtrlKey: false,
-    leftAltKey: false,
-    leftShiftKey: false,
-    rightMetaKey: false,
-    rightCtrlKey: false,
-    rightAltKey: false,
-    rightShiftKey: false,
-    key: "",
-    code: "",
+const buttonLabel = computed(() => {
+    return keyConfig.value.key || keyConfig.value.code || "无输入";
 });
 
 
@@ -218,7 +146,6 @@ const keydownHandler = (event: KeyboardEvent) => {
         Alt: event.altKey,
         Shift: event.shiftKey,
     });
-
     event.preventDefault();
 };
 
@@ -246,43 +173,44 @@ const clearKeyboardModifierKeys = (type: 'left' | 'right' | 'all') => {
 
 };
 
+const isListening = ref(false);
 
 watch(props, (newVal) => {
-    if (newVal.visible) {
-        window.addEventListener("keydown", keydownHandler);
-    } else {
-        window.removeEventListener("keydown", keydownHandler);
+    if (newVal.tapValue === '0') {
+        return
     }
+    stopListenKeyboard();
+
 });
 
-onUnmounted(() => {
+const startListenKeyboard = () => {
+    console.log("监听到键盘配置");
+    if (isListening.value) {
+        return;
+    }
+    isListening.value = true;
+    emit("onKeyboardListen", true);
+    window.addEventListener("keydown", keydownHandler);
+}
+
+const toggleListenKeyboard = () => {
+    if (isListening.value) {
+        stopListenKeyboard();
+    } else {
+        startListenKeyboard();
+    }
+}
+
+const stopListenKeyboard = () => {
+    console.log("移除键盘配置监听");
+    isListening.value = false;
+    emit("onKeyboardListen", false);
     window.removeEventListener("keydown", keydownHandler);
+}
+
+onUnmounted(() => {
+
+    stopListenKeyboard();
 });
 
 </script>
-<style scoped>
-.tab-panels {
-    text-align: center;
-}
-
-.modifierRow {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.modifireKeysLabel {
-    display: inline-block;
-    width: 70px;
-    /* 根据实际需要调整宽度 */
-    font-weight: bold;
-    margin-right: 8px;
-}
-</style>
-
-<style>
-.p-tabpanel:focus {
-    outline: none !important;
-    border: none !important;
-}
-</style>
