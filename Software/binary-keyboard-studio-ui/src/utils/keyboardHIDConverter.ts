@@ -1,4 +1,6 @@
-import { KeyboardKeyModifier } from "./KeyboardHidEnums";
+import type { KeyboardConfig, KeyBoardRawHIDData } from "@/types";
+import { KeyboardKeyModifier } from "@/types";
+
 /** 完整的 HID 映射表，将 event.code 映射为 HID 键码（8位数字） */
 export const HID_KEY_MAP: Record<string, number> = {
   // 错误及保留项

@@ -1,3 +1,42 @@
+export type ButtonType =
+  | "circle"
+  | "square"
+  | "horizontal-bar"
+  | "vertical-bar";
+
+export interface KeyboardConfig {
+  key: string; // 原始按键字符（无法通过 HID 完全还原时置为空）
+  code: string; // 对应 event.code
+  leftMetaKey: boolean;
+  leftCtrlKey: boolean;
+  leftAltKey: boolean;
+  leftShiftKey: boolean;
+  rightMetaKey: boolean;
+  rightCtrlKey: boolean;
+  rightAltKey: boolean;
+  rightShiftKey: boolean;
+}
+
+/** 原始 HID 数据类型：包含一个8位修饰键编码和一个8位 HID 编码 */
+export interface KeyBoardRawHIDData {
+  modifier: number; // 8 位修饰键编码
+  hid: number; // 8 位 HID 键码
+}
+
+export interface MediaConfig {
+  key: MediaHIDCode;
+}
+
+export interface MouseConfig {
+  button: MouseButtonHID;
+  wheel: MouseWheelUnit;
+}
+
+export type KeyMapping =
+  | { type: 1; value: KeyboardConfig }
+  | { type: 2; value: MediaConfig }
+  | { type: 3; value: MouseConfig };
+
 export enum MouseButtonHID {
   None = 0x00, // 无按键
   LeftButton = 0x01, // 左键

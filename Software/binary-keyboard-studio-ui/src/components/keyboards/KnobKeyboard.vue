@@ -1,11 +1,12 @@
 <template>
     <div class="keyboard-container">
         <div class="button-grid">
-            <NormalButton :index="1" label="1" type="circle" @click="openDialog(1)" />
-            <NormalButton :index="1" label="1" type="square" @click="openDialog(2)" />
-            <NormalButton :index="1" label="1" type="vertical-bar" />
-            <NormalButton :index="1" label="1" type="square" />
-            <NormalButton :index="1" label="1" type="square" />
+            <NormalButton :index="4" :current-index="currentIndex" label="1" type="circle" @click="openDialog(4)" />
+            <NormalButton :index="0" :current-index="currentIndex" label="1" type="square" @click="openDialog(0)" />
+            <NormalButton :index="1" :current-index="currentIndex" label="1" type="vertical-bar"
+                @click="openDialog(1)" />
+            <NormalButton :index="2" :current-index="currentIndex" label="1" type="square" @click="openDialog(2)" />
+            <NormalButton :index="3" :current-index="currentIndex" label="1" type="square" @click="openDialog(3)" />
         </div>
         <KeySelector v-model:visible="seletorVisible" :current-index="currentIndex" />
 
@@ -13,24 +14,27 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 
 import NormalButton from '@/widgets/buttons/NormalButton.vue';
-import KeySelector from '@/widgets/KeySelector.vue';
+import KeySelector from '@/widgets/selector/Selector.vue';
 
-import { ref } from 'vue';
-
-
-const seletorVisible = ref(false);
+const seletorVisible = ref(false); // 键位选择器是否显示
 
 const currentIndex = ref(0)  // 当前激活的按钮索引
 
-
+// 打开键位选择器
 const openDialog = (index: number) => {
     seletorVisible.value = true;
     currentIndex.value = index;
-
-    console.log('openDialog:', index);
 };
+
+// 监听键位选择器是否关闭
+watch(seletorVisible, (val) => {
+    if (!val) {
+        currentIndex.value = -1;
+    }
+});
 
 </script>
 
