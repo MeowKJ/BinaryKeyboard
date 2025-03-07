@@ -18,6 +18,9 @@ export const useDeviceStore = defineStore("device", () => {
     Array(8).fill({ type: 0, modifier: 0, key: 0 })
   );
 
+  const keyMappingsListOriginal = ref<KeyMapping[]>(
+    Array(8).fill({ type: 0, modifier: 0, key: 0 })
+  );
   /**
    * 获取设备型号名称
    * @returns {string} 设备型号名称
@@ -68,6 +71,7 @@ export const useDeviceStore = defineStore("device", () => {
    */
   const setkeyMappingsListFromUint8Array = (data: Uint8Array) => {
     keyMappingsList.value = parseKeyMappingsFromUint8Array(data);
+    keyMappingsListOriginal.value = parseKeyMappingsFromUint8Array(data);
   };
 
   /**
@@ -83,6 +87,7 @@ export const useDeviceStore = defineStore("device", () => {
     deviceFirmwareVersion,
     deviceModelNumber,
     keyMappingsList,
+    keyMappingsListOriginal,
     getDeviceModelName,
     getDeviceInfoList,
     setkeyMappingsListFromUint8Array,

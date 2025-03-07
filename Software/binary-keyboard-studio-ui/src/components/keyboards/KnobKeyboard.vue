@@ -11,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 import NormalButton from '@/widgets/buttons/NormalButton.vue';
 import KeySelector from '@/widgets/selector/Selector.vue';
@@ -28,6 +28,15 @@ const currentIndex = computed({
 });
 
 const currentIndexValue = ref(-1); // 当前激活的按钮索引
+
+const emit = defineEmits(['onSaveData']);
+
+// 监听 `seletorVisible` 变化，关闭时触发 `saveData`
+watch(seletorVisible, (newValue) => {
+    if (!newValue) {
+        emit('onSaveData');
+    }
+});
 
 </script>
 

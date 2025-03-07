@@ -1,46 +1,50 @@
 <template>
   <div class="app-container">
-    <DeviceFinder :filters="[KEYBOARD_FILTER]" @on-device-connected="initDevice" v-show="!deviceStore.device" />
+    <DeviceFinder :filters="[KEYBOARD_FILTER]" @on-device-connected="initDevice"
+      v-show="!deviceStore.device || !deviceStore.device.opened" />
 
-    <div class="device-info" v-show="deviceStore.device">
+    <div class="device-info" v-if="deviceStore.device && deviceStore.device.opened">
       <h1>设备已连接: {{ deviceStore.device?.productName }} ( {{ deviceStore.getDeviceModelName() }} )</h1>
     </div>
 
     <KnobKeyboard v-if="deviceStore.device && (deviceStore.deviceModelNumber === KEYBOARD_MODEL.KNOB)"
       v-model:key-config-list="deviceStore.keyMappingsList" />
 
-    <Button v-if="deviceStore.device" @click="sendDatatoDevice">发送数据</Button>
+    <div class="send-button text-center" v-if="deviceStore.device">
+      <Button style="width: 200px;" @click="sendDatatoDevice">发送数据</Button>
+    </div>
+
     <DeviceInfoCard :deviceInfoList="deviceStore.getDeviceInfoList()" @onDisconnect="disconnectDevice"
-      v-show="deviceStore.device" />
-
+      v-if="deviceStore.device" />
   </div>
-
-  <p> {{ testvalue }}</p>
-
 
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import DeviceFinder from '@/components/DeviceFinder.vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { WebHidTools } from '@/utils/WebHidTools';
 import { sendInitData, sendData } from '@/utils/keyboardHidTools';
-import KnobKeyboard from '@/components/keyboards/KnobKeyboard.vue';
 import { CMD_KEYBOARD_SEND, KEYBOARD_FILTER, KEYBOARD_MODEL, REPORT_ID_RECEIVE, REPORT_ID_SEND } from '@/utils/deviceConstants';
+import { useToast } from "primevue/usetoast";
+
+import DeviceFinder from '@/components/DeviceFinder.vue';
+import KnobKeyboard from '@/components/keyboards/KnobKeyboard.vue';
+import DeviceInfoCard from '@/components/DeviceInfoCard.vue';
+import { defineStore } from 'pinia';
 
 const deviceStore = useDeviceStore();
+const toast = useToast();
 
 const testvalue = ref(0);
 
 const initDevice = async () => {
   console.log('设备已连接:', deviceStore.device);
   if (deviceStore.device && deviceStore.device.opened) {
-    //发送第一位为0x01的读取指令, 数据长度31位, 其余为0x00
     deviceStore.device.addEventListener('inputreport', onGetReport);
     await sendInitData(deviceStore.device, REPORT_ID_SEND);
   }
-}
+};
 
 const sendDatatoDevice = async () => {
   if (deviceStore.device && deviceStore.device.opened) {
@@ -51,19 +55,21 @@ const sendDatatoDevice = async () => {
     data[2] = deviceStore.deviceModelNumber;
     const keyMappingsData = deviceStore.getkeyMappingsListAsUint8Array();
     data.set(keyMappingsData, 3);
-    await sendData(deviceStore.device, REPORT_ID_SEND, data);
+    try {
+      await sendData(deviceStore.device, REPORT_ID_SEND, data);
+    } catch (error) {
+      console.error('发送数据失败:', error);
+      toast.add({ severity: 'error', summary: '发送数据失败', detail: error });
+    }
   }
-}
+};
 
 const onGetReport = async (event: HIDInputReportEvent) => {
   if (event.reportId === REPORT_ID_RECEIVE) {
     const data = event.data;
     const dataView = new DataView(data.buffer);
-    //第一位 Command 指令
-
     const command = dataView.getUint8(0);
 
-    // if (command === CMD_KEYBOARD_SEND) {
     deviceStore.deviceFirmwareVersion = dataView.getUint8(1);
     deviceStore.deviceModelNumber = dataView.getUint8(2);
 
@@ -71,37 +77,50 @@ const onGetReport = async (event: HIDInputReportEvent) => {
     deviceStore.setkeyMappingsListFromUint8Array(uint8ArrayData);
 
     const hexData = Array.from(uint8ArrayData).map(byte => byte.toString(16).padStart(2, '0')).join(' ');
-    // 打印格式化后的 16 进制数据
     console.log('键盘数据 (16进制): ', hexData);
-    //}
   }
-}
+};
 
-// 挂载时执行
+// 监听设备断开事件
+const onDeviceDisconnected = (event: HIDConnectionEvent) => {
+  if (deviceStore.device && event.device === deviceStore.device) {
+    console.log('设备已断开:', event.device.productName);
+    toast.add({ severity: 'warn', summary: '设备断开', detail: '键盘连接已丢失' });
+    deviceStore.device = null; // 清除设备信息
+  }
+};
+
+// 断开设备连接
+const disconnectDevice = async () => {
+  if (deviceStore.device) {
+    await deviceStore.device.close();
+    deviceStore.device = null;
+  }
+};
+
+// 组件挂载时监听 HID 设备连接状态
 onMounted(async () => {
+  navigator.hid.addEventListener("disconnect", onDeviceDisconnected);
+
   const devices = await navigator.hid.getDevices();
-  // 查找匹配的设备
   const matchedDevice = devices.find(
     (device) =>
       device.vendorId === KEYBOARD_FILTER.vendorId &&
       device.productId === KEYBOARD_FILTER.productId
   );
   if (matchedDevice) {
-    deviceStore.device = matchedDevice; // 存储设备对象
+    deviceStore.device = matchedDevice;
     if (!matchedDevice.opened) {
-      await WebHidTools.openDevice(matchedDevice); // 打开设备
+      await WebHidTools.openDevice(matchedDevice);
     }
-    initDevice(); // 初始化设备
+    initDevice();
   }
 });
 
-// 断开设备连接
-const disconnectDevice = async () => {
-  if (deviceStore.device) {
-    await deviceStore.device.close(); // 关闭设备
-    deviceStore.device = null; // 清除设备信息
-  }
-};
+// 组件卸载时移除监听
+onUnmounted(() => {
+  navigator.hid.removeEventListener("disconnect", onDeviceDisconnected);
+});
 
 </script>
 
