@@ -32,11 +32,11 @@ static void initDefaultConfig(void)
     eeprom_write_byte(EEPROM_DEVTYPE_ADDR, EXPECT_DEVICE_TYPE);
 
     KeyConfig defaults[8] = {
-        {KEY_TYPE_KB,    'A'},
-        {KEY_TYPE_KB,    'B'},
-        {KEY_TYPE_KB,    'C'},
-        {KEY_TYPE_KB,    'D'},
-        {KEY_TYPE_MOUSE, 0x01},     // 鼠标左键
+        {KEY_TYPE_KB,    0x0004},
+        {KEY_TYPE_KB,    0x0005},
+        {KEY_TYPE_KB,    0x0006},
+        {KEY_TYPE_KB,    0x0007},
+        {KEY_TYPE_MOUSE, 0x0001},     // 鼠标左键
         {KEY_TYPE_MEDIA, 0xEA},     // 音量-
         {KEY_TYPE_MEDIA, 0xE9},     // 音量+
         {KEY_TYPE_INVALID, 0}

@@ -103,6 +103,9 @@ extern "C" {
   uint8_t Keyboard_write(__data uint8_t c);
   void Keyboard_print(const char *str);
 
+  uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod);
+  uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod);
+
   uint8_t Consumer_press(__data uint16_t k);
   uint8_t Consumer_release(__data uint16_t k);
   void Consumer_releaseAll(void);

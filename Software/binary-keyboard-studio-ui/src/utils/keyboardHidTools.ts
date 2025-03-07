@@ -11,3 +11,15 @@ export const sendInitData = async (device: HIDDevice, reportId: number = 5) => {
     console.error("配置数据发送失败");
   }
 };
+
+export const sendData = async (
+  device: HIDDevice,
+  reportId: number,
+  data: Uint8Array
+) => {
+  if (!device) return;
+  const success = await WebHidTools.sendData(device, reportId, data);
+  if (!success) {
+    console.error("数据发送失败");
+  }
+};
