@@ -23,7 +23,7 @@
                     <p class="m-0"></p>
                 </TabPanel>
                 <TabPanel value="2">
-                    <p class="m-0"></p>
+                    <MouseSelector v-model:mouseConfig="mouseConfig" />
                 </TabPanel>
                 <TabPanel value="3">
                     <p class="m-0 text-center">
@@ -43,12 +43,13 @@
 
 <script setup lang="ts">
 
-import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, type MediaHIDCode, MouseWheelUnit } from '@/types';
+import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, type MediaHIDCode } from '@/types';
 import KeyboardSelector from '@/widgets/selector/KeyboardSelector.vue';
 
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA, KEY_TYPE_MOUSE } from '@/utils/deviceConstants';
+import MouseSelector from './MouseSelector.vue';
 
 const props = defineProps<{ visible: boolean; currentIndex: number }>();
 const emit = defineEmits(["update:visible"]);
@@ -86,6 +87,8 @@ const onDialogOpen = () => {
             keyConfig.value = currentKeyMapping.value
             break;
         case KEY_TYPE_MOUSE:
+            tapValue.value = "2";
+            mouseConfig.value = currentKeyMapping.value
             break;
         case KEY_TYPE_MEDIA:
             break;
@@ -104,9 +107,12 @@ const onDialogClose = () => {
         case "1":
             break;
         case "2":
+            deviceStore.keyMappingsList[props.currentIndex] = {
+                type: KEY_TYPE_MOUSE,
+                value: mouseConfig.value
+            };
             break;
     }
-    tapValue.value = "-1";
 };
 
 
@@ -115,7 +121,7 @@ const tapValue = ref("0");
 // --------------处理鼠标配置--------------
 const mouseConfig = ref<MouseConfig>({
     button: MouseButtonHID.None,
-    wheel: MouseWheelUnit.None,
+    wheel: 0,
 })
 
 // --------------处理键盘配置--------------
@@ -136,10 +142,6 @@ const keyConfig = ref<KeyboardConfig>({
 
 </script>
 <style scoped>
-.tab-panels {
-    text-align: center;
-}
-
 .modifierRow {
     display: flex;
     align-items: center;
@@ -159,5 +161,9 @@ const keyConfig = ref<KeyboardConfig>({
 .p-tabpanel:focus {
     outline: none !important;
     border: none !important;
+}
+
+.tab-panels {
+    text-align: center;
 }
 </style>

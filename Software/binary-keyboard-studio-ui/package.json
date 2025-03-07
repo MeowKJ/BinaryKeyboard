@@ -13,6 +13,7 @@
   "dependencies": {
     "@primeuix/themes": "^1.0.0",
     "pinia": "^3.0.1",
+    "primeicons": "^7.0.0",
     "primevue": "^4.3.1",
     "vue": "^3.5.13"
   },
