@@ -38,7 +38,6 @@
             <Button icon="pi pi-minus" @click="mouseConfig.wheel--" :disabled="mouseConfig.wheel <= -128" />
         </div>
     </div>
-
 </template>
 
 <script lang="ts" setup>
@@ -50,7 +49,19 @@ const props = defineProps<{ mouseConfig: MouseConfig }>();
 const emit = defineEmits(['update:mouseConfig']);
 
 // 用于存储选中的鼠标按钮
-const selectedButtons = ref<number[]>([]);
+const selectedButtons = computed({
+    get() {
+        return Object.values(MouseButtonHID).filter(
+            (button) => (props.mouseConfig.button & button as number) === button
+        );
+    },
+    set(newSelectedButtons) {
+        emit('update:mouseConfig', {
+            ...props.mouseConfig,
+            button: newSelectedButtons.reduce((acc, current) => acc | current as number, 0),
+        });
+    },
+});
 
 // 计算当前所有选中的按钮的二进制 OR 结果
 const mouseConfig = computed({
@@ -58,17 +69,6 @@ const mouseConfig = computed({
     set: (val) => emit('update:mouseConfig', val),
 });
 
-watch(selectedButtons, (newSelectedButtons) => {
-    const newButtonValue = newSelectedButtons.reduce(
-        (acc, current) => acc | current,
-        0
-    );
-
-    // 打印16进制和2进制表示
-    console.log('Selected Buttons:', newSelectedButtons);
-    console.log('Hexadecimal:', newButtonValue.toString(16).toUpperCase()); // 转换为16进制
-    console.log('Binary (8-bit):', newButtonValue.toString(2).padStart(8, '0')); // 转换为二进制，确保8位
-});
 
 </script>
 
