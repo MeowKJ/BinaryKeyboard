@@ -20,7 +20,7 @@
                         @on-keyboard-listen="onKeyboardListen" />
                 </TabPanel>
                 <TabPanel value="1">
-                    <p class="m-0"></p>
+                    <MediaSelector v-model:mediaConfig="mediaConfig" />
                 </TabPanel>
                 <TabPanel value="2">
                     <MouseSelector v-model:mouseConfig="mouseConfig" />
@@ -43,13 +43,14 @@
 
 <script setup lang="ts">
 
-import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, type MediaHIDCode } from '@/types';
+import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, MediaHIDCode } from '@/types';
 import KeyboardSelector from '@/widgets/selector/KeyboardSelector.vue';
 
 import { computed, ref, watch, onUnmounted } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA, KEY_TYPE_MOUSE } from '@/utils/deviceConstants';
 import MouseSelector from './MouseSelector.vue';
+import MediaSelector from './MediaSelector.vue';
 
 const props = defineProps<{ visible: boolean; currentIndex: number }>();
 const emit = defineEmits(["update:visible"]);
@@ -91,6 +92,8 @@ const onDialogOpen = () => {
             mouseConfig.value = currentKeyMapping.value
             break;
         case KEY_TYPE_MEDIA:
+            tapValue.value = "1";
+            mediaConfig.value = currentKeyMapping.value
             break;
     }
 
@@ -105,6 +108,10 @@ const onDialogClose = () => {
             };
             break;
         case "1":
+            deviceStore.keyMappingsList[props.currentIndex] = {
+                type: KEY_TYPE_MEDIA,
+                value: mediaConfig.value
+            };
             break;
         case "2":
             deviceStore.keyMappingsList[props.currentIndex] = {
@@ -117,6 +124,10 @@ const onDialogClose = () => {
 
 
 const tapValue = ref("0");
+// --------------处理多媒体配置--------------
+const mediaConfig = ref<MediaConfig>({
+    key: MediaHIDCode.None,
+});
 
 // --------------处理鼠标配置--------------
 const mouseConfig = ref<MouseConfig>({

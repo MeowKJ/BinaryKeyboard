@@ -74,7 +74,7 @@ export enum MediaHIDCode {
 
   // 设备菜单/导航
   Menu = 0x40, // 进入菜单
-  Home = 0x223, // 主屏幕（如电视或智能设备）
+  Home = 0x223, // 主页
   Back = 0x224, // 返回
   Exit = 0x94, // 退出
   Select = 0x41, // 确认/选择
@@ -86,22 +86,11 @@ export enum MediaHIDCode {
   // 应用程序快捷键
   Calculator = 0x192, // 计算器
   FileExplorer = 0x194, // 文件资源管理器
-  BrowserHome = 0x223, // 主页
-  BrowserBack = 0x224, // 浏览器后退
+
   BrowserForward = 0x225, // 浏览器前进
   BrowserRefresh = 0x227, // 刷新
   BrowserFavorites = 0x22a, // 收藏夹
   Email = 0x18a, // 电子邮件应用
-
-  // 远程控制（红外遥控相关）
-  Record = 0xb2, // 录制
-  Eject = 0xb8, // 弹出光盘
-  Subtitle = 0x102, // 字幕
-  Zoom = 0x194, // 缩放
-  RedButton = 0x182, // 红色按钮
-  GreenButton = 0x183, // 绿色按钮
-  YellowButton = 0x184, // 黄色按钮
-  BlueButton = 0x185, // 蓝色按钮
 }
 
 /** 修饰键的 HID 标准编码（8位，每一位代表一个修饰键）
