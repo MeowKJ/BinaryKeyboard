@@ -29,7 +29,7 @@ export interface MediaConfig {
 
 export interface MouseConfig {
   button: MouseButtonHID;
-  wheel: MouseWheelUnit;
+  wheel: number;
 }
 
 export type KeyMapping =
@@ -44,15 +44,6 @@ export enum MouseButtonHID {
   MiddleButton = 0x04, // 中键
   BackButton = 0x08, // 侧键1（后退）
   ForwardButton = 0x10, // 侧键2（前进）
-}
-
-/** 鼠标滚轮单位 */
-export enum MouseWheelUnit {
-  None = 0x00, // 无滚动
-  ScrollUp = 0x01, // 向上滚动 1 单位
-  ScrollDown = 0xff, // 向下滚动 1 单位（-1）
-  ScrollRight = 0x01, // 向右滚动 1 单位（水平滚轮）
-  ScrollLeft = 0xff, // 向左滚动 1 单位（-1）
 }
 
 export enum MediaHIDCode {
