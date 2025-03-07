@@ -22,6 +22,7 @@ bool keyPressPrev[KEY_COUNT] = { false };
 
 /**
  * @brief 处理按键状态变化
+ * 按键比少，就不做ADD处理，直接发送了
  */
 void handleCommonKeyPress() {
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
@@ -34,7 +35,9 @@ void handleCommonKeyPress() {
 
       if (keyType == KEY_TYPE_KB) {
         // 键盘
-        keyPress ? Keyboard_press((uint8_t)keyValue) : Keyboard_release((uint8_t)keyValue);
+        uint8_t key = keyValue & 0xFF; //取低8位
+        uint8_t mod = (keyValue >> 8) & 0xFF;
+        keyPress ? Keyboard_rawPress(key, mod) : Keyboard_rawRelease(key, mod);
 
       } else if (keyType == KEY_TYPE_MEDIA) {
         //媒体

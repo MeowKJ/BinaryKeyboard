@@ -1,7 +1,10 @@
+import { type KeyMapping } from "@/types";
+
 import {
   keyboardConfigToRawHID,
   rawHIDToKeyboardConfig,
 } from "./keyboardHIDConverter";
+import type { button } from "@primeuix/themes/aura/inputnumber";
 
 /**
  * 将包含 8 个键、每键 3 字节数据的 Uint8Array 解析为 KeyMapping 数组
@@ -32,8 +35,9 @@ export function parseKeyMappingsFromUint8Array(data: Uint8Array): KeyMapping[] {
 
       mappings.push({ type: 0x02, value: MediaConfig });
     } else if (type === 0x03) {
-      // 鼠标：第二字节为滚轮数据，第三字节为鼠标数据
-      const MouseConfig = { key: byte3, wheel: byte2 };
+      // 鼠标：第二字节为滚轮数据(int8有符号)，第三字节为鼠标数据
+      const wheel = new Int8Array([byte2])[0]; // 将 byte2 转换为有符号的 int8
+      const MouseConfig = { button: byte3, wheel };
       mappings.push({ type: 0x03, value: MouseConfig });
     } else {
       console.warn(`未知的按键类型, 初始化为键盘类型`);
@@ -81,8 +85,9 @@ export function convertKeyMappingsToUint8Array(
       data[offset + 1] = mapping.value.key >> 8; // 高字节
       data[offset + 2] = mapping.value.key & 0xff; // 低字节
     } else if (mapping.type === 0x03) {
-      data[offset + 1] = mapping.value.wheel;
-      data[offset + 2] = mapping.value.key;
+      const wheel = mapping.value.wheel;
+      data[offset + 1] = new Int8Array([wheel])[0];
+      data[offset + 2] = mapping.value.button;
     } else {
       data[offset] = 0x01;
       data[offset + 1] = 0;

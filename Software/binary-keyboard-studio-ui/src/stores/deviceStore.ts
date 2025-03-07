@@ -5,6 +5,8 @@ import {
   convertKeyMappingsToUint8Array,
 } from "@/utils/keyMappingConverter";
 
+import type { KeyMapping } from "@/types";
+
 export const useDeviceStore = defineStore("device", () => {
   // 设备信息
   const device = ref<HIDDevice | null>(null);

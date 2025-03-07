@@ -5,6 +5,7 @@
 #include "USBConstant.h"
 #include "USBHandler.h"
 #include "KeysDataHandler.h"
+#include "KeysDataHandler.h"
 // clang-format on
 
 // clang-format off
@@ -179,16 +180,20 @@ void USB_EP1_OUT() {
   {
     if (Ep1Buffer[0] == 1) {
       keyboardLedStatus = Ep1Buffer[1];
-    }else if (Ep1Buffer[0] == 4) {
+    } else if (Ep1Buffer[0] == 4) {
       if (Ep1Buffer[1] == 0x01) {
         //发送eeprom数据
         send_custom_data(0x01);
-      }else if (Ep1Buffer[1] == 0x02) {
+      } else if (Ep1Buffer[1] == 0x02) {
         //按键修改数据
-        for (uint8_t i = 0; i < 8; i++) {
-          uint16_t value = ((uint16_t)Ep1Buffer[i*3 + 1] << 8) | Ep1Buffer[i*3 + 2];
-          setKey(i, Ep1Buffer[i*3], value);
+        if (Ep1Buffer[2] != CURRENT_FW_VERSION || Ep1Buffer[3] != EXPECT_DEVICE_TYPE) {
+          return;
         }
+        for (uint8_t i = 0; i < 8; i++) {
+          uint16_t value = ((uint16_t)Ep1Buffer[i * 3 + 5] << 8) | Ep1Buffer[i * 3 + 6];
+          setKey(i, Ep1Buffer[i * 3 + 4], value);
+        }
+        saveKeysToEEPROM();
       }
     }
   }
@@ -330,6 +335,41 @@ uint8_t Keyboard_write(__data uint8_t c) {
                                          // returns 1
 }
 
+
+uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod) {
+  if (k == 0) return 1;
+  HIDKey[0] |= mod;
+
+  for (uint8_t i = 2; i < 8; i++) {
+    if (HIDKey[i] == k) {
+      return 1;
+    }
+  }
+  for (uint8_t i = 2; i < 8; i++) {
+    if (HIDKey[i] == 0) {
+      HIDKey[i] = k;
+      USB_EP1_send(1);
+    }
+  }
+
+  return 0;
+}
+
+
+uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod) {
+  if (k == 0) return 1;
+  HIDKey[0] &= ~mod;
+
+  for (uint8_t i = 2; i < 8; i++) {
+    if (HIDKey[i] == k) {
+      HIDKey[i] = 0;
+      USB_EP1_send(1);
+    }
+  }
+  return 0;
+}
+
+
 void Keyboard_print(const char *str) {
   // using a generic pointer to handle pointer in any address space
   __data uint8_t c;
@@ -342,6 +382,8 @@ uint8_t Keyboard_getLEDStatus() {
   // keyboardLedStatus is updated from USB_EP1_OUT
   return keyboardLedStatus;
 }
+
+
 
 uint8_t Consumer_press(__data uint16_t k) {
   __data uint8_t i;
@@ -436,7 +478,7 @@ uint8_t send_test() {
 }
 
 uint8_t send_custom_data(__data uint8_t cmd) {
-  if(cmd == 0x01){
+  if (cmd == 0x01) {
     readRawDataFromEEPROM(CustomBuf);
     USB_EP1_send(5);
   }

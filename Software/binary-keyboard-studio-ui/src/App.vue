@@ -9,6 +9,7 @@
     <KnobKeyboard v-if="deviceStore.device && (deviceStore.deviceModelNumber === KEYBOARD_MODEL.KNOB)"
       v-model:key-config-list="deviceStore.keyMappingsList" />
 
+    <Button v-if="deviceStore.device" @click="sendDatatoDevice">发送数据</Button>
     <DeviceInfoCard :deviceInfoList="deviceStore.getDeviceInfoList()" @onDisconnect="disconnectDevice"
       v-show="deviceStore.device" />
 
@@ -24,9 +25,9 @@ import { onMounted, ref } from 'vue';
 import DeviceFinder from '@/components/DeviceFinder.vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { WebHidTools } from '@/utils/WebHidTools';
-import { sendInitData } from '@/utils/keyboardHidTools';
+import { sendInitData, sendData } from '@/utils/keyboardHidTools';
 import KnobKeyboard from '@/components/keyboards/KnobKeyboard.vue';
-import { KEYBOARD_FILTER, KEYBOARD_MODEL, REPORT_ID_RECEIVE, REPORT_ID_SEND } from '@/utils/deviceConstants';
+import { CMD_KEYBOARD_SEND, KEYBOARD_FILTER, KEYBOARD_MODEL, REPORT_ID_RECEIVE, REPORT_ID_SEND } from '@/utils/deviceConstants';
 
 const deviceStore = useDeviceStore();
 
@@ -38,10 +39,21 @@ const initDevice = async () => {
     //发送第一位为0x01的读取指令, 数据长度31位, 其余为0x00
     deviceStore.device.addEventListener('inputreport', onGetReport);
     await sendInitData(deviceStore.device, REPORT_ID_SEND);
-
   }
 }
 
+const sendDatatoDevice = async () => {
+  if (deviceStore.device && deviceStore.device.opened) {
+    console.log('发送数据');
+    const data = new Uint8Array(31);
+    data[0] = CMD_KEYBOARD_SEND;
+    data[1] = deviceStore.deviceFirmwareVersion;
+    data[2] = deviceStore.deviceModelNumber;
+    const keyMappingsData = deviceStore.getkeyMappingsListAsUint8Array();
+    data.set(keyMappingsData, 3);
+    await sendData(deviceStore.device, REPORT_ID_SEND, data);
+  }
+}
 
 const onGetReport = async (event: HIDInputReportEvent) => {
   if (event.reportId === REPORT_ID_RECEIVE) {
@@ -51,15 +63,17 @@ const onGetReport = async (event: HIDInputReportEvent) => {
 
     const command = dataView.getUint8(0);
 
+    // if (command === CMD_KEYBOARD_SEND) {
     deviceStore.deviceFirmwareVersion = dataView.getUint8(1);
     deviceStore.deviceModelNumber = dataView.getUint8(2);
-    //从第三位开始为键盘映射数据，长度24位
+
     const uint8ArrayData = new Uint8Array(data.buffer, 3, 24);
     deviceStore.setkeyMappingsListFromUint8Array(uint8ArrayData);
 
     const hexData = Array.from(uint8ArrayData).map(byte => byte.toString(16).padStart(2, '0')).join(' ');
     // 打印格式化后的 16 进制数据
     console.log('键盘数据 (16进制): ', hexData);
+    //}
   }
 }
 
