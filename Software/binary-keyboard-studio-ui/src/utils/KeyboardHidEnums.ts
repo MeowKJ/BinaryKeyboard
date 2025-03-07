@@ -1,0 +1,97 @@
+export enum MouseButtonHID {
+  None = 0x00, // 无按键
+  LeftButton = 0x01, // 左键
+  RightButton = 0x02, // 右键
+  MiddleButton = 0x04, // 中键
+  BackButton = 0x08, // 侧键1（后退）
+  ForwardButton = 0x10, // 侧键2（前进）
+}
+
+/** 鼠标滚轮单位 */
+export enum MouseWheelUnit {
+  None = 0x00, // 无滚动
+  ScrollUp = 0x01, // 向上滚动 1 单位
+  ScrollDown = 0xff, // 向下滚动 1 单位（-1）
+  ScrollRight = 0x01, // 向右滚动 1 单位（水平滚轮）
+  ScrollLeft = 0xff, // 向左滚动 1 单位（-1）
+}
+
+export enum MediaHIDCode {
+  // 多媒体控制
+  None = 0x00, // 无按键
+  Play = 0xb0, // 播放
+  Pause = 0xb1, // 暂停
+  PlayPause = 0xcd, // 播放/暂停
+  Stop = 0xb7, // 停止
+  NextTrack = 0xb5, // 下一曲
+  PrevTrack = 0xb6, // 上一曲
+  FastForward = 0xb3, // 快进
+  Rewind = 0xb4, // 倒带
+
+  // 音量控制
+  Mute = 0xe2, // 静音
+  VolumeUp = 0xe9, // 音量增加
+  VolumeDown = 0xea, // 音量减少
+
+  // 频道控制（适用于电视/机顶盒）
+  ChannelUp = 0x9c, // 频道增加
+  ChannelDown = 0x9d, // 频道减少
+
+  // 设备电源控制
+  Power = 0x30, // 设备电源
+  Sleep = 0x32, // 休眠
+  WakeUp = 0x33, // 唤醒
+
+  // 设备菜单/导航
+  Menu = 0x40, // 进入菜单
+  Home = 0x223, // 主屏幕（如电视或智能设备）
+  Back = 0x224, // 返回
+  Exit = 0x94, // 退出
+  Select = 0x41, // 确认/选择
+  Up = 0x42, // 向上
+  Down = 0x43, // 向下
+  Left = 0x44, // 向左
+  Right = 0x45, // 向右
+
+  // 应用程序快捷键
+  Calculator = 0x192, // 计算器
+  FileExplorer = 0x194, // 文件资源管理器
+  BrowserHome = 0x223, // 主页
+  BrowserBack = 0x224, // 浏览器后退
+  BrowserForward = 0x225, // 浏览器前进
+  BrowserRefresh = 0x227, // 刷新
+  BrowserFavorites = 0x22a, // 收藏夹
+  Email = 0x18a, // 电子邮件应用
+
+  // 远程控制（红外遥控相关）
+  Record = 0xb2, // 录制
+  Eject = 0xb8, // 弹出光盘
+  Subtitle = 0x102, // 字幕
+  Zoom = 0x194, // 缩放
+  RedButton = 0x182, // 红色按钮
+  GreenButton = 0x183, // 绿色按钮
+  YellowButton = 0x184, // 黄色按钮
+  BlueButton = 0x185, // 蓝色按钮
+}
+
+/** 修饰键的 HID 标准编码（8位，每一位代表一个修饰键）
+ *  通常：
+ *    bit0: LeftCtrl
+ *    bit1: LeftShift
+ *    bit2: LeftAlt
+ *    bit3: LeftMeta
+ *    bit4: RightCtrl
+ *    bit5: RightShift
+ *    bit6: RightAlt
+ *    bit7: RightMeta
+ */
+export enum KeyboardKeyModifier {
+  LeftCtrl = 0x01,
+  LeftShift = 0x02,
+  LeftAlt = 0x04,
+  LeftMeta = 0x08,
+  RightCtrl = 0x10,
+  RightShift = 0x20,
+  RightAlt = 0x40,
+  RightMeta = 0x80,
+}

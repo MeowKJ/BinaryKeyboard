@@ -1,27 +1,4 @@
-import type { KeyboardConfig, RawHIDData } from "@/types/keyboard";
-
-/** 修饰键的 HID 标准编码（8位，每一位代表一个修饰键）
- *  通常：
- *    bit0: LeftCtrl
- *    bit1: LeftShift
- *    bit2: LeftAlt
- *    bit3: LeftMeta
- *    bit4: RightCtrl
- *    bit5: RightShift
- *    bit6: RightAlt
- *    bit7: RightMeta
- */
-export enum Modifier {
-  LeftCtrl = 0x01,
-  LeftShift = 0x02,
-  LeftAlt = 0x04,
-  LeftMeta = 0x08,
-  RightCtrl = 0x10,
-  RightShift = 0x20,
-  RightAlt = 0x40,
-  RightMeta = 0x80,
-}
-
+import { KeyboardKeyModifier } from "./KeyboardHidEnums";
 /** 完整的 HID 映射表，将 event.code 映射为 HID 键码（8位数字） */
 export const HID_KEY_MAP: Record<string, number> = {
   // 错误及保留项
@@ -217,16 +194,18 @@ for (const code in HID_KEY_MAP) {
  * @param config KeyboardConfig 对象
  * @returns RawHIDData 对象，其中 modifier 为修饰键编码(uint8)，hid 为主键的 HID 数值
  */
-export function keyboardConfigToRawHID(config: KeyboardConfig): RawHIDData {
+export function keyboardConfigToRawHID(
+  config: KeyboardConfig
+): KeyBoardRawHIDData {
   let modifier = 0;
-  if (config.leftCtrlKey) modifier |= Modifier.LeftCtrl;
-  if (config.leftShiftKey) modifier |= Modifier.LeftShift;
-  if (config.leftAltKey) modifier |= Modifier.LeftAlt;
-  if (config.leftMetaKey) modifier |= Modifier.LeftMeta;
-  if (config.rightCtrlKey) modifier |= Modifier.RightCtrl;
-  if (config.rightShiftKey) modifier |= Modifier.RightShift;
-  if (config.rightAltKey) modifier |= Modifier.RightAlt;
-  if (config.rightMetaKey) modifier |= Modifier.RightMeta;
+  if (config.leftCtrlKey) modifier |= KeyboardKeyModifier.LeftCtrl;
+  if (config.leftShiftKey) modifier |= KeyboardKeyModifier.LeftShift;
+  if (config.leftAltKey) modifier |= KeyboardKeyModifier.LeftAlt;
+  if (config.leftMetaKey) modifier |= KeyboardKeyModifier.LeftMeta;
+  if (config.rightCtrlKey) modifier |= KeyboardKeyModifier.RightCtrl;
+  if (config.rightShiftKey) modifier |= KeyboardKeyModifier.RightShift;
+  if (config.rightAltKey) modifier |= KeyboardKeyModifier.RightAlt;
+  if (config.rightMetaKey) modifier |= KeyboardKeyModifier.RightMeta;
 
   const hid = HID_KEY_MAP[config.code] || 0;
   return { modifier, hid };
@@ -238,19 +217,21 @@ export function keyboardConfigToRawHID(config: KeyboardConfig): RawHIDData {
  * @param raw RawHIDData 对象
  * @returns KeyboardConfig 对象，其中 code 根据反向映射表还原，key 为空
  */
-export function rawHIDToKeyboardConfig(raw: RawHIDData): KeyboardConfig {
+export function rawHIDToKeyboardConfig(
+  raw: KeyBoardRawHIDData
+): KeyboardConfig {
   const code = REVERSE_HID_KEY_MAP[raw.hid] || "";
   return {
     key: "",
     code,
-    leftCtrlKey: !!(raw.modifier & Modifier.LeftCtrl),
-    leftShiftKey: !!(raw.modifier & Modifier.LeftShift),
-    leftAltKey: !!(raw.modifier & Modifier.LeftAlt),
-    leftMetaKey: !!(raw.modifier & Modifier.LeftMeta),
-    rightCtrlKey: !!(raw.modifier & Modifier.RightCtrl),
-    rightShiftKey: !!(raw.modifier & Modifier.RightShift),
-    rightAltKey: !!(raw.modifier & Modifier.RightAlt),
-    rightMetaKey: !!(raw.modifier & Modifier.RightMeta),
+    leftCtrlKey: !!(raw.modifier & KeyboardKeyModifier.LeftCtrl),
+    leftShiftKey: !!(raw.modifier & KeyboardKeyModifier.LeftShift),
+    leftAltKey: !!(raw.modifier & KeyboardKeyModifier.LeftAlt),
+    leftMetaKey: !!(raw.modifier & KeyboardKeyModifier.LeftMeta),
+    rightCtrlKey: !!(raw.modifier & KeyboardKeyModifier.RightCtrl),
+    rightShiftKey: !!(raw.modifier & KeyboardKeyModifier.RightShift),
+    rightAltKey: !!(raw.modifier & KeyboardKeyModifier.RightAlt),
+    rightMetaKey: !!(raw.modifier & KeyboardKeyModifier.RightMeta),
   };
 }
 
@@ -259,16 +240,18 @@ export function rawHIDToKeyboardConfig(raw: RawHIDData): KeyboardConfig {
  * @param config KeyboardConfig 对象
  * @returns 8 位修饰键编码
  */
-export function keyboardConfigToModifier(config: KeyboardConfig): number {
+export function keyboardConfigToKeyboardKeyModifier(
+  config: KeyboardConfig
+): number {
   let modifier = 0;
-  if (config.leftCtrlKey) modifier |= Modifier.LeftCtrl;
-  if (config.leftShiftKey) modifier |= Modifier.LeftShift;
-  if (config.leftAltKey) modifier |= Modifier.LeftAlt;
-  if (config.leftMetaKey) modifier |= Modifier.LeftMeta;
-  if (config.rightCtrlKey) modifier |= Modifier.RightCtrl;
-  if (config.rightShiftKey) modifier |= Modifier.RightShift;
-  if (config.rightAltKey) modifier |= Modifier.RightAlt;
-  if (config.rightMetaKey) modifier |= Modifier.RightMeta;
+  if (config.leftCtrlKey) modifier |= KeyboardKeyModifier.LeftCtrl;
+  if (config.leftShiftKey) modifier |= KeyboardKeyModifier.LeftShift;
+  if (config.leftAltKey) modifier |= KeyboardKeyModifier.LeftAlt;
+  if (config.leftMetaKey) modifier |= KeyboardKeyModifier.LeftMeta;
+  if (config.rightCtrlKey) modifier |= KeyboardKeyModifier.RightCtrl;
+  if (config.rightShiftKey) modifier |= KeyboardKeyModifier.RightShift;
+  if (config.rightAltKey) modifier |= KeyboardKeyModifier.RightAlt;
+  if (config.rightMetaKey) modifier |= KeyboardKeyModifier.RightMeta;
   return modifier;
 }
 
@@ -281,13 +264,13 @@ export function modifierToKeyboardConfig(
   modifier: number
 ): Partial<KeyboardConfig> {
   return {
-    leftCtrlKey: !!(modifier & Modifier.LeftCtrl),
-    leftShiftKey: !!(modifier & Modifier.LeftShift),
-    leftAltKey: !!(modifier & Modifier.LeftAlt),
-    leftMetaKey: !!(modifier & Modifier.LeftMeta),
-    rightCtrlKey: !!(modifier & Modifier.RightCtrl),
-    rightShiftKey: !!(modifier & Modifier.RightShift),
-    rightAltKey: !!(modifier & Modifier.RightAlt),
-    rightMetaKey: !!(modifier & Modifier.RightMeta),
+    leftCtrlKey: !!(modifier & KeyboardKeyModifier.LeftCtrl),
+    leftShiftKey: !!(modifier & KeyboardKeyModifier.LeftShift),
+    leftAltKey: !!(modifier & KeyboardKeyModifier.LeftAlt),
+    leftMetaKey: !!(modifier & KeyboardKeyModifier.LeftMeta),
+    rightCtrlKey: !!(modifier & KeyboardKeyModifier.RightCtrl),
+    rightShiftKey: !!(modifier & KeyboardKeyModifier.RightShift),
+    rightAltKey: !!(modifier & KeyboardKeyModifier.RightAlt),
+    rightMetaKey: !!(modifier & KeyboardKeyModifier.RightMeta),
   };
 }

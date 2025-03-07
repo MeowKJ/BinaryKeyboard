@@ -7,7 +7,7 @@
     </div>
 
     <KnobKeyboard v-if="deviceStore.device && (deviceStore.deviceModelNumber === KEYBOARD_MODEL.KNOB)"
-      v-model:key-config-list="deviceStore.keyboardKeyMappings" />
+      v-model:key-config-list="deviceStore.keyMappingsList" />
 
     <DeviceInfoCard :deviceInfoList="deviceStore.getDeviceInfoList()" @onDisconnect="disconnectDevice"
       v-show="deviceStore.device" />
@@ -45,7 +45,6 @@ const initDevice = async () => {
 
 const onGetReport = async (event: HIDInputReportEvent) => {
   if (event.reportId === REPORT_ID_RECEIVE) {
-    console.log('接收到键盘数据:', event);
     const data = event.data;
     const dataView = new DataView(data.buffer);
     //第一位 Command 指令
@@ -56,9 +55,11 @@ const onGetReport = async (event: HIDInputReportEvent) => {
     deviceStore.deviceModelNumber = dataView.getUint8(2);
     //从第三位开始为键盘映射数据，长度24位
     const uint8ArrayData = new Uint8Array(data.buffer, 3, 24);
-    deviceStore.setKeyboardKeyMappingsFromUint8Array(uint8ArrayData);
+    deviceStore.setkeyMappingsListFromUint8Array(uint8ArrayData);
 
-    console.log('键盘数据: ', dataView);
+    const hexData = Array.from(uint8ArrayData).map(byte => byte.toString(16).padStart(2, '0')).join(' ');
+    // 打印格式化后的 16 进制数据
+    console.log('键盘数据 (16进制): ', hexData);
   }
 }
 

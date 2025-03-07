@@ -1,4 +1,8 @@
-import type { KeyMapping } from "@/types/keyboard";
+import {
+  keyboardConfigToRawHID,
+  rawHIDToKeyboardConfig,
+} from "./keyboardHIDConverter";
+
 /**
  * 将包含 8 个键、每键 3 字节数据的 Uint8Array 解析为 KeyMapping 数组
  * @param data Uint8Array 数据，长度必须为 24 字节
@@ -16,20 +20,38 @@ export function parseKeyMappingsFromUint8Array(data: Uint8Array): KeyMapping[] {
     const byte3 = data[offset + 2];
     if (type === 0x01) {
       // 键盘：第二字节为修饰符，第三字节为按键
-      mappings.push({ type: 0x01, modifier: byte2, key: byte3 });
+      const KeyboardConfig = rawHIDToKeyboardConfig({
+        modifier: byte2,
+        hid: byte3,
+      });
+      mappings.push({ type: 0x01, value: KeyboardConfig });
     } else if (type === 0x02) {
       // 媒体：将第二、第三字节组合成一个 16 位数字（高位在前）
       const mediaData = (byte2 << 8) | byte3;
-      mappings.push({ type: 0x02, mediaData });
+      const MediaConfig = { key: mediaData };
+
+      mappings.push({ type: 0x02, value: MediaConfig });
     } else if (type === 0x03) {
-      // 鼠标：第二字节忽略，第三字节为鼠标数据
-      mappings.push({ type: 0x03, mouseData: byte3 });
+      // 鼠标：第二字节为滚轮数据，第三字节为鼠标数据
+      const MouseConfig = { key: byte3, wheel: byte2 };
+      mappings.push({ type: 0x03, value: MouseConfig });
     } else {
-      //初始化为键盘类型
-
-      mappings.push({ type: 0x01, modifier: 0, key: 0 });
-
-      throw new Error(`未知的按键类型: 0x${type.toString(16)}`);
+      console.warn(`未知的按键类型, 初始化为键盘类型`);
+      mappings.push({
+        type: 0x01,
+        value: {
+          key: "",
+          code: "KeyA",
+          leftMetaKey: false,
+          leftCtrlKey: false,
+          leftAltKey: false,
+          leftShiftKey: false,
+          rightMetaKey: false,
+          rightCtrlKey: false,
+          rightAltKey: false,
+          rightShiftKey: false,
+        },
+      });
     }
   }
   return mappings;
@@ -52,19 +74,20 @@ export function convertKeyMappingsToUint8Array(
     const mapping = mappings[i];
     data[offset] = mapping.type;
     if (mapping.type === 0x01) {
-      data[offset + 1] = mapping.modifier;
-      data[offset + 2] = mapping.key;
+      const rawHid = keyboardConfigToRawHID(mapping.value);
+      data[offset + 1] = rawHid.modifier;
+      data[offset + 2] = rawHid.hid;
     } else if (mapping.type === 0x02) {
-      data[offset + 1] = mapping.mediaData >> 8; // 高字节
-      data[offset + 2] = mapping.mediaData & 0xff; // 低字节
+      data[offset + 1] = mapping.value.key >> 8; // 高字节
+      data[offset + 2] = mapping.value.key & 0xff; // 低字节
     } else if (mapping.type === 0x03) {
-      data[offset + 1] = 0; // 保留为空
-      data[offset + 2] = mapping.mouseData;
+      data[offset + 1] = mapping.value.wheel;
+      data[offset + 2] = mapping.value.key;
     } else {
-      console.warn(`未知的按键类型, 初始化为键盘类型`);
-      data[offset] = 0x01; // 默认为键盘类型
+      data[offset] = 0x01;
       data[offset + 1] = 0;
       data[offset + 2] = 0;
+      console.warn(`未知的按键类型, 初始化为键盘类型`);
     }
   }
   return data;
