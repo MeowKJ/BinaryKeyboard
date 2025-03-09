@@ -8,7 +8,7 @@ import {
 import { mediaDescriptions } from "@/utils/hidConverters/mediaHIDConverter";
 
 import type { KeyMapping, ComparedKeyMappingString } from "@/types";
-import { KEY_TYPE_KETBOARD } from "@/utils/deviceConstants";
+import { KeyType } from "@/types";
 import { getKeyNameCombination } from "@/utils/hidConverters/keyboardHIDConverter";
 import { getMouseConfigString } from "@/utils/hidConverters/mouseHIDConverter";
 
@@ -107,15 +107,15 @@ export const useDeviceStore = defineStore("device", () => {
       };
 
       switch (km.type) {
-        case KEY_TYPE_KETBOARD:
+        case KeyType.KEBOARD:
           oldMapping.oldTypeString = "键盘";
           oldMapping.oldValue = getKeyNameCombination(km.value);
           break;
-        case 2:
+        case KeyType.MEDIA:
           oldMapping.oldTypeString = "多媒体";
           oldMapping.oldValue = mediaDescriptions[km.value.key];
           break;
-        case 3:
+        case KeyType.MOUSE:
           oldMapping.oldTypeString = "鼠标";
           oldMapping.oldValue = getMouseConfigString(km.value);
           break;
@@ -126,15 +126,15 @@ export const useDeviceStore = defineStore("device", () => {
       }
 
       switch (kmNew.type) {
-        case KEY_TYPE_KETBOARD:
+        case KeyType.KEBOARD:
           oldMapping.newTypeString = "键盘";
           oldMapping.newValue = getKeyNameCombination(kmNew.value);
           break;
-        case 2:
+        case KeyType.MEDIA:
           oldMapping.newTypeString = "多媒体";
           oldMapping.newValue = mediaDescriptions[kmNew.value.key];
           break;
-        case 3:
+        case KeyType.MOUSE:
           oldMapping.newTypeString = "鼠标";
           oldMapping.newValue = getMouseConfigString(kmNew.value);
           break;

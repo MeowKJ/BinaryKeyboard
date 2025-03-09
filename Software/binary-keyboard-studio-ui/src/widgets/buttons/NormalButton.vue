@@ -28,7 +28,8 @@ const getClassName = () => {
 <style scoped>
 .square-button,
 .round-button,
-.tall-button {
+.tall-button,
+.wide-button {
     font-size: 1.5em;
 }
 

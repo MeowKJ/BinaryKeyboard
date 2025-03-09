@@ -42,13 +42,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 
-import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, MediaHIDCode } from '@/types';
+import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, MediaHIDCode, KeyType } from '@/types';
 import KeyboardSelector from '@/widgets/selector/KeyboardSelector.vue';
 
-import { computed, ref, watch, onUnmounted } from 'vue';
+
 import { useDeviceStore } from '@/stores/deviceStore';
-import { KEY_TYPE_KETBOARD, KEY_TYPE_MEDIA, KEY_TYPE_MOUSE } from '@/utils/deviceConstants';
 import MouseSelector from './MouseSelector.vue';
 import MediaSelector from './MediaSelector.vue';
 
@@ -83,18 +83,19 @@ const onDialogOpen = () => {
     // 载入键位配置
     const currentKeyMapping = deviceStore.keyMappingsList[props.currentIndex];
     switch (currentKeyMapping.type) {
-        case KEY_TYPE_KETBOARD:
+        case KeyType.KEBOARD:
             tapValue.value = "0";
             keyConfig.value = currentKeyMapping.value
             break;
-        case KEY_TYPE_MOUSE:
-            tapValue.value = "2";
-            mouseConfig.value = currentKeyMapping.value
-            break;
-        case KEY_TYPE_MEDIA:
+        case KeyType.MEDIA:
             tapValue.value = "1";
             mediaConfig.value = currentKeyMapping.value
             break;
+        case KeyType.MOUSE:
+            tapValue.value = "2";
+            mouseConfig.value = currentKeyMapping.value
+            break;
+
     }
 
 }
@@ -103,19 +104,19 @@ const onDialogClose = () => {
     switch (tapValue.value) {
         case "0":
             deviceStore.keyMappingsList[props.currentIndex] = {
-                type: KEY_TYPE_KETBOARD,
+                type: KeyType.KEBOARD,
                 value: keyConfig.value
             };
             break;
         case "1":
             deviceStore.keyMappingsList[props.currentIndex] = {
-                type: KEY_TYPE_MEDIA,
+                type: KeyType.MEDIA,
                 value: mediaConfig.value
             };
             break;
         case "2":
             deviceStore.keyMappingsList[props.currentIndex] = {
-                type: KEY_TYPE_MOUSE,
+                type: KeyType.MOUSE,
                 value: mouseConfig.value
             };
             break;
