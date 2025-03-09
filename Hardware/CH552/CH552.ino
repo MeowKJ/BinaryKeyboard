@@ -6,79 +6,108 @@
 #include "src/KeysDataHandler.h"
 #include "src/CustomUSBHID.h"
 #include "src/USBHandler.h"
+#include <Arduino.h>  // 提供 millis()
 
 #ifdef USE_KNOB
-
-#define KEY_COUNT 5
-
-const uint8_t keyPins[KEY_COUNT] = { KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, ENCODER_KEY };
-bool encoderLeftPrev = false;
-const uint8_t key = KEY_HOME;
+  const uint8_t keyPins[KEY_COUNT] = { KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, ENCODER_KEY };
+  const uint8_t key = KEY_HOME;
 #endif
 
+#ifdef USE_BASIC
+  const uint8_t keyPins[KEY_COUNT] = { KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN };
+#endif  
 
+#ifdef USE_5KEYS
+  const uint8_t keyPins[KEY_COUNT] = {KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, KEY4_PIN};
+#endif
+
+// 全局按键状态变量
 bool keyPressPrev[KEY_COUNT] = { false };
-
 
 /**
  * @brief 处理按键状态变化
- * 按键比少，就不做ADD处理，直接发送了
  */
 void handleCommonKeyPress() {
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
-    bool keyPress = !digitalRead(keyPins[i]);
-
-    if (keyPressPrev[i] != keyPress) {
-      keyPressPrev[i] = keyPress;
+    bool currentKeyState = !digitalRead(keyPins[i]);
+    if (currentKeyState != keyPressPrev[i]) {
+      keyPressPrev[i] = currentKeyState;
       uint16_t keyValue = getKeyValue(i);
       uint8_t keyType = getKeyType(i);
 
       if (keyType == KEY_TYPE_KB) {
-        // 键盘
-        uint8_t key = keyValue & 0xFF; //取低8位
+        uint8_t keycode = keyValue & 0xFF;  // 取低8位
         uint8_t mod = (keyValue >> 8) & 0xFF;
-        keyPress ? Keyboard_rawPress(key, mod) : Keyboard_rawRelease(key, mod);
-
+        if (currentKeyState) {
+          Keyboard_rawPress(keycode, mod);
+        } else {
+          Keyboard_rawRelease(keycode, mod);
+        }
       } else if (keyType == KEY_TYPE_MEDIA) {
-        //媒体
-        keyPress ? Consumer_press(keyValue) : Consumer_release(keyValue);
-
+        if (currentKeyState) {
+          Consumer_press(keyValue);
+        } else {
+          Consumer_release(keyValue);
+        }
       } else if (keyType == KEY_TYPE_MOUSE) {
-        // 鼠标
-        keyPress ? Mouse_press((uint8_t)keyValue) : Mouse_release((uint8_t)keyValue);
+        uint8_t keycode = keyValue & 0xFF;
+        int8_t scroll = (int8_t)((keyValue >> 8) & 0xFF);
+        if (currentKeyState) {
+          Mouse_press(keycode);
+          Mouse_scroll(scroll);
+        } else {
+          Mouse_release(keycode);
+        }
       }
     }
   }
 }
 
-
 #ifdef USE_KNOB
+// 编码器旋转状态变量
+bool encoderLeftPrev = false;
+
 /**
  * @brief 处理编码器旋转事件
  */
 void handleEncoderRotation() {
   bool encoderLeft = digitalRead(ENCODER_LEFT);
-  if (encoderLeftPrev && !encoderLeft)  // 检测从1变0
-  {
+  // 检测下降沿
+  if (encoderLeftPrev && !encoderLeft) {
+    // 根据 ENCODER_RIGHT 的电平判断旋转方向
     if (digitalRead(ENCODER_RIGHT)) {
-      uint16_t encoderLeftValue = getKeyValue(ENCODER_LEFT_INDEX);
       uint8_t encoderLeftType = getKeyType(ENCODER_LEFT_INDEX);
+      uint16_t encoderLeftValue = getKeyValue(ENCODER_LEFT_INDEX);
       if (encoderLeftType == KEY_TYPE_MEDIA) {
         Consumer_write(encoderLeftValue);
       } else if (encoderLeftType == KEY_TYPE_KB) {
-        Keyboard_write((uint8_t)encoderLeftValue);
+        uint8_t keycode = encoderLeftValue & 0xFF;  // 取低8位
+        uint8_t mod = (encoderLeftValue >> 8) & 0xFF;
+        Keyboard_rawPress(keycode, mod);
+        Keyboard_rawRelease(keycode, mod);
       } else if (encoderLeftType == KEY_TYPE_MOUSE) {
-        Mouse_click((uint8_t)encoderLeftValue);
+        uint8_t keycode = encoderLeftValue & 0xFF;
+        int8_t scroll = (int8_t)((encoderLeftValue >> 8) & 0xFF);
+        Mouse_press(keycode);
+        Mouse_release(keycode);
+        Mouse_scroll(scroll);
       }
     } else {
-      uint16_t encoderRightValue = getKeyValue(ENCODER_RIGHT_INDEX);
       uint8_t encoderRightType = getKeyType(ENCODER_RIGHT_INDEX);
+      uint16_t encoderRightValue = getKeyValue(ENCODER_RIGHT_INDEX);
       if (encoderRightType == KEY_TYPE_MEDIA) {
         Consumer_write(encoderRightValue);
       } else if (encoderRightType == KEY_TYPE_KB) {
-        Keyboard_write((uint8_t)encoderRightValue);
+        uint8_t keycode = encoderRightValue & 0xFF;  // 取低8位
+        uint8_t mod = (encoderRightValue >> 8) & 0xFF;
+        Keyboard_rawPress(keycode, mod);
+        Keyboard_rawRelease(keycode, mod);
       } else if (encoderRightType == KEY_TYPE_MOUSE) {
-        Mouse_click((uint8_t)encoderRightValue);
+        uint8_t keycode = encoderRightValue & 0xFF;
+        int8_t scroll = (int8_t)((encoderRightValue >> 8) & 0xFF);
+        Mouse_press(keycode);
+        Mouse_release(keycode);
+        Mouse_scroll(scroll);
       }
     }
   }
@@ -91,7 +120,7 @@ void setup() {
   KeysDataInit();
   pinMode(LED_PIN, OUTPUT);
 
-  // 初始化按键
+  // 初始化按键引脚
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
     pinMode(keyPins[i], INPUT_PULLUP);
   }
@@ -103,7 +132,7 @@ void setup() {
 }
 
 void loop() {
-  handleCommonKeyPress();  // 处理基础按键
+  handleCommonKeyPress();
 
 #ifdef USE_KNOB
   handleEncoderRotation();

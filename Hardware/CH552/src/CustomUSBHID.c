@@ -6,6 +6,7 @@
 #include "USBHandler.h"
 #include "KeysDataHandler.h"
 #include "KeysDataHandler.h"
+#include "config.h"
 // clang-format on
 
 // clang-format off
@@ -464,8 +465,10 @@ uint8_t Mouse_move(__data int8_t x, __xdata int8_t y) {
 }
 
 uint8_t Mouse_scroll(__data int8_t tilt) {
+  if(tilt == 0) return 0;
   HIDMouse[3] = tilt;
   USB_EP1_send(3);
+  HIDMouse[3] = 0;
   return 1;
 }
 

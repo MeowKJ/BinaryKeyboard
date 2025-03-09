@@ -2,13 +2,16 @@
 #define __CONFIG_H__
 
 // 基础款
-//#define USE_BASIC
+#define USE_BASIC
 
 // 旋钮款
-#define USE_KNOB
+//#define USE_KNOB
 
 //五键款
 //#define USE_5KEYS
+
+
+#define CURRENT_FW_VERSION      0x08
 
 
 #define LED_PIN 11
@@ -16,6 +19,8 @@
 
 
 #ifdef USE_BASIC
+#define EXPECT_DEVICE_TYPE 0x01
+
 #define KEY_COUNT 4
 
 #define KEY0_PIN 33
@@ -25,6 +30,7 @@
 #endif
 
 #ifdef USE_KNOB
+#define EXPECT_DEVICE_TYPE 0x02
 
 #define KEY_COUNT 5
 #define LED_PIN 11
@@ -45,13 +51,15 @@
 #endif
 
 #ifdef USE_5KEYS
+#define EXPECT_DEVICE_TYPE 0x03
 
 #define KEY_COUNT 5
 #define LED_PIN 11
-#define KEY0_PIN 34
-#define KEY1_PIN 14
-#define KEY2_PIN 33
+#define KEY0_PIN 33
+#define KEY1_PIN 34
+#define KEY2_PIN 14
 #define KEY3_PIN 31
+#define KEY4_PIN 30
 
 #endif
 
