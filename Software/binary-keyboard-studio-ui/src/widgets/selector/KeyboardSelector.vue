@@ -38,7 +38,7 @@ const keyConfig = computed({
 });
 
 const buttonLabel = computed(() => {
-    return keyConfig.value.key || keyConfig.value.code || "无输入";
+    return keyConfig.value.code || keyConfig.value.key || "无输入";
 });
 
 
