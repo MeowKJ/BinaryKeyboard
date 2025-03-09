@@ -1,11 +1,16 @@
 import { defineStore } from "pinia";
-import { ref, readonly } from "vue";
+import { ref } from "vue";
 import {
   parseKeyMappingsFromUint8Array,
   convertKeyMappingsToUint8Array,
-} from "@/utils/keyMappingConverter";
+} from "@/utils/hidConverters/keyMappingConverter";
 
-import type { KeyMapping } from "@/types";
+import { mediaDescriptions } from "@/utils/hidConverters/mediaHIDConverter";
+
+import type { KeyMapping, ComparedKeyMappingString } from "@/types";
+import { KEY_TYPE_KETBOARD } from "@/utils/deviceConstants";
+import { getKeyNameCombination } from "@/utils/hidConverters/keyboardHIDConverter";
+import { getMouseConfigString } from "@/utils/hidConverters/mouseHIDConverter";
 
 export const useDeviceStore = defineStore("device", () => {
   // 设备信息
@@ -82,6 +87,69 @@ export const useDeviceStore = defineStore("device", () => {
     return convertKeyMappingsToUint8Array(keyMappingsList.value);
   };
 
+  /**
+   * 获取当前的按键映射数据的字符串表示
+   */
+  const getComparedKeyMappingsListAsString = (): ComparedKeyMappingString[] => {
+    let KeyMappingStringList: ComparedKeyMappingString[] = [];
+    const length = keyMappingsListOriginal.value.length;
+
+    for (let i = 0; i < length; i++) {
+      const km = keyMappingsListOriginal.value[i];
+      const kmNew = keyMappingsList.value[i];
+
+      const oldMapping: ComparedKeyMappingString = {
+        index: i,
+        oldTypeString: "",
+        oldValue: "",
+        newTypeString: "",
+        newValue: "",
+      };
+
+      switch (km.type) {
+        case KEY_TYPE_KETBOARD:
+          oldMapping.oldTypeString = "键盘";
+          oldMapping.oldValue = getKeyNameCombination(km.value);
+          break;
+        case 2:
+          oldMapping.oldTypeString = "多媒体";
+          oldMapping.oldValue = mediaDescriptions[km.value.key];
+          break;
+        case 3:
+          oldMapping.oldTypeString = "鼠标";
+          oldMapping.oldValue = getMouseConfigString(km.value);
+          break;
+        default:
+          oldMapping.oldTypeString = "未知";
+          oldMapping.oldValue = "";
+          break;
+      }
+
+      switch (kmNew.type) {
+        case KEY_TYPE_KETBOARD:
+          oldMapping.newTypeString = "键盘";
+          oldMapping.newValue = getKeyNameCombination(kmNew.value);
+          break;
+        case 2:
+          oldMapping.newTypeString = "多媒体";
+          oldMapping.newValue = mediaDescriptions[kmNew.value.key];
+          break;
+        case 3:
+          oldMapping.newTypeString = "鼠标";
+          oldMapping.newValue = getMouseConfigString(kmNew.value);
+          break;
+        default:
+          oldMapping.newTypeString = "未知";
+          oldMapping.newValue = "";
+          break;
+      }
+
+      KeyMappingStringList.push(oldMapping);
+    }
+
+    return KeyMappingStringList;
+  };
+
   return {
     device,
     deviceFirmwareVersion,
@@ -92,5 +160,6 @@ export const useDeviceStore = defineStore("device", () => {
     getDeviceInfoList,
     setkeyMappingsListFromUint8Array,
     getkeyMappingsListAsUint8Array,
+    getComparedKeyMappingsListAsString,
   };
 });

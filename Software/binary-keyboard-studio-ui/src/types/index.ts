@@ -15,6 +15,7 @@ export interface KeyboardConfig {
   rightCtrlKey: boolean;
   rightAltKey: boolean;
   rightShiftKey: boolean;
+  str?: string;
 }
 
 /** 原始 HID 数据类型：包含一个8位修饰键编码和一个8位 HID 编码 */
@@ -36,6 +37,14 @@ export type KeyMapping =
   | { type: 1; value: KeyboardConfig }
   | { type: 2; value: MediaConfig }
   | { type: 3; value: MouseConfig };
+
+export interface ComparedKeyMappingString {
+  index: number;
+  oldTypeString: string;
+  oldValue: string;
+  newTypeString: string;
+  newValue: string;
+}
 
 export enum MouseButtonHID {
   None = 0x00, // 无按键

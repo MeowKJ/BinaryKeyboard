@@ -8,6 +8,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppFooter: typeof import('./src/components/AppFooter.vue')['default']
     AutoComplete: typeof import('primevue/autocomplete')['default']
     Avatar: typeof import('primevue/avatar')['default']
     Badge: typeof import('primevue/badge')['default']
@@ -49,6 +50,7 @@ declare module 'vue' {
     Tabs: typeof import('primevue/tabs')['default']
     Tag: typeof import('primevue/tag')['default']
     TheWelcome: typeof import('./src/components/TheWelcome.vue')['default']
+    Toast: typeof import('primevue/toast')['default']
     WelcomeItem: typeof import('./src/components/WelcomeItem.vue')['default']
   }
 }

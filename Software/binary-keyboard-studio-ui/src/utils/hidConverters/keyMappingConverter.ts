@@ -4,7 +4,6 @@ import {
   keyboardConfigToRawHID,
   rawHIDToKeyboardConfig,
 } from "./keyboardHIDConverter";
-import type { button } from "@primeuix/themes/aura/inputnumber";
 
 /**
  * 将包含 8 个键、每键 3 字节数据的 Uint8Array 解析为 KeyMapping 数组

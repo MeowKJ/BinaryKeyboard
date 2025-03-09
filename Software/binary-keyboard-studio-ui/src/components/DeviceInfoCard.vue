@@ -1,6 +1,4 @@
 <template>
-    <Divider />
-
     <Card class="device-info">
         <template #header>
             <h2>设备信息</h2>
@@ -29,6 +27,7 @@ defineEmits(["onDisconnect"]); // 使用 on 开头的事件名
 
 <style scoped>
 .device-info {
+    text-align: center;
     min-width: 300px;
     margin-top: 20px;
     margin: 0 auto;

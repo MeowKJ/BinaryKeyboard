@@ -15,13 +15,15 @@
             <span class="modifireKeysLabel">Right: </span>
             <SelectButton v-model="rightModifierKeysValue" :options="modifierKeysList" multiple />
         </p>
-        <p> {{ getKeyNameCombination() }}</p>
+        <p> {{ getKeyNameCombination(keyConfig) }}</p>
     </div>
 </template>
 
 <script setup lang="ts">
 import type { KeyboardConfig } from '@/types';
 import { computed, watch, onUnmounted, ref } from 'vue';
+import { getKeyNameCombination } from '@/utils/hidConverters/keyboardHIDConverter';
+
 
 const props = defineProps<{ keyConfig: KeyboardConfig; tapValue: string; }>();
 const emit = defineEmits(["update:keyConfig", "onKeyboardListen"]);
@@ -75,18 +77,6 @@ const rightModifierKeysValue = computed({
         keyConfig.value.rightShiftKey = value.includes("Shift");
     },
 });
-const getKeyNameCombination = () => {
-    const keys = new Set<string>(); // 使用 Set 自动去重
-
-    leftModifierKeysValue.value.forEach((key) => keys.add(`L${key}`));
-    rightModifierKeysValue.value.forEach((key) => keys.add(`R${key}`));
-
-    if (keyConfig.value.key) {
-        keys.add(keyConfig.value.code); // 加入主按键
-    }
-
-    return Array.from(keys).join(" + ");
-};
 
 
 let lastLocation = 0;
@@ -209,7 +199,6 @@ const stopListenKeyboard = () => {
 }
 
 onUnmounted(() => {
-
     stopListenKeyboard();
 });
 
