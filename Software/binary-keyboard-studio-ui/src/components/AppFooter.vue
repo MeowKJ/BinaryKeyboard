@@ -49,7 +49,7 @@ const socialLinks = ref([
     {
         name: 'oshwhub',
         icon: 'pi pi-microchip',
-        url: 'https://twitter.com/yourprofile'
+        url: 'https://oshwhub.com/kjpig/Binary-Keyboard'
     },
     {
         name: 'email',
