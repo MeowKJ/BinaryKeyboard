@@ -20,8 +20,6 @@ extern "C" {
 #define EEPROM_KEYDATA_START    0x02
 #define KEY_CONFIG_SIZE         3
 
-#define CURRENT_FW_VERSION      0x07
-#define EXPECT_DEVICE_TYPE      0x02
 
 #define HOST_READ 0x01
 
