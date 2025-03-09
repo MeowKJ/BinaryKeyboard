@@ -1,3 +1,5 @@
+import { KeyboardType } from "@/types";
+
 export const KEYBOARD_FILTER: HIDDeviceFilter = {
   vendorId: 0x1209,
   productId: 0xc55d,
@@ -12,13 +14,12 @@ export const CMD_KEYBOARD_SEND = 0x02; // 键盘发送数据
 export const CMD_HOST_REQUEST = 0x03; // 主机请求数据
 export const CMD_HOST_SEND = 0x04; // 主机发送数据
 
-export const KEYBOARD_MODEL = {
-  UNKNOWN: 0,
-  BASIC: 1,
-  KNOB: 2,
-  FIVE_KEY: 3,
-};
+// export const BASIC_KEY_COUNT = 4; // 基础键盘可配置按键数量
+// export const KNOB_KEY_COUNT = 7; // 旋钮键盘可配置按键数量
+// export const FIVE_KEY_COUNT = 5; // 五键键盘可配置按键数量
 
-export const KEY_TYPE_KETBOARD = 0x01; // 键盘
-export const KEY_TYPE_MEDIA = 0x02; // 媒体
-export const KEY_TYPE_MOUSE = 0x03; // 鼠标
+export const KeyboardKeyCount = {
+  [KeyboardType.BASIC]: 4,
+  [KeyboardType.KNOB]: 7,
+  [KeyboardType.FIVE_KEYS]: 5,
+};

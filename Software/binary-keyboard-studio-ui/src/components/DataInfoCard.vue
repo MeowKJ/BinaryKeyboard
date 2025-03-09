@@ -33,12 +33,17 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
+import { KeyboardKeyCount } from "@/utils/deviceConstants";
 
 const emit = defineEmits(["onSend"]);
 const deviceStore = useDeviceStore();
 
-// 计算属性，避免每次渲染时都调用函数
-const comparedKeyMappings = computed(() => deviceStore.getComparedKeyMappingsListAsString());
+const comparedKeyMappings = computed(() => {
+    const deviceType = deviceStore.deviceModelNumber;
+    if (!deviceType) return [];
+    const keyCount = KeyboardKeyCount[deviceType as keyof typeof KeyboardKeyCount];
+    return deviceStore.getComparedKeyMappingsListAsString().slice(0, keyCount);
+});
 
 const stockSeverityValue = (data: any) => {
     if (data.newValue !== data.oldValue) return 'warn';

@@ -2,10 +2,10 @@
 #define __CONFIG_H__
 
 // 基础款
-#define USE_BASIC
+//#define USE_BASIC
 
 // 旋钮款
-//#define USE_KNOB
+#define USE_KNOB
 
 //五键款
 //#define USE_5KEYS
@@ -25,8 +25,8 @@
 
 #define KEY0_PIN 33
 #define KEY1_PIN 34
-#define KEY2_PIN 31
-#define KEY3_PIN 30
+#define KEY2_PIN 30
+#define KEY3_PIN 31
 #endif
 
 #ifdef USE_KNOB

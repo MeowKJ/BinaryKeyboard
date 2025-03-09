@@ -4,6 +4,18 @@ export type ButtonType =
   | "horizontal-bar"
   | "vertical-bar";
 
+export enum KeyboardType {
+  BASIC = 0x01,
+  KNOB = 0x02,
+  FIVE_KEYS = 0x03,
+}
+
+export enum KeyType {
+  KEBOARD = 0x01,
+  MEDIA = 0x02,
+  MOUSE = 0x03,
+}
+
 export interface KeyboardConfig {
   key: string; // 原始按键字符（无法通过 HID 完全还原时置为空）
   code: string; // 对应 event.code

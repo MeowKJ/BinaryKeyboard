@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { WebHidTools } from '@/utils/WebHidTools';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { defineProps, defineEmits } from 'vue';
+import { defineProps } from 'vue';
 
 const props = defineProps<{
   filters: HIDDeviceFilter[];
 }>();
 
-const emit = defineEmits(['onDeviceConnected']); // 事件定义
+const emit = defineEmits(['onDeviceConnected']);
 const deviceStore = useDeviceStore();
 
 const selectDevice = async () => {
