@@ -276,3 +276,26 @@ export function modifierToKeyboardConfig(
     rightMetaKey: !!(modifier & KeyboardKeyModifier.RightMeta),
   };
 }
+
+export const getKeyNameCombination = (keyConfig: KeyboardConfig) => {
+  const keys = new Set<string>(); // 使用 Set 自动去重
+  let leftModifierKeysValue = new Set<string>();
+  let rightModifierKeysValue = new Set<string>();
+
+  if (keyConfig.leftCtrlKey) leftModifierKeysValue.add("Ctrl");
+  if (keyConfig.leftShiftKey) leftModifierKeysValue.add("Shift");
+  if (keyConfig.leftAltKey) leftModifierKeysValue.add("Alt");
+  if (keyConfig.leftMetaKey) leftModifierKeysValue.add("Meta");
+  if (keyConfig.rightCtrlKey) rightModifierKeysValue.add("Ctrl");
+  if (keyConfig.rightShiftKey) rightModifierKeysValue.add("Shift");
+  if (keyConfig.rightAltKey) rightModifierKeysValue.add("Alt");
+  if (keyConfig.rightMetaKey) rightModifierKeysValue.add("Meta");
+
+  leftModifierKeysValue.forEach((key) => keys.add(`L${key}`));
+  rightModifierKeysValue.forEach((key) => keys.add(`R${key}`));
+
+  if (keyConfig.code) {
+    keys.add(keyConfig.code); // 加入主按键
+  }
+  return Array.from(keys).join(" + ");
+};
