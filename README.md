@@ -1,6 +1,5 @@
 <p align="center">
   <img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300">
-  
 </p>
 
 <p align="center">
@@ -8,8 +7,6 @@
 </p>
 
 <hr>
-
-# 目前Web改键正在开发中...暂时无法正常使用
 
 # 配置开发环境
 
@@ -25,9 +22,6 @@
 2. 在弹出的窗口中，添加以下链接：
 https://cos.thinkcreate.us/package_ch55xduino_mcs51_newest_cloudflare_index.json
 
-markdown
-复制
-编辑
 3. 然后点击 **确定**。
 
 ## 4. 安装 CH55xDuino 包
@@ -44,6 +38,22 @@ markdown
 
 1. 点击 **工具** -> **USB Setting**，选择 **USER CODE w/148B USB ram**。
 
-## 7. 上传代码
+## 7. 配置按键版本 | Key Version Configuration
 
-初次使用时，可能需要断开板子与电脑的连接，然后按住 **BOOT** 按钮进入 Bootloader 模式。你可以编译并上传代码到开发板。
+根据你使用的不同按键版本，修改 `config.h` 文件中的注释来启用对应的版本：
+
+```c
+// 基础款
+//#define USE_BASIC
+
+// 旋钮款
+//#define USE_KNOB
+
+// 五键款
+//#define USE_5KEYS
+```
+
+## 8. 上传代码
+
+初次使用时，可能需要断开板子与电脑的连接，然后按住 **BOOT** 按钮 ( 距离边缘更近的那个 ) 的同时连接到电脑从而进入 Bootloader 模式。你可以编译并上传代码到开发板。
+
