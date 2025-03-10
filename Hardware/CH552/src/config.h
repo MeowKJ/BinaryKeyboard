@@ -2,16 +2,16 @@
 #define __CONFIG_H__
 
 // 基础款
-//#define USE_BASIC
+#define USE_BASIC
 
 // 旋钮款
-#define USE_KNOB
+// #define USE_KNOB
 
 //五键款
 //#define USE_5KEYS
 
 
-#define CURRENT_FW_VERSION      0x08
+#define CURRENT_FW_VERSION      0x09
 
 
 #define LED_PIN 11
