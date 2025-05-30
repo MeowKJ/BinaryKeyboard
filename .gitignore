@@ -82,3 +82,6 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+#wch mounstudio
+obj/
