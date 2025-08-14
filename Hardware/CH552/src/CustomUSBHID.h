@@ -105,6 +105,7 @@ extern "C" {
 
   uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod);
   uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod);
+  void Keyboard_sendReport(__data uint8_t mod, __near uint8_t *keys);
 
   uint8_t Consumer_press(__data uint16_t k);
   uint8_t Consumer_release(__data uint16_t k);

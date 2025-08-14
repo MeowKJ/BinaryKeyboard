@@ -1,6 +1,7 @@
 // clang-format off
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "CustomUSBHID.h"
 #include "USBConstant.h"
 #include "USBHandler.h"
@@ -368,6 +369,22 @@ uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod) {
     }
   }
   return 0;
+}
+
+void Keyboard_sendReport(__data uint8_t mod, __near uint8_t *keys) {
+  // 设置修饰键
+  HIDKey[0] = mod;
+  
+  // 清空之前的按键
+  memset(HIDKey + 2, 0, 6);
+  
+  // 填充新按键（最多6个）
+  for (uint8_t i = 0; i < 6 && keys[i] != 0; i++) {
+    HIDKey[i + 2] = keys[i];
+  }
+  
+  // 发送报告
+  USB_EP1_send(1);
 }
 
 
