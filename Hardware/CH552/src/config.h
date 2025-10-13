@@ -11,10 +11,15 @@
 //#define USE_5KEYS
 
 
-#define CURRENT_FW_VERSION      0x09
+#define CURRENT_FW_VERSION      0x0A
 
 
 #define LED_PIN 11
+
+//RGB配置
+#define RGB_PIN 15
+#define NUM_LEDS    4
+
 #define FUNC_PIN 32
 
 
