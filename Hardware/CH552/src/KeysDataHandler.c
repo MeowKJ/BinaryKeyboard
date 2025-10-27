@@ -32,8 +32,8 @@ static void initDefaultConfig(void) {
     { KEY_TYPE_KB, 0x0006 },
     { KEY_TYPE_KB, 0x0007 },
     { KEY_TYPE_MOUSE, 0x0001 },  // 鼠标左键
-    { KEY_TYPE_MEDIA, 0xE9 },    // 音量-
-    { KEY_TYPE_MEDIA, 0xEA },    // 音量+
+    { KEY_TYPE_MEDIA, 0xEA },    // 音量-
+    { KEY_TYPE_MEDIA, 0xE9 },    // 音量+
     { KEY_TYPE_INVALID, 0 }
   };
 #endif
