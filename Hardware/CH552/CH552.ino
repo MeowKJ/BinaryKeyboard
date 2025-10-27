@@ -84,6 +84,9 @@ void handleCommonKeyPress() {
   uint8_t keyCount = 0;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
   // 收集所有按键状态
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
     uint16_t keyValue = getKeyValue(i);
@@ -92,6 +95,7 @@ void handleCommonKeyPress() {
     if (keyType == KEY_TYPE_KB) {
       // 键盘按键只在按下时处理
       if (keyState[i]) {
+<<<<<<< HEAD
 =======
   // 收集所有按下的按键
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
@@ -101,6 +105,8 @@ void handleCommonKeyPress() {
 
       if (keyType == KEY_TYPE_KB) {
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
         uint8_t keycode = keyValue & 0xFF;
         uint8_t mod = (keyValue >> 8) & 0xFF;
 
@@ -112,6 +118,9 @@ void handleCommonKeyPress() {
           keyReportBuffer[keyCount++] = keycode;
         }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
       }
     } else if (keyType == KEY_TYPE_MEDIA) {
       // 媒体键需要状态变化时处理
@@ -141,6 +150,7 @@ void handleCommonKeyPress() {
         } else {  // 按键释放
           // 释放鼠标按钮
           if (keycode != 0) {
+<<<<<<< HEAD
 =======
       } else if (keyType == KEY_TYPE_MEDIA) {
         // 媒体键仍然需要单独处理
@@ -161,18 +171,26 @@ void handleCommonKeyPress() {
             Mouse_scroll(scroll);
           } else {
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
             Mouse_release(keycode);
           }
         }
       }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
       // 确保长按状态正确 - 只有在状态变化或按键确实被按下时才保持按下状态
       if (keyState[i] && keycode != 0 && keyState[i] == keyPressPrev[i]) {
         // 按键状态稳定保持按下，确保鼠标按钮仍处于按下状态
         Mouse_press(keycode);
       }
+<<<<<<< HEAD
 =======
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
     }
     // 更新按键状态历史
     keyPressPrev[i] = keyState[i];
@@ -208,6 +226,9 @@ void handleEffectControl() {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
 #ifdef USE_KNOB
 // 编码器旋转状态变量
 bool encoderLeftPrev = false;
@@ -261,20 +282,29 @@ void handleEncoderRotation() {
 }
 #endif
 
+<<<<<<< HEAD
 =======
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
 // ==================== 主循环 ====================
 void loop() {
   handleCommonKeyPress();
   handleEffectControl();
   
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
 #ifdef USE_KNOB
   handleEncoderRotation();
 #endif
   
+<<<<<<< HEAD
 =======
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
   updateLEDs();
   digitalWrite(LED_PIN, HIGH);  // 状态 LED 常亮
   delay(10);
@@ -294,6 +324,9 @@ void setup() {
   pinMode(RGB_PIN, OUTPUT);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> fix-key
 #ifdef USE_KNOB
   // 初始化编码器引脚
   pinMode(ENCODER_LEFT, INPUT_PULLUP);
@@ -302,8 +335,11 @@ void setup() {
   encoderLeftPrev = digitalRead(ENCODER_LEFT);
 #endif
 
+<<<<<<< HEAD
 =======
 >>>>>>> upstream/classic-keyboard
+=======
+>>>>>>> fix-key
   // 初始化 WS2812
   led_init();
 
