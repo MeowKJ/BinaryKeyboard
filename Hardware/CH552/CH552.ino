@@ -83,7 +83,6 @@ void handleCommonKeyPress() {
   modReport = 0;
   uint8_t keyCount = 0;
 
-<<<<<<< HEAD
   // 收集所有按键状态
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
     uint16_t keyValue = getKeyValue(i);
@@ -92,15 +91,6 @@ void handleCommonKeyPress() {
     if (keyType == KEY_TYPE_KB) {
       // 键盘按键只在按下时处理
       if (keyState[i]) {
-=======
-  // 收集所有按下的按键
-  for (uint8_t i = 0; i < KEY_COUNT; i++) {
-    if (keyState[i]) {
-      uint16_t keyValue = getKeyValue(i);
-      uint8_t keyType = getKeyType(i);
-
-      if (keyType == KEY_TYPE_KB) {
->>>>>>> 044abfe (fix:修复编码器的初始化 待修复:鼠标长按的问题)
         uint8_t keycode = keyValue & 0xFF;
         uint8_t mod = (keyValue >> 8) & 0xFF;
 
@@ -111,7 +101,6 @@ void handleCommonKeyPress() {
         if (keycode != 0 && keyCount < MAX_KEYS_REPORT) {
           keyReportBuffer[keyCount++] = keycode;
         }
-<<<<<<< HEAD
       }
     } else if (keyType == KEY_TYPE_MEDIA) {
       // 媒体键需要状态变化时处理
@@ -141,47 +130,15 @@ void handleCommonKeyPress() {
         } else {  // 按键释放
           // 释放鼠标按钮
           if (keycode != 0) {
-=======
-      } else if (keyType == KEY_TYPE_MEDIA) {
-        // 媒体键仍然需要单独处理
-        if (keyState[i] != keyPressPrev[i]) {
-          if (keyState[i]) {
-            Consumer_press(keyValue);
-          } else {
-            Consumer_release(keyValue);
-          }
-        }
-      } else if (keyType == KEY_TYPE_MOUSE) {
-        // 鼠标键仍然需要单独处理
-        if (keyState[i] != keyPressPrev[i]) {
-          uint8_t keycode = keyValue & 0xFF;
-          int8_t scroll = (int8_t)((keyValue >> 8) & 0xFF);
-          if (keyState[i]) {
-            // 先执行鼠标点击
-            if (keycode != 0) {
-              Mouse_press(keycode);
-              // 添加短暂延迟确保点击被正确处理
-              delayMicroseconds(50);
-              Mouse_release(keycode);
-            }
-            // 再执行滚轮操作
-            if (scroll != 0) {
-              Mouse_scroll(scroll);
-            }
-          } else {
->>>>>>> 044abfe (fix:修复编码器的初始化 待修复:鼠标长按的问题)
             Mouse_release(keycode);
           }
         }
       }
-<<<<<<< HEAD
       // 确保长按状态正确 - 只有在状态变化或按键确实被按下时才保持按下状态
       if (keyState[i] && keycode != 0 && keyState[i] == keyPressPrev[i]) {
         // 按键状态稳定保持按下，确保鼠标按钮仍处于按下状态
         Mouse_press(keycode);
       }
-=======
->>>>>>> 044abfe (fix:修复编码器的初始化 待修复:鼠标长按的问题)
     }
     // 更新按键状态历史
     keyPressPrev[i] = keyState[i];
