@@ -83,13 +83,14 @@ void handleCommonKeyPress() {
   modReport = 0;
   uint8_t keyCount = 0;
 
-  // 收集所有按下的按键
+  // 收集所有按键状态
   for (uint8_t i = 0; i < KEY_COUNT; i++) {
-    if (keyState[i]) {
-      uint16_t keyValue = getKeyValue(i);
-      uint8_t keyType = getKeyType(i);
+    uint16_t keyValue = getKeyValue(i);
+    uint8_t keyType = getKeyType(i);
 
-      if (keyType == KEY_TYPE_KB) {
+    if (keyType == KEY_TYPE_KB) {
+      // 键盘按键只在按下时处理
+      if (keyState[i]) {
         uint8_t keycode = keyValue & 0xFF;
         uint8_t mod = (keyValue >> 8) & 0xFF;
 
@@ -100,27 +101,43 @@ void handleCommonKeyPress() {
         if (keycode != 0 && keyCount < MAX_KEYS_REPORT) {
           keyReportBuffer[keyCount++] = keycode;
         }
-      } else if (keyType == KEY_TYPE_MEDIA) {
-        // 媒体键仍然需要单独处理
-        if (keyState[i] != keyPressPrev[i]) {
-          if (keyState[i]) {
-            Consumer_press(keyValue);
-          } else {
-            Consumer_release(keyValue);
-          }
+      }
+    } else if (keyType == KEY_TYPE_MEDIA) {
+      // 媒体键需要状态变化时处理
+      if (keyState[i] != keyPressPrev[i]) {
+        if (keyState[i]) {
+          Consumer_press(keyValue);
+        } else {
+          Consumer_release(keyValue);
         }
-      } else if (keyType == KEY_TYPE_MOUSE) {
-        // 鼠标键仍然需要单独处理
-        if (keyState[i] != keyPressPrev[i]) {
-          uint8_t keycode = keyValue & 0xFF;
-          int8_t scroll = (int8_t)((keyValue >> 8) & 0xFF);
-          if (keyState[i]) {
+      }
+    } else if (keyType == KEY_TYPE_MOUSE) {
+      // 鼠标键处理 - 无论按下还是释放都需要处理
+      uint8_t keycode = keyValue & 0xFF;
+      int8_t scroll = (int8_t)((keyValue >> 8) & 0xFF);
+      
+      // 当物理按键状态发生变化时处理
+      if (keyState[i] != keyPressPrev[i]) {
+        if (keyState[i]) {  // 按键按下
+          // 按下鼠标按钮
+          if (keycode != 0) {
             Mouse_press(keycode);
+          }
+          // 执行滚轮操作（仅在按下时执行一次）
+          if (scroll != 0) {
             Mouse_scroll(scroll);
-          } else {
+          }
+        } else {  // 按键释放
+          // 释放鼠标按钮
+          if (keycode != 0) {
             Mouse_release(keycode);
           }
         }
+      }
+      // 确保长按状态正确 - 只有在状态变化或按键确实被按下时才保持按下状态
+      if (keyState[i] && keycode != 0 && keyState[i] == keyPressPrev[i]) {
+        // 按键状态稳定保持按下，确保鼠标按钮仍处于按下状态
+        Mouse_press(keycode);
       }
     }
     // 更新按键状态历史
@@ -156,10 +173,67 @@ void handleEffectControl() {
   funcPressedPrev = funcCurrent;
 }
 
+#ifdef USE_KNOB
+// 编码器旋转状态变量
+bool encoderLeftPrev = false;
+
+
+/** 
+ * @brief 处理编码器旋转事件 
+ */
+void handleEncoderRotation() {
+  bool encoderLeft = digitalRead(ENCODER_LEFT);
+  // 检测下降沿
+  if (encoderLeftPrev && !encoderLeft) {
+    // 根据 ENCODER_RIGHT 的电平判断旋转方向
+    if (digitalRead(ENCODER_RIGHT)) {
+      uint8_t encoderLeftType = getKeyType(ENCODER_LEFT_INDEX);
+      uint16_t encoderLeftValue = getKeyValue(ENCODER_LEFT_INDEX);
+      if (encoderLeftType == KEY_TYPE_MEDIA) {
+        Consumer_write(encoderLeftValue);
+      } else if (encoderLeftType == KEY_TYPE_KB) {
+        uint8_t keycode = encoderLeftValue & 0xFF;  // 取低8位
+        uint8_t mod = (encoderLeftValue >> 8) & 0xFF;
+        Keyboard_rawPress(keycode, mod);
+        Keyboard_rawRelease(keycode, mod);
+      } else if (encoderLeftType == KEY_TYPE_MOUSE) {
+        uint8_t keycode = encoderLeftValue & 0xFF;
+        int8_t scroll = (int8_t)((encoderLeftValue >> 8) & 0xFF);
+        Mouse_press(keycode);
+        Mouse_release(keycode);
+        Mouse_scroll(scroll);
+      }
+    } else {
+      uint8_t encoderRightType = getKeyType(ENCODER_RIGHT_INDEX);
+      uint16_t encoderRightValue = getKeyValue(ENCODER_RIGHT_INDEX);
+      if (encoderRightType == KEY_TYPE_MEDIA) {
+        Consumer_write(encoderRightValue);
+      } else if (encoderRightType == KEY_TYPE_KB) {
+        uint8_t keycode = encoderRightValue & 0xFF;  // 取低8位
+        uint8_t mod = (encoderRightValue >> 8) & 0xFF;
+        Keyboard_rawPress(keycode, mod);
+        Keyboard_rawRelease(keycode, mod);
+      } else if (encoderRightType == KEY_TYPE_MOUSE) {
+        uint8_t keycode = encoderRightValue & 0xFF;
+        int8_t scroll = (int8_t)((encoderRightValue >> 8) & 0xFF);
+        Mouse_press(keycode);
+        Mouse_release(keycode);
+        Mouse_scroll(scroll);
+      }
+    }
+  }
+  encoderLeftPrev = encoderLeft;  // 更新状态
+}
+#endif
+
 // ==================== 主循环 ====================
 void loop() {
   handleCommonKeyPress();
   handleEffectControl();
+  
+#ifdef USE_KNOB
+  handleEncoderRotation();
+#endif
   
   updateLEDs();
   digitalWrite(LED_PIN, HIGH);  // 状态 LED 常亮
@@ -178,6 +252,14 @@ void setup() {
   pinMode(FUNC_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
   pinMode(RGB_PIN, OUTPUT);
+
+#ifdef USE_KNOB
+  // 初始化编码器引脚
+  pinMode(ENCODER_LEFT, INPUT_PULLUP);
+  pinMode(ENCODER_RIGHT, INPUT_PULLUP);
+  // 初始化编码器状态
+  encoderLeftPrev = digitalRead(ENCODER_LEFT);
+#endif
 
   // 初始化 WS2812
   led_init();
