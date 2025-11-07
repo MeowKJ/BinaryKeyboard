@@ -82,3 +82,9 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+#wch mounstudio
+obj/
+*.launch
+.mrs/
+Firmware/CH592F/CH592F.launch

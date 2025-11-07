@@ -6,54 +6,35 @@
   ✨ <b>BinaryKeyboard</b> ✨
 </p>
 
+<p align="center">
+  <a href="https://oshwhub.com/<your_name>/<your_project>">
+    <img alt="OSHWHub 开源项目" src="https://img.shields.io/badge/OSHWHub-开源项目-ff5a5f">
+  </a>
+  <a href="https://www.wch-ic.com/">
+    <img alt="沁恒 WCH 支持芯片" src="https://img.shields.io/badge/WCH-支持芯片-0d6efd">
+  </a>
+  <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans">
+    <img alt="License: CC BY-NC-SA 4.0（非商用）" src="https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-orange">
+  </a>
+</p>
+
+<p align="center">
+  <sub>Design by <b>KJ</b> · Made with ❤️</sub>
+</p>
+
+<p align="center">
+  <a href="#概述">概述</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#环境">环境</a> ·
+  <a href="#许可">许可</a>
+</p>
+
 <hr>
 
-# 配置开发环境
+# 概述
 
-## 1. 安装 Arduino IDE
-本程序推荐使用 Arduino IDE 作为开发环境。
+# 快速开始
 
-## 2. 使用 Arduino IDE 打开 `main.ino`
-在 Arduino IDE 中打开你的项目文件 `main.ino`。
+# 环境
 
-## 3. 添加 CH55x 的板卡管理器 URL
-
-1. 点击菜单栏上的 **文件** -> **首选项** -> **其他开发板管理器地址**。
-2. 在弹出的窗口中，添加以下链接：
-https://cos.thinkcreate.us/package_ch55xduino_mcs51_newest_cloudflare_index.json
-
-3. 然后点击 **确定**。
-
-## 4. 安装 CH55xDuino 包
-
-1. 在菜单栏点击 **工具** -> **开发板** -> **开发板管理器**。
-2. 在搜索框中输入 `ch`，查找 `Ch55xDuino` 包。
-3. 找到 `Ch55xDuino` 后，点击 **安装** 按钮。
-
-## 5. 选择开发板
-
-1. 点击 **工具** -> **开发板**，选择 **CH552Board**，然后点击 **确定**。
-
-## 6. 设置 USB 配置
-
-1. 点击 **工具** -> **USB Setting**，选择 **USER CODE w/148B USB ram**。
-
-## 7. 配置按键版本 | Key Version Configuration
-
-根据你使用的不同按键版本，修改 `config.h` 文件中的注释来启用对应的版本：
-
-```c
-// 基础款
-//#define USE_BASIC
-
-// 旋钮款
-//#define USE_KNOB
-
-// 五键款
-//#define USE_5KEYS
-```
-
-## 8. 上传代码
-
-初次使用时，可能需要断开板子与电脑的连接，然后按住 **BOOT** 按钮 ( 距离边缘更近的那个 ) 的同时连接到电脑从而进入 Bootloader 模式。你可以编译并上传代码到开发板。
-
+# 许可
