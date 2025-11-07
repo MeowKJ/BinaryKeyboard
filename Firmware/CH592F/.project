@@ -2,20 +2,17 @@
 <projectDescription>
   <name>CH592F</name>
   <comment/>
-  <projects>&#xD;
-	</projects>
+  <projects/>
   <buildSpec>
     <buildCommand>
       <name>org.eclipse.cdt.managedbuilder.core.genmakebuilder</name>
       <triggers>clean,full,incremental,</triggers>
-      <arguments>&#xD;
-			</arguments>
+      <arguments/>
     </buildCommand>
     <buildCommand>
       <name>org.eclipse.cdt.managedbuilder.core.ScannerConfigBuilder</name>
       <triggers>full,incremental,</triggers>
-      <arguments>&#xD;
-			</arguments>
+      <arguments/>
     </buildCommand>
   </buildSpec>
   <natures>
@@ -23,11 +20,11 @@
     <nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
     <nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
   </natures>
+  <linkedResources/>
   <filteredResources>
     <filter>
-      <id>1595986042669</id>
       <name/>
-      <type>22</type>
+      <type>6</type>
       <matcher>
         <id>org.eclipse.ui.ide.multiFilter</id>
         <arguments>1.0-name-matches-false-false-*.wvproj</arguments>
