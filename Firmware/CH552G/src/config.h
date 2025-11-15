@@ -11,14 +11,14 @@
 //#define USE_5KEYS
 
 
-#define CURRENT_FW_VERSION      0x0A
+#define CURRENT_FW_VERSION 0x0B
 
 
 #define LED_PIN 11
 
 //RGB配置
 #define RGB_PIN 15
-#define NUM_LEDS    4
+#define NUM_LEDS KEY_COUNT
 
 #define FUNC_PIN 32
 
@@ -40,15 +40,15 @@
 #define KEY_COUNT 5
 #define LED_PIN 11
 #define LED_PIN 11
-#define KEY0_PIN 34 //SW1
-#define KEY1_PIN 14 //SWX1
-#define KEY2_PIN 33 //SW2
-#define KEY3_PIN 31 //SW3
+#define KEY0_PIN 34  //SW1
+#define KEY1_PIN 14  //SWX1
+#define KEY2_PIN 33  //SW2
+#define KEY3_PIN 31  //SW3
 
 
-#define ENCODER_LEFT 16 //SWA
-#define ENCODER_RIGHT 17 //SWB
-#define ENCODER_KEY 30 //SWK
+#define ENCODER_LEFT 16   //SWA
+#define ENCODER_RIGHT 17  //SWB
+#define ENCODER_KEY 30    //SWK
 
 #define ENCODER_LEFT_INDEX 5
 #define ENCODER_RIGHT_INDEX 6
