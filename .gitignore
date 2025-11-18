@@ -91,3 +91,6 @@ Firmware/CH592F/CH592F.launch
 
 #other
 build/
+
+#libISP592.a
+!libISP592.a
