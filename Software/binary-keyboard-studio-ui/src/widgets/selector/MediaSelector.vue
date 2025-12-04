@@ -22,7 +22,8 @@ const selected = computed({
         };
     },
     set: (value: MediaOption) => {
-        mediaConfig.value.key = value.value;
+        // mediaConfig.value.key = value.value;
+        mediaConfig.value = { ...mediaConfig.value, key: value.value };
     },
 });
 const props = defineProps<{ mediaConfig: MediaConfig }>();
@@ -31,7 +32,6 @@ const emit = defineEmits(["update:mediaConfig"]);
 const mediaConfig = computed({
     get: () => props.mediaConfig,
     set: (value) => {
-        console.log(value);
         emit("update:mediaConfig", value);
 
     },
