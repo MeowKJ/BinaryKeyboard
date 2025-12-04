@@ -19,13 +19,30 @@ export const useDeviceStore = defineStore("device", () => {
   const deviceModelNumber = ref<number>(0);
 
   // 按键映射配置（初始化 8 个空配置）
-  const keyMappingsList = ref<KeyMapping[]>(
-    Array(8).fill({ type: 0, modifier: 0, key: 0 })
-  );
+const createDefaultKeyMapping = (): KeyMapping => ({
+    type: KeyType.KEBOARD,
+    value: {
+        leftMetaKey: false,
+        leftCtrlKey: false,
+        leftAltKey: false,
+        leftShiftKey: false,
+        rightMetaKey: false,
+        rightCtrlKey: false,
+        rightAltKey: false,
+        rightShiftKey: false,
+        key: "",
+        code: "",
+    }
+});
 
-  const keyMappingsListOriginal = ref<KeyMapping[]>(
-    Array(8).fill({ type: 0, modifier: 0, key: 0 })
-  );
+// 3. 使用 Array.from 生成独立的副本
+const keyMappingsList = ref<KeyMapping[]>(
+    Array.from({ length: 8 }, () => createDefaultKeyMapping())
+);
+
+const keyMappingsListOriginal = ref<KeyMapping[]>(
+    Array.from({ length: 8 }, () => createDefaultKeyMapping())
+);
   /**
    * 获取设备型号名称
    * @returns {string} 设备型号名称
@@ -41,6 +58,12 @@ export const useDeviceStore = defineStore("device", () => {
         return "旋钮款";
       case 3:
         return "五键款";
+      case 4:
+        return "无线-基础款";
+      case 5:
+        return "无线-旋钮款";
+      case 6:
+        return "无线-五键款";
       default:
         return "未知型号";
     }

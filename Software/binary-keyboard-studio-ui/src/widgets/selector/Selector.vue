@@ -41,7 +41,7 @@
     </Dialog>
 </template>
 
-<script setup lang="ts">
+<script lang="ts" setup>
 import { ref, computed } from 'vue';
 
 import { type KeyboardConfig, type MouseConfig, type MediaConfig, MouseButtonHID, MediaHIDCode, KeyType } from '@/types';
@@ -85,15 +85,18 @@ const onDialogOpen = () => {
     switch (currentKeyMapping.type) {
         case KeyType.KEBOARD:
             tapValue.value = "0";
-            keyConfig.value = currentKeyMapping.value
+            //keyConfig.value = currentKeyMapping.value
+            keyConfig.value = { ...currentKeyMapping.value }
             break;
         case KeyType.MEDIA:
             tapValue.value = "1";
-            mediaConfig.value = currentKeyMapping.value
+            //mediaConfig.value = currentKeyMapping.value
+            mediaConfig.value = { ...currentKeyMapping.value }
             break;
         case KeyType.MOUSE:
             tapValue.value = "2";
-            mouseConfig.value = currentKeyMapping.value
+            //mouseConfig.value = currentKeyMapping.value
+            mouseConfig.value = { ...currentKeyMapping.value }
             break;
 
     }
@@ -101,24 +104,30 @@ const onDialogOpen = () => {
 }
 const onDialogClose = () => {
     // 保存键位配置
+    console.log("Saving config for tapValue:", tapValue.value);
+    console.log("Current Index:", props.currentIndex);
+
     switch (tapValue.value) {
         case "0":
             deviceStore.keyMappingsList[props.currentIndex] = {
                 type: KeyType.KEBOARD,
                 value: keyConfig.value
             };
+            console.log("Saved keyboard config:", keyConfig.value);
             break;
         case "1":
             deviceStore.keyMappingsList[props.currentIndex] = {
                 type: KeyType.MEDIA,
                 value: mediaConfig.value
             };
+            console.log("Saved media config:", mediaConfig.value);
             break;
         case "2":
             deviceStore.keyMappingsList[props.currentIndex] = {
                 type: KeyType.MOUSE,
                 value: mouseConfig.value
             };
+            console.log("Saved mouse config:", mouseConfig.value);
             break;
     }
 };
