@@ -3,7 +3,7 @@
  * Author             : WCH
  * Version            : V1.0
  * Date               : 2020/08/06
- * Description        : ´®¿Ú1ÊÕ·¢ÑÝÊ¾
+ * Description        : ï¿½ï¿½ï¿½ï¿½1ï¿½Õ·ï¿½ï¿½ï¿½Ê¾
  *********************************************************************************
  * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
  * Attention: This software (modified or not) and binary are used for
@@ -16,7 +16,7 @@
 #include <string.h>
 
 /**
- * @brief USB ÖÐ¶Ï·þÎñº¯Êý
+ * @brief 
  */
 __INTERRUPT
 
@@ -25,18 +25,11 @@ void USB_IRQHandler (void) {
     USB_Device_TransferProcess();
 }
 
-/*********************************************************************
- * @fn      main
- *
- * @brief   Ö÷º¯Êý
- *
- * @return  none
- */
+
 int main() {
     SetSysClock (CLK_SOURCE_PLL_60MHz);
 
     USB_Device_Init();
-    PFIC_EnableIRQ (USB_IRQn);
 
     while (1);
 }
