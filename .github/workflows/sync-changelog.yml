@@ -1,0 +1,38 @@
+name: Sync changelog from GitHub Releases
+
+on:
+  release:
+    types: [published, edited, deleted]
+  workflow_dispatch:
+  # 可选：每天兜底同步一次（怕有人直接改了旧 release）
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Generate changelog (from Releases)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }} # 自动拿到 owner/repo（fork 后也不用改）
+          OUT_FILE: docs/changelog.md
+        run: |
+          python .github/scripts/releases_to_md.py > "${OUT_FILE}"
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/changelog.md
+          git diff --cached --quiet || git commit -m "docs: sync changelog from releases"
+          git push
