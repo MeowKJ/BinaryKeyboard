@@ -46,9 +46,6 @@
 					"${project}/StdPeriphDriver/CH59x_usbhostBase.c",
 					"${project}/StdPeriphDriver/CH59x_uart3.c",
 					"${project}/StdPeriphDriver/CH59x_uart2.c",
-					"${project}/StdPeriphDriver/CH59x_timer3.c",
-					"${project}/StdPeriphDriver/CH59x_timer2.c",
-					"${project}/StdPeriphDriver/CH59x_timer1.c",
 					"${project}/StdPeriphDriver/CH59x_spi0.c",
 					"${project}/StdPeriphDriver/CH59x_pwm.c",
 					"${project}/StdPeriphDriver/CH59x_adc.c"
