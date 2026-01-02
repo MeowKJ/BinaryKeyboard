@@ -18,7 +18,7 @@ typedef struct {
 /* ======================= 功能键（独立）======================= */
 /* 只需要下降沿触发（按下事件），不需要释放事件 */
 
-#define KBD_FN_NUM_KEYS 3u
+#define KBD_FN_NUM_KEYS 2
 
 // BOOT: PB22
 #define KBD_FN_BOOT_PORT GPIO_PORT_B
