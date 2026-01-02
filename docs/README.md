@@ -28,8 +28,8 @@ BinaryKeyboard（可爱二进制键盘）是一个基于 **CH552G** 的迷你键
 
 ## 目录导航
 
-- [快速开始](#/guide/quickstart)
-- [硬件复刻指南](#/guide/make)
-- [刷写固件](#/guide/flash)
-- [改键软件使用](#/guide/remap)
-- [FAQ](#/faq)
+- [快速开始](/guide/quickstart)
+- [硬件复刻指南](/guide/make)
+- [刷写固件](/guide/flash)
+- [改键软件使用](/guide/remap)
+- [FAQ](/faq)

@@ -9,6 +9,7 @@
 
 不同硬件版本固件不通用，请按版本选择：
 
+### 常见版本
 - `CH552G_BASIC_xxxx.hex`：基础款
 - `CH552G_5KEYS_xxxx.hex`：五键款
 - `CH552G_KNOB_xxxx.hex`：旋钮款
