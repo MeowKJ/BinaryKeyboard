@@ -9,6 +9,7 @@
 			"rtos": "NoneOS",
 			"mcu": "CH592F",
 			"description": "Website: https://www.wch.cn/products/CH592.html?\\nROM(byte): 448K, SRAM(byte): 26K, CHIP PINS: 28, GPIO PORTS: 20\\nCH592 integrates BLE 32-bit RISC-V microcontroller MCU, 448K ROM, 24K SRAM, low average power consumption, power-off mode is only 0.3uA. Integrate USB host and device, segment LCD driver, ADC, 4-way serial port, SPI, I2C, touch key detection module, RTC, power management, etc, provide Bluetooth protocol stack and APP support.",
+			"artifactType": "executable",
 			"link": "WCH-Link",
 			"peripheral_version": "1.5",
 			"calibrateSupport": false,
@@ -20,6 +21,11 @@
 				"parentLogicPath": "",
 				"type": "file",
 				"name": "*.wvproj"
+			},
+			{
+				"parentLogicPath": "MeowBLE/hal/include",
+				"type": "file",
+				"name": "CONFIG.h"
 			}
 		],
 		"projectName": "CH592F",
@@ -48,7 +54,10 @@
 					"${project}/StdPeriphDriver/CH59x_uart2.c",
 					"${project}/StdPeriphDriver/CH59x_spi0.c",
 					"${project}/StdPeriphDriver/CH59x_pwm.c",
-					"${project}/StdPeriphDriver/CH59x_adc.c"
+					"${project}/MeowBLE/hal/include/KEY.h",
+					"${project}/MeowBLE/hal/include/LED.h",
+					"${project}/MeowBLE/hal/src/LED.c",
+					"${project}/MeowBLE/hal/src/KEY.c"
 				],
 				"optimization": {
 					"level": "size",
@@ -132,8 +141,12 @@
 						"include_paths": [
 							"${project}/StdPeriphDriver/inc",
 							"${project}/RVMSIS",
-							"${project}/Board/inc",
-							"${project}/MeowUSB/inc"
+							"${project}/Board/include",
+							"${project}/MeowUSB/include",
+							"${project}/MeowBLE/lib",
+							"${project}/MeowBLE/meow/include",
+							"${project}/MeowBLE/profile/include",
+							"${project}/MeowBLE/hal/include"
 						],
 						"include_system_paths": [],
 						"include_files": []
@@ -208,11 +221,13 @@
 					},
 					"libraries": {
 						"libraries": [
-							"ISP592"
+							"ISP592",
+							"CH59xBLE"
 						],
 						"library_search_path": [
 							"../",
-							"${project}/StdPeriphDriver"
+							"${project}/StdPeriphDriver",
+							"${project}/MeowBLE/lib"
 						]
 					},
 					"miscellaneous": {
@@ -249,11 +264,13 @@
 					},
 					"libraries": {
 						"libraries": [
-							"ISP592"
+							"ISP592",
+							"CH59xBLE"
 						],
 						"library_search_path": [
 							"../",
-							"${project}/StdPeriphDriver"
+							"${project}/StdPeriphDriver",
+							"${project}/MeowBLE/lib"
 						]
 					},
 					"miscellaneous": {
@@ -308,6 +325,7 @@
 					"show_totals": false,
 					"other_flags": ""
 				},
+				"configVariables": [],
 				"riscvTargetProcessor": {
 					"architecture": "rv32i",
 					"multiply_extension": true,
@@ -327,8 +345,7 @@
 					"other_target_flags": ""
 				},
 				"component_toolchain": "${WCH:Toolchain:GCC8}",
-				"name": "obj",
-				"configVariables": []
+				"name": "obj"
 			}
 		]
 	},
