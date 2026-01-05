@@ -30,5 +30,13 @@
         <arguments>1.0-name-matches-false-false-*.wvproj</arguments>
       </matcher>
     </filter>
+    <filter>
+      <name>MeowBLE/hal/include</name>
+      <type>6</type>
+      <matcher>
+        <id>org.eclipse.ui.ide.multiFilter</id>
+        <arguments>1.0-name-matches-false-false-CONFIG.h</arguments>
+      </matcher>
+    </filter>
   </filteredResources>
 </projectDescription>

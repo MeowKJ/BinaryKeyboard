@@ -118,15 +118,15 @@
 
 /* ==================== Consumer Control Definitions ==================== */
 /* Consumer Control Keys (多媒体按键) */
-#define CONSUMER_PLAY_PAUSE     0xCD
-#define CONSUMER_STOP           0xB7
-#define CONSUMER_NEXT_TRACK     0xB5
-#define CONSUMER_PREV_TRACK     0xB6
-#define CONSUMER_VOLUME_UP      0xE9
-#define CONSUMER_VOLUME_DOWN    0xEA
-#define CONSUMER_MUTE           0xE2
-#define CONSUMER_BRIGHTNESS_UP  0x6F
-#define CONSUMER_BRIGHTNESS_DN  0x70
+// #define CONSUMER_PLAY_PAUSE     0xCD
+// #define CONSUMER_STOP           0xB7
+// #define CONSUMER_NEXT_TRACK     0xB5
+// #define CONSUMER_PREV_TRACK     0xB6
+// #define CONSUMER_VOLUME_UP      0xE9
+// #define CONSUMER_VOLUME_DOWN    0xEA
+// #define CONSUMER_MUTE           0xE2
+// #define CONSUMER_BRIGHTNESS_UP  0x6F
+// #define CONSUMER_BRIGHTNESS_DN  0x70
 
 /* ==================== Config Command Definitions ==================== */
 /* 配置命令定义 */
