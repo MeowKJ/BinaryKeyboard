@@ -57,7 +57,8 @@
 					"${project}/MeowBLE/hal/include/KEY.h",
 					"${project}/MeowBLE/hal/include/LED.h",
 					"${project}/MeowBLE/hal/src/LED.c",
-					"${project}/MeowBLE/hal/src/KEY.c"
+					"${project}/MeowBLE/hal/src/KEY.c",
+					"${project}/User/Main.c"
 				],
 				"optimization": {
 					"level": "size",
@@ -383,7 +384,7 @@
 			"enableNoZeroWaitingAreaFlash": false
 		},
 		"gdbCfg": {
-			"executable": "${WCH:Toolchain:GCC12}",
+			"executable": "${WCH:Toolchain:GCC8}",
 			"options": [],
 			"commands": [
 				"set mem inaccessible-by-default off",
@@ -437,8 +438,10 @@
 			"ATTR_BUILD_BEFORE_LAUNCH_ATTR": 2,
 			"GdbServerAllocateConsole": true,
 			"GdbServerAllocateTelnetConsole": false,
+			"SkipDownloadBeforeDebug": false,
 			"StartGdbCLient": true,
-			"UPDATE_THREADLIST_ON_SUSPEND": false
+			"UPDATE_THREADLIST_ON_SUSPEND": false,
+			"DebugInRam": false
 		}
 	}
 }
