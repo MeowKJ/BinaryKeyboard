@@ -6,7 +6,7 @@
  * Description
  *********************************************************************************
  * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
- * Attention: This software (modified or not) and binary are used for 
+ * Attention: This software (modified or not) and binary are used for
  * microcontroller manufactured by Nanjing Qinheng Microelectronics.
  *******************************************************************************/
 
@@ -15,9 +15,9 @@
 /*********************************************************************
  * @fn      TMR2_TimerInit
  *
- * @brief   ¶¨Ê±¹¦ÄÜ³õÊ¼»¯
+ * @brief   å®šæ—¶åŠŸèƒ½åˆå§‹åŒ–
  *
- * @param   t       - ¶¨Ê±Ê±¼ä£¬»ùÓÚµ±Ç°ÏµÍ³Ê±ÖÓTsys, ×î³¤¶¨Ê±ÖÜÆÚ 67108864
+ * @param   t       - å®šæ—¶æ—¶é—´ï¼ŒåŸºäºå½“å‰ç³»ç»Ÿæ—¶é’ŸTsys, æœ€é•¿å®šæ—¶å‘¨æœŸ 67108864
  *
  * @return  none
  */
@@ -31,9 +31,9 @@ void TMR2_TimerInit(uint32_t t)
 /*********************************************************************
  * @fn      TMR2_EXTSingleCounterInit
  *
- * @brief   ±ßÑØ¼ÆÊı¹¦ÄÜ³õÊ¼»¯
+ * @brief   è¾¹æ²¿è®¡æ•°åŠŸèƒ½åˆå§‹åŒ–
  *
- * @param   cap     - ²É¼¯¼ÆÊıÀàĞÍ
+ * @param   cap     - é‡‡é›†è®¡æ•°ç±»å‹
  *
  * @return  none
  */
@@ -46,7 +46,7 @@ void TMR2_EXTSingleCounterInit(CapModeTypeDef cap)
 /*********************************************************************
  * @fn      TMR2_PWMInit
  *
- * @brief   PWM Êä³ö³õÊ¼»¯
+ * @brief   PWM è¾“å‡ºåˆå§‹åŒ–
  *
  * @param   pr      - select wave polar, refer to PWMX_PolarTypeDef
  * @param   ts      - set pwm repeat times, refer to PWM_RepeatTsTypeDef
@@ -62,7 +62,7 @@ void TMR2_PWMInit(PWMX_PolarTypeDef pr, PWM_RepeatTsTypeDef ts)
 /*********************************************************************
  * @fn      TMR2_CapInit
  *
- * @brief   Íâ²¿ĞÅºÅ²¶×½¹¦ÄÜ³õÊ¼»¯
+ * @brief   å¤–éƒ¨ä¿¡å·æ•æ‰åŠŸèƒ½åˆå§‹åŒ–
  *
  * @param   cap     - select capture mode, refer to CapModeTypeDef
  *
@@ -77,26 +77,26 @@ void TMR2_CapInit(CapModeTypeDef cap)
 /*********************************************************************
  * @fn      TMR2_DMACfg
  *
- * @brief   ÅäÖÃDMA¹¦ÄÜ
+ * @brief   é…ç½®DMAåŠŸèƒ½
  *
- * @param   s           - ÊÇ·ñ´ò¿ªDMA¹¦ÄÜ
- * @param   startAddr   - DMA ÆğÊ¼µØÖ·
- * @param   endAddr     - DMA ½áÊøµØÖ·
- * @param   m           - ÅäÖÃDMAÄ£Ê½
+ * @param   s           - æ˜¯å¦æ‰“å¼€DMAåŠŸèƒ½
+ * @param   startAddr   - DMA èµ·å§‹åœ°å€
+ * @param   endAddr     - DMA ç»“æŸåœ°å€
+ * @param   m           - é…ç½®DMAæ¨¡å¼
  *
  * @return  none
  */
 void TMR2_DMACfg(uint8_t s, uint32_t startAddr, uint32_t endAddr, DMAModeTypeDef m)
 {
-    if(s == DISABLE)
+    if (s == DISABLE)
     {
         R8_TMR2_CTRL_DMA = 0;
     }
     else
     {
-        R16_TMR2_DMA_BEG = startAddr&0xFFFF;
-        R16_TMR2_DMA_END = endAddr&0xFFFF;
-        if(m)
+        R16_TMR2_DMA_BEG = startAddr & 0xFFFF;
+        R16_TMR2_DMA_END = endAddr & 0xFFFF;
+        if (m)
             R8_TMR2_CTRL_DMA = RB_TMR_DMA_LOOP | RB_TMR_DMA_ENABLE;
         else
             R8_TMR2_CTRL_DMA = RB_TMR_DMA_ENABLE;
