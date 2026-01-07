@@ -278,7 +278,7 @@
             </toolChain>
           </folderInfo>
           <sourceEntries>
-            <entry excluding="StdPeriphDriver/CH59x_usbhostClass.c|StdPeriphDriver/CH59x_usbhostBase.c|StdPeriphDriver/CH59x_uart3.c|StdPeriphDriver/CH59x_uart2.c|StdPeriphDriver/CH59x_spi0.c|StdPeriphDriver/CH59x_pwm.c|MeowBLE/hal/include/KEY.h|MeowBLE/hal/include/LED.h|MeowBLE/hal/src/LED.c|MeowBLE/hal/src/KEY.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+            <entry excluding="StdPeriphDriver/CH59x_usbhostClass.c|StdPeriphDriver/CH59x_usbhostBase.c|StdPeriphDriver/CH59x_uart3.c|StdPeriphDriver/CH59x_uart2.c|StdPeriphDriver/CH59x_spi0.c|StdPeriphDriver/CH59x_pwm.c|MeowBLE/hal/include/KEY.h|MeowBLE/hal/include/LED.h|MeowBLE/hal/src/LED.c|MeowBLE/hal/src/KEY.c|User/Main.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
           </sourceEntries>
         </configuration>
       </storageModule>
