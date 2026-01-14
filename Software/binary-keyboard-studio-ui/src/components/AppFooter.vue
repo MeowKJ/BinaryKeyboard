@@ -96,11 +96,16 @@ const openLink = (url: string) => {
 .help-button {
   transition: all 0.3s ease;
   border: 1px solid var(--primary-color) !important;
+  color: var(--primary-color) !important;
 
   &:hover {
-    background: var(--primary-color) !important;
-    color: white !important;
-    box-shadow: 0 2px 6px rgba(var(--primary-rgb), 0.2);
+    background: var(--surface-card) !important;
+    color: var(--primary-color) !important;
+    box-shadow: 0 2px 6px rgba(var(--primary-rgb), 0.15);
+  }
+
+  &:active {
+    background: var(--surface-hover) !important;
   }
 }
 
