@@ -58,7 +58,7 @@
 					"${project}/MeowBLE/hal/include/LED.h",
 					"${project}/MeowBLE/hal/src/LED.c",
 					"${project}/MeowBLE/hal/src/KEY.c",
-					"${project}/User/Main.c"
+					"${project}/User/RGB_TEST.c"
 				],
 				"optimization": {
 					"level": "size",
@@ -147,7 +147,8 @@
 							"${project}/MeowBLE/lib",
 							"${project}/MeowBLE/meow/include",
 							"${project}/MeowBLE/profile/include",
-							"${project}/MeowBLE/hal/include"
+							"${project}/MeowBLE/hal/include",
+							"${project}/MeowKeyboard/include"
 						],
 						"include_system_paths": [],
 						"include_files": []
@@ -438,10 +439,8 @@
 			"ATTR_BUILD_BEFORE_LAUNCH_ATTR": 2,
 			"GdbServerAllocateConsole": true,
 			"GdbServerAllocateTelnetConsole": false,
-			"SkipDownloadBeforeDebug": false,
 			"StartGdbCLient": true,
-			"UPDATE_THREADLIST_ON_SUSPEND": false,
-			"DebugInRam": false
+			"UPDATE_THREADLIST_ON_SUSPEND": false
 		}
 	}
 }

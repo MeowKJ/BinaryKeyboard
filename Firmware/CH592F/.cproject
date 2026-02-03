@@ -125,6 +125,7 @@
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/MeowBLE/meow/include}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/MeowBLE/profile/include}&quot;"/>
                   <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/MeowBLE/hal/include}&quot;"/>
+                  <listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/MeowKeyboard/include}&quot;"/>
                 </option>
                 <option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="ilg.gnumcueclipse.managedbuild.cross.riscv.option.c.compiler.include.systempaths.2011720354" superClass="ilg.gnumcueclipse.managedbuild.cross.riscv.option.c.compiler.include.systempaths" useByScannerDiscovery="true" valueType="includePath"/>
                 <option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="ilg.gnumcueclipse.managedbuild.cross.riscv.option.c.compiler.include.files.542153928" superClass="ilg.gnumcueclipse.managedbuild.cross.riscv.option.c.compiler.include.files" useByScannerDiscovery="true" valueType="includeFiles"/>
@@ -278,7 +279,7 @@
             </toolChain>
           </folderInfo>
           <sourceEntries>
-            <entry excluding="StdPeriphDriver/CH59x_usbhostClass.c|StdPeriphDriver/CH59x_usbhostBase.c|StdPeriphDriver/CH59x_uart3.c|StdPeriphDriver/CH59x_uart2.c|StdPeriphDriver/CH59x_spi0.c|StdPeriphDriver/CH59x_pwm.c|MeowBLE/hal/include/KEY.h|MeowBLE/hal/include/LED.h|MeowBLE/hal/src/LED.c|MeowBLE/hal/src/KEY.c|User/Main.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+            <entry excluding="StdPeriphDriver/CH59x_usbhostClass.c|StdPeriphDriver/CH59x_usbhostBase.c|StdPeriphDriver/CH59x_uart3.c|StdPeriphDriver/CH59x_uart2.c|StdPeriphDriver/CH59x_spi0.c|StdPeriphDriver/CH59x_pwm.c|MeowBLE/hal/include/KEY.h|MeowBLE/hal/include/LED.h|MeowBLE/hal/src/LED.c|MeowBLE/hal/src/KEY.c|User/RGB_TEST.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
           </sourceEntries>
         </configuration>
       </storageModule>

@@ -1,9 +1,9 @@
-/********************************** (C) COPYRIGHT *******************************
+Ôªø/********************************** (C) COPYRIGHT *******************************
  * File Name          : hiddev.c
  * Author             : WCH
  * Version            : V1.0
  * Date               : 2018/12/10
- * Description        : HID …Ë±∏»ŒŒÒ¥¶¿Ì≥Ã–Ú
+ * Description        : HID ËÆæÂ§á‰ªªÂä°Â§ÑÁêÜÁ®ãÂ∫è
  *********************************************************************************
  * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
  * Attention: This software (modified or not) and binary are used for 

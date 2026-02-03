@@ -35,13 +35,13 @@ typedef struct
 #define KBD_FN_BOOT_PORT GPIO_PORT_B
 #define KBD_FN_BOOT_PIN GPIO_Pin_22
 
-// FN1: PB14
-#define KBD_FN1_PORT GPIO_PORT_B
-#define KBD_FN1_PIN GPIO_Pin_14
+// FN1: PA4
+#define KBD_FN1_PORT GPIO_PORT_A
+#define KBD_FN1_PIN GPIO_Pin_4
 
-// FN2: PB15
-#define KBD_FN2_PORT GPIO_PORT_B
-#define KBD_FN2_PIN GPIO_Pin_15
+// FN2: PA5
+#define KBD_FN2_PORT GPIO_PORT_A
+#define KBD_FN2_PIN GPIO_Pin_5
 
 /* ======================= 普通键（键盘键位）======================= */
 #ifdef KBD_LAYOUT_5KEY
@@ -57,11 +57,11 @@ typedef struct
 #define KBD_K3_PORT GPIO_PORT_B
 #define KBD_K3_PIN GPIO_Pin_12
 
-#define KBD_K4_PORT GPIO_PORT_B
-#define KBD_K4_PIN GPIO_Pin_13
+#define KBD_K4_PORT GPIO_PORT_A
+#define KBD_K4_PIN GPIO_Pin_8
 
 #define KBD_K5_PORT GPIO_PORT_A
-#define KBD_K5_PIN GPIO_Pin_13
+#define KBD_K5_PIN GPIO_Pin_12
 
 #endif /* KBD_LAYOUT_5KEY */
 

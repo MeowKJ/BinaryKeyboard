@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#include "dual_mode_config.h"
+#include "kbd_mode_config.h"
 #include "ble_config.h"
 #include "hiddev.h"
 #include <stdint.h>

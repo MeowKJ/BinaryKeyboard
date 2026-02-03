@@ -1,4 +1,4 @@
-/********************************** (C) COPYRIGHT *******************************
+Ôªø/********************************** (C) COPYRIGHT *******************************
  * File Name          : RTC.h
  * Author             : WCH
  * Version            : V1.0
@@ -47,9 +47,9 @@ extern volatile uint32_t RTCTigFlag;
 void HAL_TimeInit(void);
 
 /**
- * @brief   ≈‰÷√RTC¥•∑¢ ±º‰
+ * @brief   ÈÖçÁΩÆRTCËß¶ÂèëÊó∂Èó¥
  *
- * @param   time    - ¥•∑¢ ±º‰.
+ * @param   time    - Ëß¶ÂèëÊó∂Èó¥.
  */
 extern void RTC_SetTignTime(uint32_t time);
 

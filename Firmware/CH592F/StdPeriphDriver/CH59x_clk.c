@@ -15,9 +15,9 @@
 /*********************************************************************
  * @fn      LClk32K_Select
  *
- * @brief   32K µÍÆµÊ±ÖÓÀ´Ô´
+ * @brief   32K ä½é¢‘æ—¶é’Ÿæ¥æº
  *
- * @param   hc  - Ñ¡Ôñ32KÊ¹ÓÃÄÚ²¿»¹ÊÇÍâ²¿
+ * @param   hc  - é€‰æ‹©32Kä½¿ç”¨å†…éƒ¨è¿˜æ˜¯å¤–éƒ¨
  *
  * @return  none
  */
@@ -43,10 +43,10 @@ void LClk32K_Select(LClk32KTypeDef hc)
 /*********************************************************************
  * @fn      LClk32K_Cfg
  *
- * @brief   32K µÍÆµÊ±ÖÓµçÔ´ÅäÖÃ
+ * @brief   32K ä½é¢‘æ—¶é’Ÿç”µæºé…ç½®
  *
- * @param   hc  - Ñ¡ÔñÄÚ²¿32K»¹ÊÇÍâ²¿32K
- * @param   s   - ÊÇ·ñ´ò¿ªµçÔ´
+ * @param   hc  - é€‰æ‹©å†…éƒ¨32Kè¿˜æ˜¯å¤–éƒ¨32K
+ * @param   s   - æ˜¯å¦æ‰“å¼€ç”µæº
  *
  * @return  none
  */
@@ -85,7 +85,7 @@ void LClk32K_Cfg(LClk32KTypeDef hc, FunctionalState s)
 /*********************************************************************
  * @fn      HSECFG_Current
  *
- * @brief   HSE¾§Ìå Æ«ÖÃµçÁ÷ÅäÖÃ
+ * @brief   HSEæ™¶ä½“ åç½®ç”µæµé…ç½®
  *
  * @param   c   - 75%,100%,125%,150%
  *
@@ -106,7 +106,7 @@ void HSECFG_Current(HSECurrentTypeDef c)
 /*********************************************************************
  * @fn      HSECFG_Capacitance
  *
- * @brief   HSE¾§Ìå ¸ºÔØµçÈİÅäÖÃ
+ * @brief   HSEæ™¶ä½“ è´Ÿè½½ç”µå®¹é…ç½®
  *
  * @param   c   - refer to HSECapTypeDef
  *
@@ -127,7 +127,7 @@ void HSECFG_Capacitance(HSECapTypeDef c)
 /*********************************************************************
  * @fn      LSECFG_Current
  *
- * @brief   LSE¾§Ìå Æ«ÖÃµçÁ÷ÅäÖÃ
+ * @brief   LSEæ™¶ä½“ åç½®ç”µæµé…ç½®
  *
  * @param   c   - 70%,100%,140%,200%
  *
@@ -148,7 +148,7 @@ void LSECFG_Current(LSECurrentTypeDef c)
 /*********************************************************************
  * @fn      LSECFG_Capacitance
  *
- * @brief   LSE¾§Ìå ¸ºÔØµçÈİÅäÖÃ
+ * @brief   LSEæ™¶ä½“ è´Ÿè½½ç”µå®¹é…ç½®
  *
  * @param   c   - refer to LSECapTypeDef
  *
@@ -169,11 +169,11 @@ void LSECFG_Capacitance(LSECapTypeDef c)
 /*********************************************************************
  * @fn      Calibration_LSI
  *
- * @brief   Ğ£×¼ÄÚ²¿32KÊ±ÖÓ
+ * @brief   æ ¡å‡†å†…éƒ¨32Kæ—¶é’Ÿ
  *
- * @param   cali_Lv - Ğ£×¼µÈ¼¶Ñ¡Ôñ    Level_32 £º2.4ms   1000ppm (32M Ö÷Æµ)  1100ppm (60M Ö÷Æµ)
- *                                   Level_64 £º4.4ms   800ppm  (32M Ö÷Æµ)  1000ppm (60M Ö÷Æµ)
- *                                   Level_128 £º8.4ms  600ppm  (32M Ö÷Æµ)  800ppm  (60M Ö÷Æµ)                                                         
+ * @param   cali_Lv - æ ¡å‡†ç­‰çº§é€‰æ‹©    Level_32 ï¼š2.4ms   1000ppm (32M ä¸»é¢‘)  1100ppm (60M ä¸»é¢‘)
+ *                                   Level_64 ï¼š4.4ms   800ppm  (32M ä¸»é¢‘)  1000ppm (60M ä¸»é¢‘)
+ *                                   Level_128 ï¼š8.4ms  600ppm  (32M ä¸»é¢‘)  800ppm  (60M ä¸»é¢‘)                                                         
  *
  * @return  none
  */
@@ -197,7 +197,7 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
 
     while(1)
     {
-        // ´Öµ÷
+        // ç²—è°ƒ
         sys_safe_access_enable();
         R8_OSC_CAL_CTRL &= ~RB_OSC_CNT_TOTAL;
         R8_OSC_CAL_CTRL |= 1;
@@ -217,7 +217,7 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
                 sys_safe_access_disable();
             }
 
-            while(!(R8_OSC_CAL_CTRL & RB_OSC_CNT_HALT)); // ÓÃÓÚ¶ªÆú
+            while(!(R8_OSC_CAL_CTRL & RB_OSC_CNT_HALT)); // ç”¨äºä¸¢å¼ƒ
 
             SYS_DisableAllIrq(&irqv);
             sys_safe_access_enable();
@@ -239,7 +239,7 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
             R16_OSC_CAL_CNT |= RB_OSC_CAL_OV_CLR;
             SYS_RecoverIrq(irqv);
             while(!(R8_OSC_CAL_CTRL & RB_OSC_CNT_HALT));
-            i = R16_OSC_CAL_CNT; // ÊµÊ±Ğ£×¼ºó²ÉÑùÖµ
+            i = R16_OSC_CAL_CNT; // å®æ—¶æ ¡å‡†åé‡‡æ ·å€¼
             cnt_offset = (i & 0x3FFF) + R8_OSC_CAL_OV_CNT * 0x3FFF - 2000 * (freq_sys / 1000) / CAB_LSIFQ;
             if(((cnt_offset > -37 * (freq_sys / 1000) / 60000) && (cnt_offset < 37 * (freq_sys / 1000) / 60000)) || retry > 2)
             {
@@ -253,8 +253,8 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
             sys_safe_access_disable();
         }
 
-        // Ï¸µ÷
-        // ÅäÖÃÏ¸µ÷²ÎÊıºó£¬¶ªÆú2´Î²¶»ñÖµ£¨Èí¼şĞĞÎª£©ÉÏÅĞ¶ÏÒÑÓĞÒ»´Î£¬ÕâÀïÖ»ÁôÒ»´Î
+        // ç»†è°ƒ
+        // é…ç½®ç»†è°ƒå‚æ•°åï¼Œä¸¢å¼ƒ2æ¬¡æ•è·å€¼ï¼ˆè½¯ä»¶è¡Œä¸ºï¼‰ä¸Šåˆ¤æ–­å·²æœ‰ä¸€æ¬¡ï¼Œè¿™é‡Œåªç•™ä¸€æ¬¡
         sys_safe_access_enable();
         R8_OSC_CAL_CTRL &= ~RB_OSC_CNT_TOTAL;
         R8_OSC_CAL_CTRL |= cali_Lv;
@@ -279,7 +279,7 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
             sys_safe_access_disable();
         }
 
-        while(!(R8_OSC_CAL_CTRL & RB_OSC_CNT_HALT)); // ÓÃÓÚ¶ªÆú
+        while(!(R8_OSC_CAL_CTRL & RB_OSC_CNT_HALT)); // ç”¨äºä¸¢å¼ƒ
 
         SYS_DisableAllIrq(&irqv);
         sys_safe_access_enable();
@@ -304,7 +304,7 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
         sys_safe_access_enable();
         R8_OSC_CAL_CTRL &= ~RB_OSC_CNT_EN;
         sys_safe_access_disable();
-        i = R16_OSC_CAL_CNT; // ÊµÊ±Ğ£×¼ºó²ÉÑùÖµ
+        i = R16_OSC_CAL_CNT; // å®æ—¶æ ¡å‡†åé‡‡æ ·å€¼
         cnt_offset = (i & 0x3FFF) + R8_OSC_CAL_OV_CNT * 0x3FFF -  4000 * (1 << cali_Lv) * (freq_sys / 1000000) / 256 * 1000/(CAB_LSIFQ/256);
         cnt_offset = (cnt_offset > 0) ? ((((cnt_offset * 2*(100 )) / (1366 * ((1 << cali_Lv)/8) * (freq_sys/1000) / 60000)) + 1) / 2) : ((((cnt_offset * 2*(100)) / (1366 * ((1 << cali_Lv)/8) * (freq_sys/1000) / 60000)) - 1) / 2);
         if((cnt_offset > 0)&&(((R16_INT32K_TUNE>>5)+cnt_offset)>0xFF))
@@ -354,14 +354,14 @@ void Calibration_LSI(Cali_LevelTypeDef cali_Lv)
 /*********************************************************************
  * @fn      RTCInitTime
  *
- * @brief   RTCÊ±ÖÓ³õÊ¼»¯µ±Ç°Ê±¼ä
+ * @brief   RTCæ—¶é’Ÿåˆå§‹åŒ–å½“å‰æ—¶é—´
  *
- * @param   y       - ÅäÖÃÄê£¬MAX_Y = BEGYEAR + 44
- * @param   mon     - ÅäÖÃÔÂ£¬MAX_MON = 12
- * @param   d       - ÅäÖÃÈÕ£¬MAX_D = 31
- * @param   h       - ÅäÖÃĞ¡Ê±£¬MAX_H = 23
- * @param   m       - ÅäÖÃ·ÖÖÓ£¬MAX_M = 59
- * @param   s       - ÅäÖÃÃë£¬MAX_S = 59
+ * @param   y       - é…ç½®å¹´ï¼ŒMAX_Y = BEGYEAR + 44
+ * @param   mon     - é…ç½®æœˆï¼ŒMAX_MON = 12
+ * @param   d       - é…ç½®æ—¥ï¼ŒMAX_D = 31
+ * @param   h       - é…ç½®å°æ—¶ï¼ŒMAX_H = 23
+ * @param   m       - é…ç½®åˆ†é’Ÿï¼ŒMAX_M = 59
+ * @param   s       - é…ç½®ç§’ï¼ŒMAX_S = 59
  *
  * @return  none
  */
@@ -420,14 +420,14 @@ void RTC_InitTime(uint16_t y, uint16_t mon, uint16_t d, uint16_t h, uint16_t m, 
 /*********************************************************************
  * @fn      RTC_GetTime
  *
- * @brief   »ñÈ¡µ±Ç°Ê±¼ä
+ * @brief   è·å–å½“å‰æ—¶é—´
  *
- * @param   py      - »ñÈ¡µ½µÄÄê£¬MAX_Y = BEGYEAR + 44
- * @param   pmon    - »ñÈ¡µ½µÄÔÂ£¬MAX_MON = 12
- * @param   pd      - »ñÈ¡µ½µÄÈÕ£¬MAX_D = 31
- * @param   ph      - »ñÈ¡µ½µÄĞ¡Ê±£¬MAX_H = 23
- * @param   pm      - »ñÈ¡µ½µÄ·ÖÖÓ£¬MAX_M = 59
- * @param   ps      - »ñÈ¡µ½µÄÃë£¬MAX_S = 59
+ * @param   py      - è·å–åˆ°çš„å¹´ï¼ŒMAX_Y = BEGYEAR + 44
+ * @param   pmon    - è·å–åˆ°çš„æœˆï¼ŒMAX_MON = 12
+ * @param   pd      - è·å–åˆ°çš„æ—¥ï¼ŒMAX_D = 31
+ * @param   ph      - è·å–åˆ°çš„å°æ—¶ï¼ŒMAX_H = 23
+ * @param   pm      - è·å–åˆ°çš„åˆ†é’Ÿï¼ŒMAX_M = 59
+ * @param   ps      - è·å–åˆ°çš„ç§’ï¼ŒMAX_S = 59
  *
  * @return  none
  */
@@ -465,9 +465,9 @@ void RTC_GetTime(uint16_t *py, uint16_t *pmon, uint16_t *pd, uint16_t *ph, uint1
 /*********************************************************************
  * @fn      RTC_SetCycle32k
  *
- * @brief   »ùÓÚLSE/LSIÊ±ÖÓ£¬ÅäÖÃµ±Ç°RTC ÖÜÆÚÊı
+ * @brief   åŸºäºLSE/LSIæ—¶é’Ÿï¼Œé…ç½®å½“å‰RTC å‘¨æœŸæ•°
  *
- * @param   cyc     - ÅäÖÃÖÜÆÚ¼ÆÊı³õÖµ£¬MAX_CYC = 0xA8BFFFFF = 2831155199
+ * @param   cyc     - é…ç½®å‘¨æœŸè®¡æ•°åˆå€¼ï¼ŒMAX_CYC = 0xA8BFFFFF = 2831155199
  *
  * @return  none
  */
@@ -489,11 +489,11 @@ void RTC_SetCycle32k(uint32_t cyc)
 /*********************************************************************
  * @fn      RTC_GetCycle32k
  *
- * @brief   »ùÓÚLSE/LSIÊ±ÖÓ£¬»ñÈ¡µ±Ç°RTC ÖÜÆÚÊı
+ * @brief   åŸºäºLSE/LSIæ—¶é’Ÿï¼Œè·å–å½“å‰RTC å‘¨æœŸæ•°
  *
  * @param   none
  *
- * @return  µ±Ç°ÖÜÆÚÊı£¬MAX_CYC = 0xA8BFFFFF = 2831155199
+ * @return  å½“å‰å‘¨æœŸæ•°ï¼ŒMAX_CYC = 0xA8BFFFFF = 2831155199
  */
 __HIGH_CODE
 uint32_t RTC_GetCycle32k(void)
@@ -510,7 +510,7 @@ uint32_t RTC_GetCycle32k(void)
 /*********************************************************************
  * @fn      RTC_TMRFunCfg
  *
- * @brief   RTC¶¨Ê±Ä£Ê½ÅäÖÃ£¨×¢Òâ¶¨Ê±»ù×¼¹Ì¶¨Îª32768Hz£©
+ * @brief   RTCå®šæ—¶æ¨¡å¼é…ç½®ï¼ˆæ³¨æ„å®šæ—¶åŸºå‡†å›ºå®šä¸º32768Hzï¼‰
  *
  * @param   t   - refer to RTC_TMRCycTypeDef
  *
@@ -529,9 +529,9 @@ void RTC_TMRFunCfg(RTC_TMRCycTypeDef t)
 /*********************************************************************
  * @fn      RTC_TRIGFunCfg
  *
- * @brief   RTCÊ±¼ä´¥·¢Ä£Ê½ÅäÖÃ
+ * @brief   RTCæ—¶é—´è§¦å‘æ¨¡å¼é…ç½®
  *
- * @param   cyc - Ïà¶Ôµ±Ç°Ê±¼äµÄ´¥·¢¼ä¸ôÊ±¼ä£¬»ùÓÚLSE/LSIÊ±ÖÓÖÜÆÚÊı
+ * @param   cyc - ç›¸å¯¹å½“å‰æ—¶é—´çš„è§¦å‘é—´éš”æ—¶é—´ï¼ŒåŸºäºLSE/LSIæ—¶é’Ÿå‘¨æœŸæ•°
  *
  * @return  none
  */
@@ -554,9 +554,9 @@ void RTC_TRIGFunCfg(uint32_t cyc)
 /*********************************************************************
  * @fn      RTC_ModeFunDisable
  *
- * @brief   RTC Ä£Ê½¹¦ÄÜ¹Ø±Õ
+ * @brief   RTC æ¨¡å¼åŠŸèƒ½å…³é—­
  *
- * @param   m   - ĞèÒª¹Ø±ÕµÄµ±Ç°Ä£Ê½
+ * @param   m   - éœ€è¦å…³é—­çš„å½“å‰æ¨¡å¼
  *
  * @return  none
  */
@@ -581,11 +581,11 @@ void RTC_ModeFunDisable(RTC_MODETypeDef m)
 /*********************************************************************
  * @fn      RTC_GetITFlag
  *
- * @brief   »ñÈ¡RTCÖĞ¶Ï±êÖ¾
+ * @brief   è·å–RTCä¸­æ–­æ ‡å¿—
  *
  * @param   f   - refer to RTC_EVENTTypeDef
  *
- * @return  ÖĞ¶Ï±êÖ¾×´Ì¬
+ * @return  ä¸­æ–­æ ‡å¿—çŠ¶æ€
  */
 uint8_t RTC_GetITFlag(RTC_EVENTTypeDef f)
 {
@@ -602,7 +602,7 @@ uint8_t RTC_GetITFlag(RTC_EVENTTypeDef f)
 /*********************************************************************
  * @fn      RTC_ClearITFlag
  *
- * @brief   Çå³ıRTCÖĞ¶Ï±êÖ¾
+ * @brief   æ¸…é™¤RTCä¸­æ–­æ ‡å¿—
  *
  * @param   f   - refer to RTC_EVENTTypeDef
  *

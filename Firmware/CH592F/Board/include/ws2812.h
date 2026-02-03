@@ -33,5 +33,6 @@ void WS2812_SetBrightness(uint8_t brightness); // 0-255
 WS2812_Color WS2812_HSVtoRGB(uint16_t h, uint8_t s, uint8_t v);
 WS2812_Color WS2812_Wheel(uint8_t wheelPos);
 void WS2812_Set_Indicator(uint8_t r, uint8_t g, uint8_t b);
+void WS2812_Clear_Indicator(void);
 
 #endif
