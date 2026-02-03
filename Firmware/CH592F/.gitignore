@@ -1,0 +1,13 @@
+# Build outputs
+obj/
+
+# MounRiver Studio workspace
+.mrs/
+
+# IDE/project metadata
+*.launch
+.template
+
+#libxxx.a
+!libISP592.a
+!libCH59xBLE.a

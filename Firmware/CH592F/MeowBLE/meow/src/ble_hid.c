@@ -8,10 +8,11 @@
 
 #include "ble_hid.h"
 #include "ble_hid_service.h"
-#include "dual_mode_config.h"
+#include "kbd_mode_config.h"
 #include "battservice.h"
 #include "devinfoservice.h"
 #include "scanparamservice.h"
+#include "debug.h"
 #include <string.h>
 
 /* ==================== 常量定义 ==================== */
@@ -33,6 +34,8 @@ static uint16_t g_conn_handle = GAP_CONNHANDLE_INIT;
 static ble_hid_callbacks_t *g_pCallbacks = NULL;
 static uint8_t g_keyboard_leds = 0;
 static bool g_ble_enabled = true;
+
+static const char *TAG = "BLE_HID";
 
 // HID 配置
 static hidDevCfg_t g_hidDevCfg = {
@@ -74,9 +77,7 @@ static uint8_t g_scanRspData[] = {
     HI_UINT16 (HID_SERV_UUID),
     LO_UINT16 (BATT_SERV_UUID),
     HI_UINT16 (BATT_SERV_UUID),
-
-    // 发射功率
-    0x02, GAP_ADTYPE_POWER_LEVEL, 0};
+};
 
 // 设备名称
 static const uint8_t g_attDeviceName[GAP_DEVICE_NAME_LEN] = BLE_DEVICE_NAME;
@@ -166,7 +167,7 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     // 启动设备
     tmos_set_event (bleHidTaskId, BLE_HID_START_DEVICE_EVT);
 
-    DM_PRINT ("BLE_HID: Init done\n");
+    LOG_I (TAG, "Init done");
 
     return 0;
 }
@@ -232,7 +233,7 @@ int BLE_HID_StartAdvertising (void) {
     uint8_t enable = TRUE;
     GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
 
-    DM_PRINT ("BLE_HID: Start advertising\n");
+    LOG_I (TAG, "Start advertising");
     return 0;
 }
 
@@ -240,14 +241,14 @@ int BLE_HID_StopAdvertising (void) {
     uint8_t enable = FALSE;
     GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
 
-    DM_PRINT ("BLE_HID: Stop advertising\n");
+    LOG_I (TAG, "Stop advertising");
     return 0;
 }
 
 int BLE_HID_Disconnect (void) {
     if (g_conn_handle != GAP_CONNHANDLE_INIT) {
         GAPRole_TerminateLink (g_conn_handle);
-        DM_PRINT ("BLE_HID: Disconnect\n");
+        LOG_I (TAG, "Disconnect");
     }
     return 0;
 }
@@ -262,7 +263,7 @@ gapRole_States_t BLE_HID_GetState (void) {
 
 int BLE_HID_ClearBonds (void) {
     HidDev_SetParameter (HIDDEV_ERASE_ALLBONDS, 0, NULL);
-    DM_PRINT ("BLE_HID: Clear bonds\n");
+    LOG_I (TAG, "Clear bonds");
     return 0;
 }
 
@@ -346,7 +347,7 @@ static uint8_t BLE_HID_RptCallback (uint8_t id, uint8_t type, uint16_t uuid,
         if (uuid == REPORT_UUID && type == HID_REPORT_TYPE_OUTPUT) {
             if (*pLen >= 1) {
                 g_keyboard_leds = pData[0];
-                DM_PRINT ("BLE_HID: LED=%02X\n", g_keyboard_leds);
+                LOG_D (TAG, "LED=0x%02X", g_keyboard_leds);
 
                 // 调用回调
                 if (g_pCallbacks && g_pCallbacks->onLedReport) {
@@ -364,7 +365,7 @@ static uint8_t BLE_HID_RptCallback (uint8_t id, uint8_t type, uint16_t uuid,
         status = HidKbdMouse_GetParameter (id, type, uuid, pLen, pData);
     } else if (oper == HID_DEV_OPER_ENABLE) {
         // 通知已启用
-        DM_PRINT ("BLE_HID: Report %d enabled\n", id);
+        LOG_D (TAG, "Report %d enabled", id);
     }
 
     return status;
@@ -373,19 +374,19 @@ static uint8_t BLE_HID_RptCallback (uint8_t id, uint8_t type, uint16_t uuid,
 static void BLE_HID_EvtCallback (uint8_t evt) {
     switch (evt) {
     case HID_DEV_SUSPEND_EVT:
-        DM_PRINT ("BLE_HID: Suspend\n");
+        LOG_I (TAG, "Suspend");
         break;
 
     case HID_DEV_EXIT_SUSPEND_EVT:
-        DM_PRINT ("BLE_HID: Exit suspend\n");
+        LOG_I (TAG, "Exit suspend");
         break;
 
     case HID_DEV_SET_BOOT_EVT:
-        DM_PRINT ("BLE_HID: Boot mode\n");
+        LOG_I (TAG, "Boot mode");
         break;
 
     case HID_DEV_SET_REPORT_EVT:
-        DM_PRINT ("BLE_HID: Report mode\n");
+        LOG_I (TAG, "Report mode");
         break;
 
     default:
@@ -401,14 +402,14 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         uint8_t ownAddr[6];
         GAPRole_GetParameter (GAPROLE_BD_ADDR, ownAddr);
         GAP_ConfigDeviceAddr (ADDRTYPE_STATIC, ownAddr);
-        DM_PRINT ("BLE_HID: Started, Addr=%02X:%02X:%02X:%02X:%02X:%02X\n",
-                  ownAddr[5], ownAddr[4], ownAddr[3],
-                  ownAddr[2], ownAddr[1], ownAddr[0]);
+        LOG_I (TAG, "Started, Addr=%02X:%02X:%02X:%02X:%02X:%02X",
+               ownAddr[5], ownAddr[4], ownAddr[3],
+               ownAddr[2], ownAddr[1], ownAddr[0]);
     } break;
 
     case GAPROLE_ADVERTISING:
         if (pEvent->gap.opcode == GAP_MAKE_DISCOVERABLE_DONE_EVENT) {
-            DM_PRINT ("BLE_HID: Advertising\n");
+            LOG_I (TAG, "Advertising");
         }
         break;
 
@@ -420,13 +421,13 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
             // 延迟请求参数更新
             tmos_start_task (bleHidTaskId, BLE_HID_PARAM_UPDATE_EVT, PARAM_UPDATE_DELAY);
 
-            DM_PRINT ("BLE_HID: Connected, handle=%d\n", g_conn_handle);
+            LOG_I (TAG, "Connected, handle=%d", g_conn_handle);
         }
         break;
 
     case GAPROLE_CONNECTED_ADV:
         if (pEvent->gap.opcode == GAP_MAKE_DISCOVERABLE_DONE_EVENT) {
-            DM_PRINT ("BLE_HID: Connected advertising\n");
+            LOG_I (TAG, "Connected advertising");
         }
         break;
 
@@ -434,10 +435,10 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         g_conn_handle = GAP_CONNHANDLE_INIT;
 
         if (pEvent->gap.opcode == GAP_END_DISCOVERABLE_DONE_EVENT) {
-            DM_PRINT ("BLE_HID: Advertising timeout\n");
+            LOG_I (TAG, "Advertising timeout");
         } else if (pEvent->gap.opcode == GAP_LINK_TERMINATED_EVENT) {
-            DM_PRINT ("BLE_HID: Disconnected, reason=%02X\n",
-                      pEvent->linkTerminate.reason);
+            LOG_I (TAG, "Disconnected, reason=%02X",
+                   pEvent->linkTerminate.reason);
         }
 
         // 重新开始广播
@@ -448,7 +449,7 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         break;
 
     case GAPROLE_ERROR:
-        DM_PRINT ("BLE_HID: Error %02X\n", pEvent->gap.opcode);
+        LOG_W (TAG, "Error %02X", pEvent->gap.opcode);
         break;
 
     default:
@@ -463,9 +464,9 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
 
 static void BLE_HID_BattCallback (uint8_t event) {
     if (event == BATT_LEVEL_NOTI_ENABLED) {
-        DM_PRINT ("BLE_HID: Battery notification enabled\n");
+        LOG_I (TAG, "Battery notification enabled");
     } else if (event == BATT_LEVEL_NOTI_DISABLED) {
-        DM_PRINT ("BLE_HID: Battery notification disabled\n");
+        LOG_I (TAG, "Battery notification disabled");
     }
 }
 

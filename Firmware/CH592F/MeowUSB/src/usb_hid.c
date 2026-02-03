@@ -8,7 +8,12 @@
 
 #include "usb_hid.h"
 #include "CH59x_usbdev.h"
+#include "kbd_command.h"
+#include "kbd_types.h"
+#include "debug.h"
 #include <string.h>
+
+#define TAG "USB"
 
 /* ==================== Global Variables ==================== */
 USB_KeyboardReport_t g_KeyboardReport = {0};
@@ -87,11 +92,10 @@ void USB_Keyboard_SetLEDs(uint8_t leds)
 {
     g_KeyboardLEDs = leds;
     
-    PRINT("Keyboard LEDs: ");
-    if(leds & LED_NUM_LOCK) PRINT("[NumLock] ");
-    if(leds & LED_CAPS_LOCK) PRINT("[CapsLock] ");
-    if(leds & LED_SCROLL_LOCK) PRINT("[ScrollLock] ");
-    PRINT("\n");
+    LOG_D(TAG, "LEDs: %s%s%s",
+          (leds & LED_NUM_LOCK) ? "Num " : "",
+          (leds & LED_CAPS_LOCK) ? "Caps " : "",
+          (leds & LED_SCROLL_LOCK) ? "Scroll" : "");
 }
 
 /* ==================== Mouse Functions ==================== */
@@ -244,65 +248,14 @@ void USB_Config_SendResponse(uint8_t cmd, uint8_t *data, uint8_t len)
  */
 void USB_Config_ProcessCommand(USB_ConfigReport_t *report)
 {
-    uint8_t response_data[63] = {0};
-    
-    switch(report->cmd) {
-        case CONFIG_CMD_GET_VERSION:
-            // 返回版本信息
-            response_data[0] = CONFIG_RESP_OK;
-            response_data[1] = 2;  // 主版本号
-            response_data[2] = 0;  // 次版本号
-            USB_Config_SendResponse(CONFIG_CMD_GET_VERSION, response_data, 3);
-            PRINT("Config: Get Version -> v2.0\n");
-            break;
-            
-        case CONFIG_CMD_GET_STATUS:
-            // 返回设备状态
-            response_data[0] = CONFIG_RESP_OK;
-            response_data[1] = 0x01;  // 设备就绪
-            USB_Config_SendResponse(CONFIG_CMD_GET_STATUS, response_data, 2);
-            PRINT("Config: Get Status -> Ready\n");
-            break;
-            
-        case CONFIG_CMD_SET_CONFIG:
-            // 设置配置
-            PRINT("Config: Set Config - ");
-            for(uint8_t i = 0; i < 8 && i < 63; i++) {
-                PRINT("%02X ", report->data[i]);
-            }
-            PRINT("\n");
-            
-            response_data[0] = CONFIG_RESP_OK;
-            USB_Config_SendResponse(CONFIG_CMD_SET_CONFIG, response_data, 1);
-            break;
-            
-        case CONFIG_CMD_GET_CONFIG:
-            // 获取配置
-            response_data[0] = CONFIG_RESP_OK;
-            response_data[1] = 0xAA;  // 示例配置数据
-            response_data[2] = 0x55;
-            response_data[3] = 0x12;
-            response_data[4] = 0x34;
-            USB_Config_SendResponse(CONFIG_CMD_GET_CONFIG, response_data, 5);
-            PRINT("Config: Get Config\n");
-            break;
-            
-        case CONFIG_CMD_RESET:
-            // 重置设备
-            PRINT("Config: Reset Device (not implemented)\n");
-            response_data[0] = CONFIG_RESP_OK;
-            USB_Config_SendResponse(CONFIG_CMD_RESET, response_data, 1);
-            // 这里可以添加实际的重置代码
-            // NVIC_SystemReset();
-            break;
-            
-        default:
-            // 无效命令
-            response_data[0] = CONFIG_RESP_INVALID_CMD;
-            USB_Config_SendResponse(report->cmd, response_data, 1);
-            PRINT("Config: Invalid Command 0x%02X\n", report->cmd);
-            break;
-    }
+    /* 转换为新的配置帧格式并调用配置命令处理器 */
+    kbd_cmd_frame_t frame;
+    frame.cmd = report->cmd;
+    frame.sub = report->data[0];
+    frame.len = 60;  /* USB_ConfigReport_t.data 有效长度 */
+    memcpy(frame.data, &report->data[1], 60);
+
+    KBD_Command_Process(&frame);
 }
 
 /* ==================== USB Device Callbacks ==================== */

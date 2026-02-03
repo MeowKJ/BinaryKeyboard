@@ -83,15 +83,7 @@ coverage
 
 *.tsbuildinfo
 
-#wch mounstudio
-obj/
-*.launch
-.mrs/
-Firmware/CH592F/CH592F.launch
-
 #other
 build/
-
-#libxxx.a
-!libISP592.a
-!libCH59xBLE.a
+.claude/
+.cache/

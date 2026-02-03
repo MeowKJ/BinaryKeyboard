@@ -46,7 +46,7 @@
 #endif
 
 /**
- * @brief  ÏµÍ³Ö÷ÆµÊ±ÖÓ£¨Hz£©
+ * @brief  ç³»ç»Ÿä¸»é¢‘æ—¶é’Ÿï¼ˆHzï¼‰
  */
 #ifndef	 FREQ_SYS
 #define  FREQ_SYS		60000000
@@ -57,7 +57,7 @@
 #endif
 
 /**
- * @brief  32KÊ±ÖÓ£¨Hz£©
+ * @brief  32Kæ—¶é’Ÿï¼ˆHzï¼‰
  */
 #ifdef CLK_OSC32K
 #if ( CLK_OSC32K == 1 )

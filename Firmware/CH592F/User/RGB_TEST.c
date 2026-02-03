@@ -1,51 +1,51 @@
-#include "ws2812.h"
+ï»¿#include "ws2812.h"
 
-// ²âÊÔÄ£Ê½Ã¶¾Ù
+// æµ‹è¯•æ¨¡å¼æžšä¸¾
 typedef enum {
-    MODE_BREATHING, // ºôÎüµÆ£¨À¶É«£©
-    MODE_RAINBOW,   // ²ÊºçÑ­»·
-    MODE_CHASER,    // ÅÜÂíµÆ
+    MODE_BREATHING, // å‘¼å¸ç¯ï¼ˆè“è‰²ï¼‰
+    MODE_RAINBOW,   // å½©è™¹å¾ªçŽ¯
+    MODE_CHASER,    // è·‘é©¬ç¯
     MODE_MAX
 } TestMode_t;
 
 /**
- * @brief Ö´ÐÐ×ÛºÏ²âÊÔÁ÷³Ì
+ * @brief æ‰§è¡Œç»¼åˆæµ‹è¯•æµç¨‹
  */
 void WS2812_Run_Demo(void) {
-    static uint32_t tick = 0;       // Ê±¼äÖá¼ÆÊýÆ÷
+    static uint32_t tick = 0;       // æ—¶é—´è½´è®¡æ•°å™¨
     static TestMode_t mode = MODE_BREATHING;
-    static uint32_t mode_tick = 0;  // µ±Ç°Ä£Ê½³ÖÐøÊ±¼ä¼ÇÂ¼
+    static uint32_t mode_tick = 0;  // å½“å‰æ¨¡å¼æŒç»­æ—¶é—´è®°å½•
 
-    // --- Âß¼­´¦Àí ---
+    // --- é€»è¾‘å¤„ç† ---
     mode_tick++;
     tick++;
 
-    // Ã¿¸ô 500 ´ÎÑ­»·£¨Ô¼ 10 Ãë£©ÇÐ»»Ò»´ÎÄ£Ê½
+    // æ¯éš” 500 æ¬¡å¾ªçŽ¯ï¼ˆçº¦ 10 ç§’ï¼‰åˆ‡æ¢ä¸€æ¬¡æ¨¡å¼
     if (mode_tick > 500) {
         mode = (mode + 1) % MODE_MAX;
         mode_tick = 0;
-        WS2812_Fill(0, 0, 0); // ÇÐ»»Ä£Ê½Ê±Çå¿Õ
+        WS2812_Fill(0, 0, 0); // åˆ‡æ¢æ¨¡å¼æ—¶æ¸…ç©º
     }
 
     switch (mode) {
         case MODE_BREATHING: {
-            // --- ºôÎüµÆÄ£Ê½ ---
-            // Ê¹ÓÃÈý½Ç²¨¼ÆËãÁÁ¶È£º0 -> 255 -> 0
+            // --- å‘¼å¸ç¯æ¨¡å¼ ---
+            // ä½¿ç”¨ä¸‰è§’æ³¢è®¡ç®—äº®åº¦ï¼š0 -> 255 -> 0
             uint8_t breath_v;
             uint16_t temp = tick % 512; 
-            if (temp < 256) breath_v = temp;         // ½¥ÁÁ
-            else breath_v = 511 - temp;             // ½¥°µ
+            if (temp < 256) breath_v = temp;         // æ¸äº®
+            else breath_v = 511 - temp;             // æ¸æš—
             
-            // Ê¹ÓÃ HSV£ºÉ«µ÷(Hue) 240 ÊÇÀ¶É«£¬±¥ºÍ¶È(S) 255£¬Ã÷¶È(V) ¾ÍÊÇ breath_v
+            // ä½¿ç”¨ HSVï¼šè‰²è°ƒ(Hue) 240 æ˜¯è“è‰²ï¼Œé¥±å’Œåº¦(S) 255ï¼Œæ˜Žåº¦(V) å°±æ˜¯ breath_v
             WS2812_Color c = WS2812_HSVtoRGB(240, 255, breath_v);
             WS2812_Fill(c.r, c.g, c.b);
             break;
         }
 
         case MODE_RAINBOW: {
-            // --- ²ÊºçÁ÷Ë®Ä£Ê½ ---
+            // --- å½©è™¹æµæ°´æ¨¡å¼ ---
             for (uint8_t i = 0; i < WS2812_LED_NUM; i++) {
-                // Ã¿¸öµÆÖéµÄÑÕÉ«Æ«ÒÆÒ»µã£¬ÐÎ³ÉÁ÷¶¯¸Ð
+                // æ¯ä¸ªç¯ç çš„é¢œè‰²åç§»ä¸€ç‚¹ï¼Œå½¢æˆæµåŠ¨æ„Ÿ
                 WS2812_Color c = WS2812_Wheel((tick + i * 10) & 255);
                 WS2812_Set(i, c.r, c.g, c.b);
             }
@@ -53,29 +53,29 @@ void WS2812_Run_Demo(void) {
         }
 
         case MODE_CHASER: {
-            // --- ÅÜÂíµÆÄ£Ê½ ---
-            WS2812_Fill(0, 0, 0); // ÏÈ¹ØµÆ
-            uint8_t active_led = (tick / 5) % WS2812_LED_NUM; // ¿ØÖÆÒÆ¶¯ËÙ¶È
-            WS2812_Set(active_led, 255, 255, 255); // °×¹âÉÁ¹ý
+            // --- è·‘é©¬ç¯æ¨¡å¼ ---
+            WS2812_Fill(0, 0, 0); // å…ˆå…³ç¯
+            uint8_t active_led = (tick / 5) % WS2812_LED_NUM; // æŽ§åˆ¶ç§»åŠ¨é€Ÿåº¦
+            WS2812_Set(active_led, 255, 255, 255); // ç™½å…‰é—ªè¿‡
             break;
         }
         default: break;
     }
 
-    // --- ·¢ËÍÏÔÊ¾ ---
+    // --- å‘é€æ˜¾ç¤º ---
     WS2812_Update();
-    mDelaymS(20); // ¿ØÖÆÈ«¾ÖË¢ÐÂÂÊÔ¼Îª 50Hz
+    mDelaymS(20); // æŽ§åˆ¶å…¨å±€åˆ·æ–°çŽ‡çº¦ä¸º 50Hz
 }
 
 int main(void) {
-    // 1. ÏµÍ³³õÊ¼»¯
+    // 1. ç³»ç»Ÿåˆå§‹åŒ–
     SetSysClock(CLK_SOURCE_PLL_60MHz);
     
-    // 2. Çý¶¯³õÊ¼»¯
+    // 2. é©±åŠ¨åˆå§‹åŒ–
     WS2812_Init();
-    WS2812_SetBrightness(100); // ³õÊ¼ÁÁ¶È²»ÒªÌ«´ÌÑÛ£¨0-255£©
+    WS2812_SetBrightness(100); // åˆå§‹äº®åº¦ä¸è¦å¤ªåˆºçœ¼ï¼ˆ0-255ï¼‰
 
-    // 3. Ö÷Ñ­»·
+    // 3. ä¸»å¾ªçŽ¯
     while (1) {
         WS2812_Run_Demo();
     }
