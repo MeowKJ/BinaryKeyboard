@@ -1,14 +1,14 @@
-/********************************** USB Descriptors Implementation *************
+ï»¿/********************************** USB Descriptors Implementation *************
  * File Name          : usb_descriptors.c
  * Author             : Custom USB Library
  * Version            : V2.0
  * Date               : 2024/11/07
- * Description        : USB ÃèÊö·ûÊµÏÖ£¨»ùÓÚ WCH ¹Ù·½¿â£©
+ * Description        : USB æè¿°ç¬¦å®ç°ï¼ˆåŸºäº WCH å®˜æ–¹åº“ï¼‰
  *******************************************************************************/
 
 #include "usb_descriptors.h"
 
-/* USB Éè±¸ÃèÊö·û */
+/* USB è®¾å¤‡æè¿°ç¬¦ */
 const uint8_t USB_DeviceDescriptor[] = {
     0x12,                           // bLength
     0x01,                           // bDescriptorType (Device)
@@ -26,13 +26,13 @@ const uint8_t USB_DeviceDescriptor[] = {
     0x01                            // bNumConfigurations
 };
 
-/* USB ÅäÖÃÃèÊö·û */
+/* USB é…ç½®æè¿°ç¬¦ */
 const uint8_t USB_ConfigDescriptor[] = {
     /* Configuration Descriptor */
     0x09,                           // bLength
     0x02,                           // bDescriptorType (Configuration)
     (USB_CONFIG_DESC_SIZE & 0xFF), (USB_CONFIG_DESC_SIZE >> 8),
-    INTF_COUNT,                     // bNumInterfaces (4¸ö½Ó¿Ú)
+    INTF_COUNT,                     // bNumInterfaces (4ä¸ªæ¥å£)
     0x01,                           // bConfigurationValue
     0x00,                           // iConfiguration
     0xA0,                           // bmAttributes (Bus Powered, Remote Wakeup)
@@ -159,20 +159,20 @@ const uint8_t USB_ConfigDescriptor[] = {
     0x0A                            // bInterval (10ms)
 };
 
-/* ×Ö·û´®ÃèÊö·û - ÓïÑÔID */
+/* å­—ç¬¦ä¸²æè¿°ç¬¦ - è¯­è¨€ID */
 const uint8_t USB_StringLangID[] = {
     0x04, 0x03,
-    0x09, 0x04      // Ó¢ÎÄ(ÃÀ¹ú)
+    0x09, 0x04      // è‹±æ–‡(ç¾å›½)
 };
 
-/* ×Ö·û´®ÃèÊö·û - ³§ÉÌ */
+/* å­—ç¬¦ä¸²æè¿°ç¬¦ - å‚å•† */
 const uint8_t USB_StringVendor[] = {
     0x1C, 0x03,
     'C', 0, 'u', 0, 's', 0, 't', 0, 'o', 0, 'm', 0,
     ' ', 0, 'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0
 };
 
-/* ×Ö·û´®ÃèÊö·û - ²úÆ· */
+/* å­—ç¬¦ä¸²æè¿°ç¬¦ - äº§å“ */
 const uint8_t USB_StringProduct[] = {
     0x28, 0x03,
     'M', 0, 'u', 0, 'l', 0, 't', 0, 'i', 0, '-', 0,
@@ -180,7 +180,7 @@ const uint8_t USB_StringProduct[] = {
     ' ', 0, 'H', 0, 'I', 0, 'D', 0
 };
 
-/* USB ÏŞ¶¨ÃèÊö·û */
+/* USB é™å®šæè¿°ç¬¦ */
 const uint8_t USB_QualifierDescriptor[] = {
     0x0A, 0x06, 0x00, 0x02,
     0xFF, 0x00, 0xFF, 0x40,

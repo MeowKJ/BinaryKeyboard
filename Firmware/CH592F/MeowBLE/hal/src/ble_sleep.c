@@ -1,9 +1,9 @@
-/********************************** (C) COPYRIGHT *******************************
+ï»¿/********************************** (C) COPYRIGHT *******************************
  * File Name          : SLEEP.c
  * Author             : WCH
  * Version            : V1.2
  * Date               : 2022/01/18
- * Description        : Ë¯ÃßÅäÖÃ¼°Æä³õÊ¼»¯
+ * Description        : ç¡çœ é…ç½®åŠå…¶åˆå§‹åŒ–
  *********************************************************************************
  * Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
  * Attention: This software (modified or not) and binary are used for 
@@ -11,15 +11,15 @@
  *******************************************************************************/
 
 /******************************************************************************/
-/* Í·ÎÄ¼ş°üº¬ */
+/* å¤´æ–‡ä»¶åŒ…å« */
 #include "ble_hal.h"
 
 /*******************************************************************************
  * @fn          CH59x_LowPower
  *
- * @brief       Æô¶¯Ë¯Ãß
+ * @brief       å¯åŠ¨ç¡çœ 
  *
- * @param   time    - »½ĞÑµÄÊ±¼äµã£¨RTC¾ø¶ÔÖµ£©
+ * @param   time    - å”¤é†’çš„æ—¶é—´ç‚¹ï¼ˆRTCç»å¯¹å€¼ï¼‰
  *
  * @return      state.
  */
@@ -30,7 +30,7 @@ uint32_t CH59x_LowPower(uint32_t time)
     uint32_t time_sleep, time_curr;
     unsigned long irq_status;
     
-    // ÌáÇ°»½ĞÑ
+    // æå‰å”¤é†’
     if (time <= WAKE_UP_RTC_MAX_TIME) {
         time = time + (RTC_MAX_COUNT - WAKE_UP_RTC_MAX_TIME);
     } else {
@@ -39,14 +39,14 @@ uint32_t CH59x_LowPower(uint32_t time)
 
     SYS_DisableAllIrq(&irq_status);
     time_curr = RTC_GetCycle32k();
-    // ¼ì²âË¯ÃßÊ±¼ä
+    // æ£€æµ‹ç¡çœ æ—¶é—´
     if (time < time_curr) {
         time_sleep = time + (RTC_MAX_COUNT - time_curr);
     } else {
         time_sleep = time - time_curr;
     }
     
-    // ÈôË¯ÃßÊ±¼äĞ¡ÓÚ×îĞ¡Ë¯ÃßÊ±¼ä»ò´óÓÚ×î´óË¯ÃßÊ±¼ä£¬Ôò²»Ë¯Ãß
+    // è‹¥ç¡çœ æ—¶é—´å°äºæœ€å°ç¡çœ æ—¶é—´æˆ–å¤§äºæœ€å¤§ç¡çœ æ—¶é—´ï¼Œåˆ™ä¸ç¡çœ 
     if ((time_sleep < SLEEP_RTC_MIN_TIME) || 
         (time_sleep > SLEEP_RTC_MAX_TIME)) {
         SYS_RecoverIrq(irq_status);
@@ -55,17 +55,17 @@ uint32_t CH59x_LowPower(uint32_t time)
 
     RTC_SetTignTime(time);
     SYS_RecoverIrq(irq_status);
-  #if(DEBUG == Debug_UART1) // Ê¹ÓÃÆäËû´®¿ÚÊä³ö´òÓ¡ĞÅÏ¢ĞèÒªĞŞ¸ÄÕâĞĞ´úÂë
+  #if(DEBUG == Debug_UART1) // ä½¿ç”¨å…¶ä»–ä¸²å£è¾“å‡ºæ‰“å°ä¿¡æ¯éœ€è¦ä¿®æ”¹è¿™è¡Œä»£ç 
     while((R8_UART1_LSR & RB_LSR_TX_ALL_EMP) == 0)
     {
         __nop();
     }
   #endif
-    // LOW POWER-sleepÄ£Ê½
+    // LOW POWER-sleepæ¨¡å¼
     if(!RTCTigFlag)
     {
         LowPower_Sleep(RB_PWR_RAM2K | RB_PWR_RAM24K | RB_PWR_EXTEND | RB_XT_PRE_EN );
-        HSECFG_Current(HSE_RCur_100); // ½µÎª¶î¶¨µçÁ÷(µÍ¹¦ºÄº¯ÊıÖĞÌáÉıÁËHSEÆ«ÖÃµçÁ÷)
+        HSECFG_Current(HSE_RCur_100); // é™ä¸ºé¢å®šç”µæµ(ä½åŠŸè€—å‡½æ•°ä¸­æå‡äº†HSEåç½®ç”µæµ)
         i = RTC_GetCycle32k();
         while(i == RTC_GetCycle32k());
         return 0;
@@ -77,7 +77,7 @@ uint32_t CH59x_LowPower(uint32_t time)
 /*******************************************************************************
  * @fn      HAL_SleepInit
  *
- * @brief   ÅäÖÃË¯Ãß»½ĞÑµÄ·½Ê½   - RTC»½ĞÑ£¬´¥·¢Ä£Ê½
+ * @brief   é…ç½®ç¡çœ å”¤é†’çš„æ–¹å¼   - RTCå”¤é†’ï¼Œè§¦å‘æ¨¡å¼
  *
  * @param   None.
  *
@@ -87,10 +87,10 @@ void HAL_SleepInit(void)
 {
 #if(defined(HAL_SLEEP)) && (HAL_SLEEP == TRUE)
     sys_safe_access_enable();
-    R8_SLP_WAKE_CTRL |= RB_SLP_RTC_WAKE; // RTC»½ĞÑ
+    R8_SLP_WAKE_CTRL |= RB_SLP_RTC_WAKE; // RTCå”¤é†’
     sys_safe_access_disable();
     sys_safe_access_enable();
-    R8_RTC_MODE_CTRL |= RB_RTC_TRIG_EN;  // ´¥·¢Ä£Ê½
+    R8_RTC_MODE_CTRL |= RB_RTC_TRIG_EN;  // è§¦å‘æ¨¡å¼
     sys_safe_access_disable();
     PFIC_EnableIRQ(RTC_IRQn);
 #endif
