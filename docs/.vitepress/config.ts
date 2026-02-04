@@ -75,10 +75,10 @@ export default defineConfig({
 
     repo: 'https://github.com/MeowKJ/BinaryKeyboard',
     docsDir: 'docs',
-    docsBranch: 'classic-keyboard',
+    docsBranch: 'main',
     
     editLink: {
-      pattern: 'https://github.com/MeowKJ/BinaryKeyboard/edit/classic-keyboard/docs/:path',
+      pattern: 'https://github.com/MeowKJ/BinaryKeyboard/edit/main/docs/:path',
       text: '在 GitHub 上编辑此页'
     },
 
