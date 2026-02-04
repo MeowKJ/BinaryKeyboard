@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff8fab"/>
+      <stop offset="50%" style="stop-color:#a0c4ff"/>
+      <stop offset="100%" style="stop-color:#bdb2ff"/>
+    </linearGradient>
+  </defs>
+  <!-- 圆角背景 -->
+  <rect x="10" y="10" width="100" height="100" rx="24" fill="url(#bg)"/>
+  <!-- 键盘按键 -->
+  <rect x="25" y="35" width="25" height="25" rx="6" fill="white" opacity="0.9"/>
+  <rect x="55" y="35" width="40" height="25" rx="6" fill="white" opacity="0.9"/>
+  <rect x="25" y="65" width="70" height="25" rx="6" fill="white" opacity="0.9"/>
+  <!-- 按键上的 0 和 1 -->
+  <text x="37.5" y="54" font-family="system-ui" font-size="16" font-weight="bold" fill="#ff8fab" text-anchor="middle">0</text>
+  <text x="75" y="54" font-family="system-ui" font-size="16" font-weight="bold" fill="#a0c4ff" text-anchor="middle">1</text>
+  <!-- 猫耳朵 -->
+  <polygon points="22,18 32,10 38,22" fill="#ff8fab"/>
+  <polygon points="82,22 88,10 98,18" fill="#a0c4ff"/>
+</svg>
