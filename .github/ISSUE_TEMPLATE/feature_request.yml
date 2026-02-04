@@ -1,0 +1,53 @@
+name: Feature Request / 功能请求
+description: Suggest a new feature or improvement / 建议新功能或改进
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 请使用中文或英文填写以下信息 / Please fill in the following information in Chinese or English
+
+  - type: dropdown
+    id: feature_type
+    attributes:
+      label: Feature Type / 功能类型
+      description: Select the type of feature you're requesting / 选择你请求的功能类型
+      options:
+        - Firmware / 固件功能
+        - Software / 软件功能
+        - Hardware / 硬件功能
+        - Documentation / 文档
+        - Other / 其他
+    validations:
+      required: false
+
+  - type: dropdown
+    id: version_type
+    attributes:
+      label: Version Type / 版本类型
+      description: Which version is this feature for? / 此功能适用于哪个版本？
+      options:
+        - Classic (CH552G) / 经典版
+        - Wireless (CH592F) / 无线版
+        - Both / 两者
+        - Software / 软件
+        - N/A / 不适用
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 问题描述
+      placeholder: Describe the problem or need / 描述问题或需求
+    validations:
+      required: false
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / 建议的方案
+      placeholder: Describe your proposed solution / 描述你建议的方案
+    validations:
+      required: true

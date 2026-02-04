@@ -1,0 +1,113 @@
+name: Bug Report / 错误报告
+description: Report a bug to help us improve / 报告错误以帮助我们改进
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 请使用中文或英文填写以下信息 / Please fill in the following information in Chinese or English
+        ## 提供详细的信息将帮助我们更快地解决问题 / Providing detailed information will help us resolve the issue faster
+
+  - type: dropdown
+    id: version_type
+    attributes:
+      label: Version Type / 版本类型
+      description: Select Classic or Wireless version / 选择经典版或无线版
+      options:
+        - Classic (CH552G) / 经典版
+        - Wireless (CH592F) / 无线版
+    validations:
+      required: true
+
+  - type: dropdown
+    id: keyboard_type
+    attributes:
+      label: Keyboard Type / 键盘类型
+      description: Select the keyboard variant / 选择键盘变体
+      options:
+        - Basic / 基础款
+        - Five Keys / 五键款
+        - Knob / 旋钮款
+        - Magnetic / 磁轴款
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: input
+    id: firmware_version
+    attributes:
+      label: Firmware Version / 固件版本
+      description: Please provide the firmware version (e.g., v1.0.0) / 请提供固件版本（例如：v1.0.0）
+      placeholder: e.g., v1.0.0 / 例如：v1.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System / 操作系统
+      description: Select your operating system / 选择你的操作系统
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other / 其他
+    validations:
+      required: false
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser / 浏览器
+      description: If using the remapping tool, select your browser / 如果使用改键工具，请选择你的浏览器
+      options:
+        - Chrome / Chromium
+        - Edge
+        - Firefox
+        - Safari
+        - Other / 其他
+        - N/A / 不适用
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description / 错误描述
+      placeholder: Describe the bug / 描述错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce / 复现步骤
+      placeholder: |
+        1. 
+        2. 
+        3. 
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Screenshots / 截图
+      placeholder: Attach screenshots if available / 如有截图请附加
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information / 其他信息
+      placeholder: |
+        Expected behavior, actual behavior, logs, or any other information / 
+        预期行为、实际行为、日志或其他信息
+    validations:
+      required: false
