@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - classic-keyboard
     paths:
       - 'docs/**'
       - '.github/workflows/deploy-docs.yml'
