@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# VitePress 构建输出和缓存
+.vitepress/dist/
+.vitepress/cache/
+
+# 日志文件
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器配置（可选，根据团队需要）
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+.cache/
