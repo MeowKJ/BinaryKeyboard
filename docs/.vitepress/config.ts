@@ -73,6 +73,15 @@ export default defineConfig({
       { icon: 'github', link: 'https://github.com/MeowKJ/BinaryKeyboard' }
     ],
 
+    repo: 'https://github.com/MeowKJ/BinaryKeyboard',
+    docsDir: 'docs',
+    docsBranch: 'classic-keyboard',
+    
+    editLink: {
+      pattern: 'https://github.com/MeowKJ/BinaryKeyboard/edit/classic-keyboard/docs/:path',
+      text: '在 GitHub 上编辑此页'
+    },
+
     footer: {
       message: '基于 GPL-3.0 许可发布',
       copyright: 'Copyright © 2025 <a href="https://oshwhub.com/kjpig/" target="_blank">喵喵的帕斯</a>'
