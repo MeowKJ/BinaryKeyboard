@@ -21,6 +21,7 @@
  */
 
 #include "kbd_storage.h"
+#include "kbd_config.h"
 #include "CH59x_common.h"
 #include "debug.h"
 #include <string.h>
@@ -58,17 +59,46 @@ static uint16_t s_macro_write_size = 0;
 /*============================================================================*/
 
 /**
- * @brief 默认按键映射
- *
- * 5 键映射为数字键 1-5
+ * @brief 默认按键映射 (根据键盘类型自动选择)
  */
+#if defined(KBD_LAYOUT_BASIC)
+/*---------------------------------------------------------------------------*/
+/* 基础款: 4 键 → 数字键 1-4                                                   */
+/*---------------------------------------------------------------------------*/
 static const kbd_keymap_t s_default_keymap = {
     .num_layers = 1,
     .current_layer = 0,
     .default_layer = 0,
     .reserved = 0,
     .layers = {
-        /* Layer 0: 数字键 1-5 */
+        {
+            .keys = {
+                { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },  /* '1' */
+                { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },  /* '2' */
+                { KBD_ACTION_KEYBOARD, 0, 0x20, 0 },  /* '3' */
+                { KBD_ACTION_KEYBOARD, 0, 0x21, 0 },  /* '4' */
+                { KBD_ACTION_NONE, 0, 0, 0 },
+                { KBD_ACTION_NONE, 0, 0, 0 },
+                { KBD_ACTION_NONE, 0, 0, 0 },
+                { KBD_ACTION_NONE, 0, 0, 0 },
+            }
+        },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+    }
+};
+
+#elif defined(KBD_LAYOUT_5KEY)
+/*---------------------------------------------------------------------------*/
+/* 五键款: 5 键 → 数字键 1-5                                                   */
+/*---------------------------------------------------------------------------*/
+static const kbd_keymap_t s_default_keymap = {
+    .num_layers = 1,
+    .current_layer = 0,
+    .default_layer = 0,
+    .reserved = 0,
+    .layers = {
         {
             .keys = {
                 { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },  /* '1' */
@@ -81,12 +111,47 @@ static const kbd_keymap_t s_default_keymap = {
                 { KBD_ACTION_NONE, 0, 0, 0 },
             }
         },
-        /* Layer 1-3: 空 */
         { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
         { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
         { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
     }
 };
+
+#elif defined(KBD_LAYOUT_KNOB)
+/*---------------------------------------------------------------------------*/
+/* 旋钮款: 4 普通键 + 3 旋钮动作 (7 虚拟键)                                     */
+/* [0-3] 普通键 → 数字键 1-4                                                   */
+/* [4]   旋钮顺时针 → 音量增加                                                 */
+/* [5]   旋钮逆时针 → 音量减少                                                 */
+/* [6]   旋钮按下 → 静音                                                       */
+/*---------------------------------------------------------------------------*/
+static const kbd_keymap_t s_default_keymap = {
+    .num_layers = 1,
+    .current_layer = 0,
+    .default_layer = 0,
+    .reserved = 0,
+    .layers = {
+        {
+            .keys = {
+                { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },      /* K1: '1' */
+                { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },      /* K2: '2' */
+                { KBD_ACTION_KEYBOARD, 0, 0x20, 0 },      /* K3: '3' */
+                { KBD_ACTION_KEYBOARD, 0, 0x21, 0 },      /* K4: '4' */
+                { KBD_ACTION_CONSUMER, 0, 0xE9, 0x00 },   /* 旋钮CW: 音量+ */
+                { KBD_ACTION_CONSUMER, 0, 0xEA, 0x00 },   /* 旋钮CCW: 音量- */
+                { KBD_ACTION_CONSUMER, 0, 0xE2, 0x00 },   /* 旋钮按下: 静音 */
+                { KBD_ACTION_NONE, 0, 0, 0 },
+            }
+        },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+    }
+};
+
+#else
+#error "请在 kbd_config.h 中选择一个键盘布局"
+#endif
 
 /**
  * @brief 默认 FN 键配置

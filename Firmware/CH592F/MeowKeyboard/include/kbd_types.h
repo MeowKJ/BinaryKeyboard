@@ -36,16 +36,25 @@ extern "C" {
  */
 
 #define KBD_CONFIG_MAGIC        0x4D454F57  /**< 配置魔数 "MEOW" */
-#define KBD_CONFIG_VERSION      0x0100      /**< 配置版本 v1.0 */
+#define KBD_CONFIG_VERSION      0x0101      /**< 配置版本 v1.1 (添加键盘类型) */
 
 #define KBD_MAX_LAYERS          4           /**< 最大层数 */
-#define KBD_MAX_KEYS            8           /**< 单层最大按键数 */
+#define KBD_MAX_KEYS            8           /**< 单层最大按键数 (支持所有类型) */
 #define KBD_MAX_FN_KEYS         4           /**< 最大 FN 键数 */
 
 #define KBD_MACRO_SLOTS         8           /**< 宏槽位总数 */
 #define KBD_MACRO_MAX_SIZE      2048        /**< 单个宏最大字节数 (2KB) */
 #define KBD_MACRO_MAX_ACTIONS   1000        /**< 单个宏最大动作数 */
 #define KBD_MACRO_VALID_MAGIC   0xAA        /**< 宏有效标记 */
+
+/** 
+ * @brief 设备信息常量 
+ */
+#define KBD_VENDOR_ID           0x413D      /**< USB Vendor ID */
+#define KBD_PRODUCT_ID          0x2107      /**< USB Product ID */
+#define KBD_VERSION_MAJOR       2           /**< 固件主版本 */
+#define KBD_VERSION_MINOR       0           /**< 固件次版本 */
+#define KBD_VERSION_PATCH       0           /**< 固件补丁版本 */
 
 /** @} */ /* end of KBD_Constants */
 
