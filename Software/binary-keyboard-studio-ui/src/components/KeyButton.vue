@@ -1,9 +1,10 @@
 <template>
   <button 
     class="key-button" 
-    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction }]"
+    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction, disabled }]"
     :style="gridStyle"
-    @click="emit('click')"
+    :disabled="disabled"
+    @click="!disabled && emit('click')"
   >
     <span class="key-label">{{ displayLabel }}</span>
     <span v-if="actionBadge" class="key-badge" :class="badgeClass">{{ actionBadge }}</span>
@@ -24,6 +25,8 @@ const props = defineProps<{
   action: KeyAction;
   /** 是否选中 */
   selected: boolean;
+  /** 是否禁用 */
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -179,6 +182,17 @@ function getWheelName(dir: number): string {
 
 .key-button.has-action .key-label {
   font-weight: 700;
+}
+
+.key-button.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.key-button.disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 /* 标签 */

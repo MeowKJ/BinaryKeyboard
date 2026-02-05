@@ -1,4 +1,4 @@
-﻿/********************************** USB Descriptors Implementation *************
+/********************************** USB Descriptors Implementation *************
  * File Name          : usb_descriptors.c
  * Author             : Custom USB Library
  * Version            : V2.0
@@ -167,17 +167,15 @@ const uint8_t USB_StringLangID[] = {
 
 /* 字符串描述符 - 厂商 */
 const uint8_t USB_StringVendor[] = {
-    0x1C, 0x03,
-    'C', 0, 'u', 0, 's', 0, 't', 0, 'o', 0, 'm', 0,
-    ' ', 0, 'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0
+    0x12, 0x03,
+    'M', 0, 'e', 0, 'o', 0, 'w', 0, 'K', 0, 'e', 0, 'y', 0, 's', 0
 };
 
 /* 字符串描述符 - 产品 */
 const uint8_t USB_StringProduct[] = {
-    0x28, 0x03,
-    'M', 0, 'u', 0, 'l', 0, 't', 0, 'i', 0, '-', 0,
-    'F', 0, 'u', 0, 'n', 0, 'c', 0, 't', 0, 'i', 0, 'o', 0, 'n', 0,
-    ' ', 0, 'H', 0, 'I', 0, 'D', 0
+    0x1E, 0x03,
+    'B', 0, 'i', 0, 'n', 0, 'a', 0, 'r', 0, 'y', 0,
+    'K', 0, 'e', 0, 'y', 0, 'b', 0, 'o', 0, 'a', 0, 'r', 0, 'd', 0
 };
 
 /* USB 限定描述符 */

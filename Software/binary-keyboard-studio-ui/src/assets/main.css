@@ -164,25 +164,72 @@ body {
   border: 1px solid var(--c-border) !important;
   background: var(--c-bg-secondary) !important;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4) !important;
+  overflow: hidden !important;
 }
 
 .p-dialog-header {
   border-bottom: 1px solid var(--c-border) !important;
   padding: 1.25rem 1.5rem !important;
   background: var(--c-bg-secondary) !important;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+  color: var(--c-text-primary) !important;
+}
+
+.p-dialog-title {
+  font-weight: 700 !important;
+  color: var(--c-text-primary) !important;
+}
+
+.p-dialog-header-close {
+  color: var(--c-text-muted) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.p-dialog-header-close:hover {
+  background: var(--c-accent-soft) !important;
+  color: var(--c-accent) !important;
 }
 
 .p-dialog-content {
   padding: 1rem 1.5rem !important;
   background: var(--c-bg-secondary) !important;
+  color: var(--c-text-primary) !important;
 }
 
 .p-dialog-footer {
   border-top: 1px solid var(--c-border) !important;
   padding: 1rem 1.5rem !important;
   background: var(--c-bg-secondary) !important;
-  border-radius: 0 0 var(--radius-xl) var(--radius-xl) !important;
+}
+
+.p-dialog-footer .p-button {
+  min-width: 80px;
+}
+
+/* 对话框遮罩 */
+.p-dialog-mask {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* 确认对话框 */
+.p-confirmdialog {
+  max-width: 400px !important;
+}
+
+.p-confirmdialog .p-dialog-content {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.p-confirmdialog .p-confirmdialog-icon {
+  font-size: 1.5rem;
+  color: var(--c-warning);
+}
+
+.p-confirmdialog .p-confirmdialog-message {
+  color: var(--c-text-secondary);
+  line-height: 1.6;
 }
 
 /* Tabs */
@@ -360,3 +407,263 @@ body {
 .bg-primary { background: var(--c-bg-primary); }
 .bg-secondary { background: var(--c-bg-secondary); }
 .bg-tertiary { background: var(--c-bg-tertiary); }
+
+/* ============================================
+   浅色主题覆盖 - 使用自定义类名降低耦合
+============================================ */
+
+/* 浅色模式 - 次要按钮 (放弃更改) */
+[data-theme="light"] .btn-secondary {
+  background: #dbeafe !important;
+  border: 1px solid #93c5fd !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #bfdbfe !important;
+  border-color: #60a5fa !important;
+  color: #1e40af !important;
+}
+
+/* 浅色模式 - 危险轮廓按钮 (恢复出厂) */
+[data-theme="light"] .btn-danger-outline {
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-danger-outline:hover {
+  background: #fecaca !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+}
+
+/* 浅色模式 - 主按钮 (保存配置) */
+[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+}
+
+[data-theme="light"] .btn-primary:disabled {
+  background: #cbd5e1 !important;
+  color: #94a3b8 !important;
+}
+
+/* 浅色模式 - 图标按钮 (刷新配置) */
+[data-theme="light"] .btn-icon-secondary {
+  color: #1d4ed8 !important;
+}
+
+[data-theme="light"] .btn-icon-secondary:hover {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+/* 浅色模式 - 图标按钮 (断开连接) */
+[data-theme="light"] .btn-icon-danger {
+  color: #dc2626 !important;
+}
+
+[data-theme="light"] .btn-icon-danger:hover {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+}
+
+/* ============================================
+   响应式设计
+============================================ */
+
+/* 平板 (768px - 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+    --key-unit: 64px;
+    --key-gap: 8px;
+  }
+  
+  .app-header {
+    padding: 0 1rem;
+  }
+  
+  .header-center {
+    display: none;
+  }
+  
+  .app-main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .panel {
+    padding: 0.875rem;
+  }
+  
+  .panel-title {
+    font-size: 0.85rem;
+  }
+}
+
+/* 手机横屏 / 小平板 (480px - 768px) */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100%;
+    --header-height: 54px;
+    --key-unit: 56px;
+    --key-gap: 6px;
+  }
+  
+  .app-main {
+    flex-direction: column;
+    padding: 0.75rem;
+    align-items: stretch;
+  }
+  
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .panel {
+    flex: 1 1 calc(50% - 0.375rem);
+    min-width: 140px;
+  }
+  
+  .device-panel {
+    flex: 1 1 100%;
+  }
+  
+  .keyboard-section {
+    min-height: 300px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .keyboard-card {
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  
+  .keyboard-container {
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .card-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* 隐藏部分装饰 */
+  .deco-circle,
+  .deco-emoji,
+  .paw-walk {
+    display: none;
+  }
+  
+  .deco-star {
+    font-size: 1rem;
+  }
+}
+
+/* 手机竖屏 (< 480px) */
+@media (max-width: 480px) {
+  :root {
+    --key-unit: 48px;
+    --key-gap: 5px;
+  }
+  
+  .header-left .header-title {
+    display: none;
+  }
+  
+  .app-title {
+    font-size: 2rem;
+  }
+  
+  .app-subtitle {
+    font-size: 0.95rem;
+  }
+  
+  .logo-icon {
+    font-size: 3rem;
+  }
+  
+  .connect-card {
+    padding: 1.25rem;
+  }
+  
+  .preview-keys {
+    grid-template-columns: repeat(3, 40px);
+    grid-template-rows: repeat(2, 40px);
+    gap: 6px;
+  }
+  
+  .features-section {
+    gap: 1rem;
+  }
+  
+  .feature-item {
+    font-size: 0.75rem;
+  }
+  
+  .feature-item i {
+    font-size: 1.2rem;
+  }
+  
+  .sidebar {
+    flex-direction: column;
+  }
+  
+  .panel {
+    flex: 1 1 100%;
+  }
+  
+  .layer-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .layer-buttons .p-button {
+    flex: 1;
+    min-width: 60px;
+  }
+  
+  .action-buttons .p-button {
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  .keyboard-section {
+    padding: 0.5rem;
+  }
+  
+  .keyboard-card {
+    width: auto;
+    margin: 0 auto;
+  }
+  
+  .keyboard-container {
+    padding: 0.75rem;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .card-title {
+    font-size: 0.9rem;
+  }
+  
+  .card-subtitle {
+    display: none;
+  }
+}

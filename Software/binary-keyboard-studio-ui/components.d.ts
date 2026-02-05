@@ -13,6 +13,7 @@ declare module 'vue' {
     ConfirmDialog: typeof import('primevue/confirmdialog')['default']
     Dialog: typeof import('primevue/dialog')['default']
     Divider: typeof import('primevue/divider')['default']
+    EncoderButton: typeof import('./src/components/EncoderButton.vue')['default']
     KeyboardLayout: typeof import('./src/components/KeyboardLayout.vue')['default']
     KeyButton: typeof import('./src/components/KeyButton.vue')['default']
     ProgressSpinner: typeof import('primevue/progressspinner')['default']

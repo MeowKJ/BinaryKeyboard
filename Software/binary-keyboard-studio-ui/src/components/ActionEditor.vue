@@ -612,15 +612,82 @@ function confirmAction() {
 
 <style>
 /* 对话框全局样式覆盖 */
+.action-editor-dialog.p-dialog {
+  background: var(--c-bg-secondary) !important;
+}
+
 .action-editor-dialog .p-dialog-header {
   background: var(--c-bg-secondary) !important;
+  color: var(--c-text-primary) !important;
+}
+
+.action-editor-dialog .p-dialog-header-close {
+  color: var(--c-text-muted) !important;
+}
+
+.action-editor-dialog .p-dialog-header-close:hover {
+  color: var(--c-accent) !important;
+  background: var(--c-accent-soft) !important;
 }
 
 .action-editor-dialog .p-dialog-content {
   background: var(--c-bg-secondary) !important;
+  color: var(--c-text-primary) !important;
 }
 
 .action-editor-dialog .p-dialog-footer {
   background: var(--c-bg-secondary) !important;
+  border-top: 1px solid var(--c-border) !important;
+  padding: 1rem 1.5rem !important;
+}
+
+/* Tabs 在对话框内的样式 */
+.action-editor-dialog .p-tabs {
+  background: transparent !important;
+}
+
+.action-editor-dialog .p-tablist {
+  background: var(--c-bg-tertiary) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 4px !important;
+}
+
+.action-editor-dialog .p-tab {
+  background: transparent !important;
+  color: var(--c-text-muted) !important;
+  border: none !important;
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.8rem !important;
+}
+
+.action-editor-dialog .p-tab:hover {
+  background: var(--c-bg-hover) !important;
+  color: var(--c-text-secondary) !important;
+}
+
+.action-editor-dialog .p-tab[data-p-active="true"] {
+  background: var(--c-accent-soft) !important;
+  color: var(--c-accent) !important;
+}
+
+.action-editor-dialog .p-tabpanels {
+  background: transparent !important;
+  padding: 1rem 0 0 !important;
+}
+
+.action-editor-dialog .p-tabpanel {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* 隐藏 tab 下划线指示器 */
+.action-editor-dialog .p-tablist-active-bar {
+  display: none !important;
+}
+
+/* 底部按钮样式 */
+.action-editor-dialog .p-button {
+  font-weight: 600 !important;
 }
 </style>

@@ -178,6 +178,20 @@ void KBD_RGB_EnableIndicator(bool enable);
  */
 void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms);
 
+/**
+ * @brief 层切换指示闪烁
+ *
+ * 切换层时闪烁对应颜色:
+ * - 层1: 蓝色 (闪1次)
+ * - 层2: 绿色 (闪2次)
+ * - 层3: 黄色 (闪3次)
+ * - 层4: 紫色 (闪4次)
+ * - 层5: 红色 (闪5次)
+ *
+ * @param[in] layer 层号 (0-4)
+ */
+void KBD_RGB_FlashLayer(uint8_t layer);
+
 /** @} */ /* end of KBD_RGB_API */
 
 #ifdef __cplusplus
