@@ -302,11 +302,11 @@ uint32_t KBD_CalcCRC32(const uint8_t *data, uint32_t len)
 
 int KBD_Storage_Init(void)
 {
-    LOG_I(TAG, "初始化存储系统");
+    LOG_I(TAG, "Storage init");
 
     int ret = KBD_Config_Load();
     if (ret != 0) {
-        LOG_W(TAG, "配置加载失败 (%d), 使用默认值", ret);
+        LOG_W(TAG, "Config load failed (%d), using defaults", ret);
         LoadDefaults();
     }
 
@@ -322,13 +322,13 @@ int KBD_Config_Load(void)
 
     /* 验证魔数 */
     if (header.magic != KBD_CONFIG_MAGIC) {
-        LOG_W(TAG, "魔数无效: 0x%08X", header.magic);
+        LOG_W(TAG, "Invalid magic: 0x%08X", header.magic);
         return -1;
     }
 
     /* 验证主版本号 */
     if ((header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
-        LOG_W(TAG, "版本不兼容: 0x%04X", header.version);
+        LOG_W(TAG, "Version mismatch: 0x%04X", header.version);
         return -2;
     }
 
@@ -340,9 +340,9 @@ int KBD_Config_Load(void)
 
     memcpy(&s_config_header, &header, sizeof(header));
 
-    LOG_I(TAG, "配置已加载, 版本=0x%04X, 保存次数=%d",
+    LOG_I(TAG, "Config loaded, ver=0x%04X, saves=%d",
           header.version, header.save_count);
-    LOG_D(TAG, "层数=%d, 当前层=%d",
+    LOG_D(TAG, "layers=%d, current=%d",
           s_keymap_config.num_layers, s_keymap_config.current_layer);
 
     return 0;
@@ -350,7 +350,7 @@ int KBD_Config_Load(void)
 
 int KBD_Config_Save(void)
 {
-    LOG_I(TAG, "保存配置...");
+    LOG_I(TAG, "Saving config...");
 
     /* 更新头部 */
     s_config_header.magic = KBD_CONFIG_MAGIC;
@@ -378,21 +378,21 @@ int KBD_Config_Save(void)
 
     /* 擦除并写入 */
     if (EEPROM_ERASE(0, EEPROM_BLOCK_SIZE) != 0) {
-        LOG_E(TAG, "擦除失败");
+        LOG_E(TAG, "Erase failed");
         return -1;
     }
     if (EEPROM_WRITE(0, block, EEPROM_BLOCK_SIZE) != 0) {
-        LOG_E(TAG, "写入失败");
+        LOG_E(TAG, "Write failed");
         return -2;
     }
 
-    LOG_I(TAG, "配置已保存, 次数=%d", s_config_header.save_count);
+    LOG_I(TAG, "Config saved, count=%d", s_config_header.save_count);
     return 0;
 }
 
 int KBD_Config_Reset(void)
 {
-    LOG_I(TAG, "恢复出厂设置");
+    LOG_I(TAG, "Factory reset");
 
     LoadDefaults();
 
@@ -443,7 +443,7 @@ int KBD_SetCurrentLayer(uint8_t layer)
         return -1;
     }
     s_keymap_config.current_layer = layer;
-    LOG_D(TAG, "切换到层 %d", layer);
+    LOG_D(TAG, "Switch to layer %d", layer);
     return 0;
 }
 
@@ -529,12 +529,12 @@ int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header)
 
     /* 检查大小限制 */
     if (header->data_size > KBD_MACRO_MAX_SIZE - sizeof(kbd_macro_header_t)) {
-        LOG_W(TAG, "宏数据过大: %d 字节", header->data_size);
+        LOG_W(TAG, "Macro too large: %d bytes", header->data_size);
         return KBD_RESP_ERR_TOO_LARGE;
     }
 
     if (header->action_count > KBD_MACRO_MAX_ACTIONS) {
-        LOG_W(TAG, "宏动作过多: %d", header->action_count);
+        LOG_W(TAG, "Too many macro actions: %d", header->action_count);
         return KBD_RESP_ERR_TOO_LARGE;
     }
 
@@ -562,7 +562,7 @@ int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header)
     s_macro_write_slot = slot;
     s_macro_write_size = header->data_size;
 
-    LOG_D(TAG, "开始写入宏: 槽位=%d, 大小=%d", slot, header->data_size);
+    LOG_D(TAG, "Macro write start: slot=%d size=%d", slot, header->data_size);
     return 0;
 }
 
@@ -612,7 +612,7 @@ int Kbd_Macro_EndWrite(uint8_t slot)
     s_macro_write_slot = 0xFF;
     s_macro_write_size = 0;
 
-    LOG_I(TAG, "宏写入完成: 槽位=%d", slot);
+    LOG_I(TAG, "Macro write done: slot=%d", slot);
     return 0;
 }
 
@@ -634,7 +634,7 @@ int Kbd_Macro_Delete(uint8_t slot)
     EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
     EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    LOG_D(TAG, "宏已删除: 槽位=%d", slot);
+    LOG_D(TAG, "Macro deleted: slot=%d", slot);
     return 0;
 }
 

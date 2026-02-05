@@ -291,27 +291,27 @@ const uint8_t HID_ConsumerReportDescriptor[] = {
     0xC0               // End Collection
 };
 
-/* Config Report Descriptor (Vendor Defined) */
+/* Config Report Descriptor (Vendor Defined) - 无 Report ID，通过独立接口区分 */
 const uint8_t HID_ConfigReportDescriptor[] = {
-    0x06, 0x00, 0xFF,  // Usage Page (Vendor Defined)
+    0x06, 0x00, 0xFF,  // Usage Page (Vendor Defined 0xFF00)
     0x09, 0x01,        // Usage (Vendor Usage 1)
     0xA1, 0x01,        // Collection (Application)
     
-    // Input Report
+    // Output Report (主机到设备 - 64 字节)
     0x09, 0x02,        //   Usage (Vendor Usage 2)
     0x15, 0x00,        //   Logical Minimum (0)
     0x26, 0xFF, 0x00,  //   Logical Maximum (255)
     0x75, 0x08,        //   Report Size (8)
     0x95, 0x40,        //   Report Count (64)
-    0x81, 0x02,        //   Input (Data, Variable, Absolute)
+    0x91, 0x02,        //   Output (Data, Variable, Absolute)
     
-    // Output Report
+    // Input Report (设备到主机 - 64 字节)
     0x09, 0x03,        //   Usage (Vendor Usage 3)
     0x15, 0x00,        //   Logical Minimum (0)
     0x26, 0xFF, 0x00,  //   Logical Maximum (255)
     0x75, 0x08,        //   Report Size (8)
     0x95, 0x40,        //   Report Count (64)
-    0x91, 0x02,        //   Output (Data, Variable, Absolute)
+    0x81, 0x02,        //   Input (Data, Variable, Absolute)
     
     0xC0               // End Collection
 };

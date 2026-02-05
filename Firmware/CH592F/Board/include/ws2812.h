@@ -4,18 +4,24 @@
 #include "CH59x_common.h"
 #include "kbd_config.h"
 
-/** 配置参数 */
-#define WS2812_LED_NUM      1 + KBD_NUM_KEYS   /**< 键盘 LED 数量 */
-#define WS2812_CLK_FREQ     60
-#define WS2812_RESET_US     300 /**< 增加复位时间，确保部分国产灯珠稳定锁存 */
+/** LED 配置 */
+#ifndef WS2812_LED_NUM
+    #ifdef WS2812_INDICATOR_ONLY
+        #define WS2812_LED_NUM      1               /**< 仅指示灯 */
+    #else
+        #define WS2812_LED_NUM      (1 + KBD_NUM_KEYS)  /**< 指示灯 + 按键灯 */
+    #endif
+#endif
 
-/** 时序计算 */
-#define WS2812_T0H          (uint32_t)(0.35 * WS2812_CLK_FREQ)
-#define WS2812_T1H          (uint32_t)(0.85 * WS2812_CLK_FREQ)
-#define WS2812_BIT_CYCLE    (uint32_t)(1.25 * WS2812_CLK_FREQ)
-#define WS2812_RESET_CYCLES 300 // 逻辑低电平周期数
+#define WS2812_CLK_FREQ     60                    /**< 60MHz 时钟 */
 
-/** 缓冲区长度：复位 + 数据 */
+/** 时序计算 (基于 60MHz 时钟) */
+#define WS2812_T0H          21   /**< 0.35µs = 21 cycles @ 60MHz */
+#define WS2812_T1H          51   /**< 0.85µs = 51 cycles @ 60MHz */
+#define WS2812_BIT_CYCLE    75   /**< 1.25µs = 75 cycles @ 60MHz */
+#define WS2812_RESET_CYCLES 80   /**< 复位周期数 (>50µs = >3000 cycles, 用 80 个 PWM 周期) */
+
+/** 缓冲区长度：LED 数据 + 复位信号 */
 #define WS2812_BUF_LEN      (WS2812_LED_NUM * 24 + WS2812_RESET_CYCLES)
 
 typedef struct {

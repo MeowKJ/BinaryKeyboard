@@ -265,11 +265,14 @@ static void ProcessRainbowMode(void)
 
 void KBD_RGB_Init(void)
 {
-    LOG_I(TAG, "初始化 RGB 引擎");
+    LOG_I(TAG, "RGB init");
+    
     WS2812_Init();
 
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
-    WS2812_SetBrightness(cfg->brightness);
+    if (cfg) {
+        WS2812_SetBrightness(cfg->brightness);
+    }
 
     s_effect_phase = 0;
     s_flash_active = false;
@@ -342,7 +345,7 @@ void KBD_RGB_SetMode(kbd_rgb_mode_t mode)
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->mode = mode;
     s_effect_phase = 0;
-    LOG_D(TAG, "模式=%d", mode);
+    LOG_D(TAG, "mode=%d", mode);
 }
 
 kbd_rgb_mode_t KBD_RGB_GetMode(void)
@@ -376,7 +379,7 @@ void KBD_RGB_Toggle(void)
 {
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->enabled = !cfg->enabled;
-    LOG_D(TAG, "开关=%d", cfg->enabled);
+    LOG_D(TAG, "toggle=%d", cfg->enabled);
 
     if (!cfg->enabled) {
         WS2812_Fill(0, 0, 0);
@@ -426,7 +429,7 @@ void KBD_RGB_SetState(kbd_state_t state)
     if (state != s_current_state) {
         s_current_state = state;
         s_effect_phase = 0;
-        LOG_D(TAG, "状态=%d", state);
+        LOG_D(TAG, "state=%d", state);
     }
 }
 
@@ -443,4 +446,8 @@ void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms)
     s_flash_g = g;
     s_flash_b = b;
     s_flash_remain = duration_ms / RGB_UPDATE_INTERVAL_MS;
+
+    /* 立即点亮 LED（用于启动动画等场景） */
+    WS2812_Fill(r, g, b);
+    WS2812_Update();
 }

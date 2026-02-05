@@ -63,12 +63,12 @@ static void HandleBattery(const kbd_cmd_frame_t *frame);
 
 void KBD_Command_Init(void)
 {
-    LOG_I(TAG, "命令处理器初始化");
+    LOG_I(TAG, "Command handler init");
 }
 
 int KBD_Command_Process(const kbd_cmd_frame_t *frame)
 {
-    LOG_D(TAG, "命令=0x%02X 子命令=0x%02X 长度=%d", frame->cmd, frame->sub, frame->len);
+    LOG_D(TAG, "cmd=0x%02X sub=0x%02X len=%d", frame->cmd, frame->sub, frame->len);
 
     switch (frame->cmd) {
         /* 系统命令 */
@@ -140,7 +140,7 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
             break;
 
         default:
-            LOG_W(TAG, "未知命令 0x%02X", frame->cmd);
+            LOG_W(TAG, "Unknown cmd 0x%02X", frame->cmd);
             {
                 uint8_t resp[1] = { KBD_RESP_ERR_INVALID };
                 KBD_Command_SendResponse(frame->cmd, 0, resp, 1);
@@ -153,14 +153,18 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
 
 void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data, uint8_t len)
 {
-    uint8_t buf[64];
-    buf[0] = cmd;
-    buf[1] = sub;
-    buf[2] = len;
+    /* USB_ConfigReport_t 格式: [CMD:1][DATA:63]
+     * 我们把 [SUB][LEN][actual_data] 放入 DATA 部分
+     * 最终格式: [CMD][SUB][LEN][actual_data...]
+     */
+    uint8_t buf[63];
+    buf[0] = sub;
+    buf[1] = len;
     if (data && len > 0) {
-        memcpy(&buf[3], data, (len > 61) ? 61 : len);
+        uint8_t copy_len = (len > 61) ? 61 : len;
+        memcpy(&buf[2], data, copy_len);
     }
-    USB_Config_SendResponse(cmd, buf, len + 3);
+    USB_Config_SendResponse(cmd, buf, len + 2);
 }
 
 /*============================================================================*/
@@ -205,7 +209,7 @@ static void HandleSysInfo(const kbd_cmd_frame_t *frame)
     resp[13] = KBD_FN_NUM_KEYS;                 /* FN 键数量 */
 
     KBD_Command_SendResponse(KBD_CMD_SYS_INFO, 0, resp, 14);
-    LOG_D(TAG, "系统信息已发送: 类型=%d 键数=%d", resp[11], resp[12]);
+    LOG_D(TAG, "SysInfo sent: type=%d keys=%d", resp[11], resp[12]);
 }
 
 /**
@@ -232,7 +236,7 @@ static void HandleCfgSave(const kbd_cmd_frame_t *frame)
     int ret = KBD_Config_Save();
     uint8_t resp[1] = { (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH };
     KBD_Command_SendResponse(KBD_CMD_CFG_SAVE, 0, resp, 1);
-    LOG_I(TAG, "配置保存: %d", ret);
+    LOG_I(TAG, "Config save: %d", ret);
 }
 
 /**
@@ -243,7 +247,7 @@ static void HandleCfgLoad(const kbd_cmd_frame_t *frame)
     int ret = KBD_Config_Load();
     uint8_t resp[1] = { (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH };
     KBD_Command_SendResponse(KBD_CMD_CFG_LOAD, 0, resp, 1);
-    LOG_I(TAG, "配置加载: %d", ret);
+    LOG_I(TAG, "Config load: %d", ret);
 }
 
 /**
@@ -254,7 +258,7 @@ static void HandleCfgReset(const kbd_cmd_frame_t *frame)
     int ret = KBD_Config_Reset();
     uint8_t resp[1] = { (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH };
     KBD_Command_SendResponse(KBD_CMD_CFG_RESET, 0, resp, 1);
-    LOG_I(TAG, "配置重置: %d", ret);
+    LOG_I(TAG, "Config reset: %d", ret);
 }
 
 /**
@@ -295,9 +299,13 @@ static void HandleKeymapSet(const kbd_cmd_frame_t *frame)
         return;
     }
 
-    if (frame->len >= 4 + sizeof(kbd_layer_t)) {
+    /* 数据格式: [numLayers:1][reserved:1][defaultLayer:1][layer_data:32] = 35 bytes */
+    if (frame->len >= 3 + sizeof(kbd_layer_t)) {
         uint8_t num_layers = frame->data[0];
         uint8_t default_layer = frame->data[2];
+
+        LOG_D(TAG, "Keymap set: layer=%d numLayers=%d defLayer=%d len=%d", 
+              layer, num_layers, default_layer, frame->len);
 
         if (num_layers > 0 && num_layers <= KBD_MAX_LAYERS) {
             keymap->num_layers = num_layers;
@@ -307,11 +315,13 @@ static void HandleKeymapSet(const kbd_cmd_frame_t *frame)
         }
 
         memcpy(&keymap->layers[layer], &frame->data[3], sizeof(kbd_layer_t));
+    } else {
+        LOG_W(TAG, "Keymap data too short: len=%d need=%d", frame->len, 3 + sizeof(kbd_layer_t));
     }
 
     uint8_t resp[1] = { KBD_RESP_OK };
     KBD_Command_SendResponse(KBD_CMD_KEYMAP_SET, layer, resp, 1);
-    LOG_D(TAG, "按键映射已设置: 层=%d", layer);
+    LOG_D(TAG, "Keymap set: layer=%d", layer);
 }
 
 /**
@@ -343,7 +353,7 @@ static void HandleLayerSet(const kbd_cmd_frame_t *frame)
     resp[1] = KBD_GetCurrentLayer();
 
     KBD_Command_SendResponse(KBD_CMD_LAYER_SET, 0, resp, 2);
-    LOG_D(TAG, "层切换: %d", layer);
+    LOG_D(TAG, "Layer switch: %d", layer);
 }
 
 /**
@@ -390,7 +400,7 @@ static void HandleRgbSet(const kbd_cmd_frame_t *frame)
 
     uint8_t resp[1] = { KBD_RESP_OK };
     KBD_Command_SendResponse(KBD_CMD_RGB_SET, 0, resp, 1);
-    LOG_D(TAG, "RGB 配置已设置");
+    LOG_D(TAG, "RGB config set");
 }
 
 /**
@@ -481,7 +491,7 @@ static void HandleMacroSet(const kbd_cmd_frame_t *frame)
         }
         resp[1] = seq;
         KBD_Command_SendResponse(KBD_CMD_MACRO_SET, slot, resp, 2);
-        LOG_D(TAG, "宏写入开始: 槽位=%d 返回=%d", slot, ret);
+        LOG_D(TAG, "Macro write begin: slot=%d ret=%d", slot, ret);
 
     } else if (seq == 0xFF) {
         /* 完成写入 */
@@ -491,7 +501,7 @@ static void HandleMacroSet(const kbd_cmd_frame_t *frame)
         resp[0] = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
         resp[1] = seq;
         KBD_Command_SendResponse(KBD_CMD_MACRO_SET, slot, resp, 2);
-        LOG_D(TAG, "宏写入完成: 槽位=%d 返回=%d", slot, ret);
+        LOG_D(TAG, "Macro write end: slot=%d ret=%d", slot, ret);
 
     } else {
         /* 数据块 */
@@ -517,7 +527,7 @@ static void HandleMacroDel(const kbd_cmd_frame_t *frame)
 
     uint8_t resp[1] = { (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_PARAM };
     KBD_Command_SendResponse(KBD_CMD_MACRO_DEL, slot, resp, 1);
-    LOG_D(TAG, "宏删除: 槽位=%d 返回=%d", slot, ret);
+    LOG_D(TAG, "Macro delete: slot=%d ret=%d", slot, ret);
 }
 
 /**
@@ -547,7 +557,7 @@ static void HandleFnkeySet(const kbd_cmd_frame_t *frame)
 
     uint8_t resp[1] = { KBD_RESP_OK };
     KBD_Command_SendResponse(KBD_CMD_FNKEY_SET, 0, resp, 1);
-    LOG_D(TAG, "FN 键配置已设置");
+    LOG_D(TAG, "FN key config set");
 }
 
 /**

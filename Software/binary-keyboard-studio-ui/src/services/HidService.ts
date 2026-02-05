@@ -35,10 +35,17 @@ import {
 // HID 过滤器
 // ============================================================================
 
+// HID 过滤器 - 只选择 Vendor Defined Usage Page (0xFF00) 的 Collection
+// HID 过滤器 - 只选择 Vendor Defined Usage Page (0xFF00) 的 Collection
 export const KEYBOARD_FILTER: HIDDeviceFilter = {
   vendorId: VENDOR_ID,
   productId: PRODUCT_ID,
+  usagePage: 0xFF00,  // Vendor Defined
+  usage: 0x01,        // Vendor Usage 1
 };
+
+// 响应帧头大小 [CMD:1][SUB:1][LEN:1]
+const RESP_HEADER_SIZE = 3;
 
 // ============================================================================
 // HID 服务类
@@ -123,8 +130,15 @@ export class HidService {
     frame[2] = data.length;
     frame.set(data, 3);
 
+    console.log('发送命令:', { cmd: '0x' + cmd.toString(16), sub, dataLen: data.length, reportId: REPORT_ID_COMMAND });
+
     // 发送
-    await this.device.sendReport(REPORT_ID_COMMAND, frame);
+    try {
+      await this.device.sendReport(REPORT_ID_COMMAND, frame);
+    } catch (e) {
+      console.error('sendReport 失败:', e);
+      throw e;
+    }
 
     // 等待响应
     return new Promise((resolve, reject) => {
@@ -138,7 +152,11 @@ export class HidService {
 
   /** 处理输入报告 */
   private handleInputReport(event: HIDInputReportEvent): void {
-    if (event.reportId !== REPORT_ID_RESPONSE) return;
+    // 无 Report ID 模式：reportId 为 0
+    // 有 Report ID 模式：检查 reportId 是否匹配
+    if (REPORT_ID_RESPONSE !== 0 && event.reportId !== REPORT_ID_RESPONSE) return;
+
+    console.log('收到响应, reportId:', event.reportId, 'len:', event.data.byteLength);
 
     if (this.responsePromise) {
       if (this.responseTimeout) {
@@ -158,23 +176,26 @@ export class HidService {
   async getSysInfo(): Promise<DeviceInfo> {
     const resp = await this.sendCommand(Command.SYS_INFO);
 
-    const status = resp.getUint8(0);
+    // 响应帧格式: [CMD:1][SUB:1][LEN:1][DATA...]
+    // DATA[0] = status, DATA[1..] = 实际数据
+    const d = RESP_HEADER_SIZE;  // data offset
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`SYS_INFO 失败: 0x${status.toString(16)}`);
     }
 
     return {
-      vendorId: (resp.getUint8(1) << 8) | resp.getUint8(2),
-      productId: (resp.getUint8(3) << 8) | resp.getUint8(4),
-      versionMajor: resp.getUint8(5),
-      versionMinor: resp.getUint8(6),
-      versionPatch: resp.getUint8(7),
-      maxLayers: resp.getUint8(8),
-      maxKeys: resp.getUint8(9),
-      macroSlots: resp.getUint8(10),
-      keyboardType: resp.getUint8(11) as KeyboardType,
-      actualKeyCount: resp.getUint8(12),
-      fnKeyCount: resp.getUint8(13),
+      vendorId: (resp.getUint8(d + 1) << 8) | resp.getUint8(d + 2),
+      productId: (resp.getUint8(d + 3) << 8) | resp.getUint8(d + 4),
+      versionMajor: resp.getUint8(d + 5),
+      versionMinor: resp.getUint8(d + 6),
+      versionPatch: resp.getUint8(d + 7),
+      maxLayers: resp.getUint8(d + 8),
+      maxKeys: resp.getUint8(d + 9),
+      macroSlots: resp.getUint8(d + 10),
+      keyboardType: resp.getUint8(d + 11) as KeyboardType,
+      actualKeyCount: resp.getUint8(d + 12),
+      fnKeyCount: resp.getUint8(d + 13),
     };
   }
 
@@ -182,17 +203,18 @@ export class HidService {
   async getSysStatus(): Promise<DeviceStatus> {
     const resp = await this.sendCommand(Command.SYS_STATUS);
 
-    const status = resp.getUint8(0);
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`SYS_STATUS 失败: 0x${status.toString(16)}`);
     }
 
     return {
-      workMode: resp.getUint8(1),
-      connectionState: resp.getUint8(2),
-      currentLayer: resp.getUint8(3),
-      batteryLevel: resp.getUint8(4),
-      isCharging: resp.getUint8(5) !== 0,
+      workMode: resp.getUint8(d + 1),
+      connectionState: resp.getUint8(d + 2),
+      currentLayer: resp.getUint8(d + 3),
+      batteryLevel: resp.getUint8(d + 4),
+      isCharging: resp.getUint8(d + 5) !== 0,
     };
   }
 
@@ -200,19 +222,20 @@ export class HidService {
   async getKeymap(layerIndex: number): Promise<{ numLayers: number; currentLayer: number; defaultLayer: number; layer: LayerConfig }> {
     const resp = await this.sendCommand(Command.KEYMAP_GET, layerIndex);
 
-    const status = resp.getUint8(0);
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`KEYMAP_GET 失败: 0x${status.toString(16)}`);
     }
 
-    const numLayers = resp.getUint8(1);
-    const currentLayer = resp.getUint8(2);
-    const defaultLayer = resp.getUint8(3);
+    const numLayers = resp.getUint8(d + 1);
+    const currentLayer = resp.getUint8(d + 2);
+    const defaultLayer = resp.getUint8(d + 3);
 
     // 解析层数据 (偏移 4, 32 字节 = 8 键 × 4 字节)
     const keys: KeyAction[] = [];
     for (let i = 0; i < MAX_KEYS; i++) {
-      const offset = 4 + i * 4;
+      const offset = d + 4 + i * 4;
       keys.push({
         type: resp.getUint8(offset),
         modifier: resp.getUint8(offset + 1),
@@ -261,7 +284,7 @@ export class HidService {
     }
 
     const resp = await this.sendCommand(Command.KEYMAP_SET, layerIndex, data);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`KEYMAP_SET 失败: 0x${status.toString(16)}`);
     }
@@ -278,20 +301,21 @@ export class HidService {
   async getRgbConfig(): Promise<RgbConfig> {
     const resp = await this.sendCommand(Command.RGB_GET);
 
-    const status = resp.getUint8(0);
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`RGB_GET 失败: 0x${status.toString(16)}`);
     }
 
     return {
-      enabled: resp.getUint8(1) !== 0,
-      mode: resp.getUint8(2),
-      brightness: resp.getUint8(3),
-      speed: resp.getUint8(4),
-      colorR: resp.getUint8(5),
-      colorG: resp.getUint8(6),
-      colorB: resp.getUint8(7),
-      indicatorEnabled: resp.getUint8(8) !== 0,
+      enabled: resp.getUint8(d + 1) !== 0,
+      mode: resp.getUint8(d + 2),
+      brightness: resp.getUint8(d + 3),
+      speed: resp.getUint8(d + 4),
+      colorR: resp.getUint8(d + 5),
+      colorG: resp.getUint8(d + 6),
+      colorB: resp.getUint8(d + 7),
+      indicatorEnabled: resp.getUint8(d + 8) !== 0,
     };
   }
 
@@ -308,7 +332,7 @@ export class HidService {
     data[7] = config.indicatorEnabled ? 1 : 0;
 
     const resp = await this.sendCommand(Command.RGB_SET, 0, data);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`RGB_SET 失败: 0x${status.toString(16)}`);
     }
@@ -318,14 +342,15 @@ export class HidService {
   async getFnKeyConfig(): Promise<FnKeyConfig> {
     const resp = await this.sendCommand(Command.FNKEY_GET);
 
-    const status = resp.getUint8(0);
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`FNKEY_GET 失败: 0x${status.toString(16)}`);
     }
 
     const fnKeys: FnKeyEntry[] = [];
     for (let i = 0; i < MAX_FN_KEYS; i++) {
-      const offset = 1 + i * 8;
+      const offset = d + 1 + i * 8;
       fnKeys.push({
         clickAction: resp.getUint8(offset),
         clickParam: resp.getUint8(offset + 1),
@@ -355,7 +380,7 @@ export class HidService {
     }
 
     const resp = await this.sendCommand(Command.FNKEY_SET, 0, data);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`FNKEY_SET 失败: 0x${status.toString(16)}`);
     }
@@ -364,7 +389,7 @@ export class HidService {
   /** 保存配置到 Flash */
   async saveConfig(): Promise<void> {
     const resp = await this.sendCommand(Command.CFG_SAVE);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`CFG_SAVE 失败: 0x${status.toString(16)}`);
     }
@@ -373,7 +398,7 @@ export class HidService {
   /** 从 Flash 加载配置 */
   async loadConfig(): Promise<void> {
     const resp = await this.sendCommand(Command.CFG_LOAD);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`CFG_LOAD 失败: 0x${status.toString(16)}`);
     }
@@ -382,7 +407,7 @@ export class HidService {
   /** 恢复出厂设置 */
   async resetConfig(): Promise<void> {
     const resp = await this.sendCommand(Command.CFG_RESET);
-    const status = resp.getUint8(0);
+    const status = resp.getUint8(RESP_HEADER_SIZE + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`CFG_RESET 失败: 0x${status.toString(16)}`);
     }
@@ -392,15 +417,16 @@ export class HidService {
   async getBattery(): Promise<{ level: number; voltage: number; isCharging: boolean }> {
     const resp = await this.sendCommand(Command.BATTERY);
 
-    const status = resp.getUint8(0);
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`BATTERY 失败: 0x${status.toString(16)}`);
     }
 
     return {
-      level: resp.getUint8(1),
-      isCharging: resp.getUint8(2) !== 0,
-      voltage: resp.getUint8(3) / 10, // 0.1V 单位
+      level: resp.getUint8(d + 1),
+      isCharging: resp.getUint8(d + 2) !== 0,
+      voltage: resp.getUint8(d + 3) / 10, // 0.1V 单位
     };
   }
 }

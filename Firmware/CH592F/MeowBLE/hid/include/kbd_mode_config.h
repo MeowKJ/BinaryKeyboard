@@ -46,8 +46,8 @@ typedef enum {
 /** 切换到蓝牙后自动开始广播 */
 #define KBD_AUTO_START_ADVERTISING      1
 
-/** USB 插入时自动切换到 USB 模式 */
-#define KBD_AUTO_SWITCH_TO_USB_ON_PLUG  0
+/** USB 插入时自动切换到 USB 模式（默认启用，开机即为 USB 模式） */
+#define KBD_AUTO_SWITCH_TO_USB_ON_PLUG  1
 
 /*============================================================================*/
 /* 蓝牙配置 */

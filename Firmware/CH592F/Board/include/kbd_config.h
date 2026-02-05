@@ -82,6 +82,9 @@ typedef struct {
 #define WS2812_EN_PORT      GPIO_PORT_A
 #define WS2812_EN_PIN       GPIO_Pin_9
 
+/* WS2812 LED 配置：仅指示灯模式 (注释掉则启用按键灯) */
+#define WS2812_INDICATOR_ONLY
+
 /** @} */
 
 /*============================================================================*/

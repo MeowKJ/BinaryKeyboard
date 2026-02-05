@@ -25,9 +25,6 @@
 /* 全局变量 */
 /*============================================================================*/
 
-/** WS2812 DMA 缓冲区 */
-__attribute__((aligned(4))) uint32_t PwmBuf[WS2812_BUF_LEN];
-
 /** TMOS 内存池 */
 __attribute__((aligned(4))) uint32_t MEM_BUF[BLE_MEMHEAP_SIZE / 4];
 
@@ -106,21 +103,11 @@ int main(void)
     /* 初始化配置命令处理 */
     KBD_Command_Init();
 
-    /* 初始化 RGB 效果引擎 */
+    /* 初始化 RGB 效果引擎（必须在 Mode 之前，因为回调会用到） */
     KBD_RGB_Init();
 
-    /* 初始化键盘核心 */
+    /* 初始化键盘核心（必须在 Mode 之前，因为回调会用到） */
     KBD_Core_Init();
-
-    /* RGB 启动动画 */
-    KBD_RGB_Flash(255, 0, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(255, 255, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(0, 255, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(0, 0, 255, 200);
-    DelayMs(250);
 
     /* 检测初始模式 */
 #if KBD_AUTO_SWITCH_TO_USB_ON_PLUG
@@ -129,14 +116,22 @@ int main(void)
     initial_mode = KBD_WORK_MODE_BLE;
 #endif
 
-    /* 初始化模式管理器 */
+    /* 初始化模式管理器（USB/BLE） */
     if (KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks()) != 0) {
         LOG_E(TAG, "Mode init failed!");
         while (1);
     }
+    LOG_I(TAG, "Mode OK");
 
-    LOG_I(TAG, "init mode: %s", (initial_mode == KBD_WORK_MODE_USB) ? "USB" : "BLE");
-    LOG_I(TAG, "system ready");
+    /* RGB 启动动画 */
+    KBD_RGB_Flash(255, 0, 0, 200);
+    DelayMs(200);
+    KBD_RGB_Flash(0, 255, 0, 200);
+    DelayMs(200);
+    KBD_RGB_Flash(0, 0, 255, 200);
+    DelayMs(200);
+
+    LOG_I(TAG, "Ready");
 
     /* 进入主循环 */
     Main_Circulation();

@@ -26,14 +26,25 @@ static void WS2812_Fill_Byte(uint32_t *p_buf, uint8_t data) {
  * @brief 初始化 WS2812 GPIO 和定时器
  */
 void WS2812_Init(void) {
-    // 1. 配置 PA10 为推挽输出
+    // 1. 配置 WS2812 使能引脚 (PA9) 并拉高以供电
+#if defined(WS2812_EN_PORT) && defined(WS2812_EN_PIN)
+    if (WS2812_EN_PORT == GPIO_PORT_A) {
+        GPIOA_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
+        GPIOA_SetBits(WS2812_EN_PIN);
+    } else {
+        GPIOB_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
+        GPIOB_SetBits(WS2812_EN_PIN);
+    }
+#endif
+
+    // 2. 配置 PA10 为推挽输出 (PWM 数据线)
     GPIOA_ModeCfg(GPIO_Pin_10, GPIO_ModeOut_PP_5mA);
     
-    // 2. 配置定时器 1 为 PWM 模式
+    // 3. 配置定时器 1 为 PWM 模式
     TMR1_PWMInit(High_Level, PWM_Times_1);
     TMR1_PWMCycleCfg(WS2812_BIT_CYCLE);
     
-    // 3. 清空缓冲区 (初始化为复位信号)
+    // 4. 清空缓冲区 (初始化为复位信号)
     memset(ws2812_buf, 0, sizeof(ws2812_buf));
 }
 
@@ -57,8 +68,8 @@ void WS2812_Set(uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
         b = (uint16_t)b * s_brightness / 255;
     }
 
-    // 计算在缓冲区中的位置 (跳过开头的复位信号区)
-    uint32_t *p = &ws2812_buf[WS2812_RESET_CYCLES + (index * 24)];
+    // 计算在缓冲区中的位置 (LED 数据从 index 0 开始，复位在末尾)
+    uint32_t *p = &ws2812_buf[index * 24];
     
     // WS2812 标准发送顺序：G -> R -> B
     WS2812_Fill_Byte(p, g);      // Green
@@ -76,14 +87,20 @@ void WS2812_Fill(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 /**
- * @brief 刷新 LED 数据（你要求的保持不变的部分）
+ * @brief 刷新 LED 数据
  */
 void WS2812_Update(void) {
+    // 临时禁用以测试是否 DMA 导致崩溃
+    return;
+    
     TMR1_Disable();
+    
+    // 配置 DMA: 从缓冲区起始到结束
     TMR1_DMACfg(ENABLE,
                 (uint16_t)(uint32_t)ws2812_buf,
                 (uint16_t)(uint32_t)(ws2812_buf + WS2812_BUF_LEN),
                 Mode_Single);
+    
     TMR1_PWMEnable();
     TMR1_Enable();
 }
