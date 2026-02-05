@@ -96,11 +96,8 @@ export const useDeviceStore = defineStore('device', () => {
     if (!deviceInfo.value) return [];
     return [
       { key: '型号名称', value: keyboardTypeName.value },
-      { key: '键盘类型', value: `0x${deviceInfo.value.keyboardType.toString(16).padStart(2, '0').toUpperCase()}` },
       { key: '按键数量', value: `${actualKeyCount.value} 键` },
       { key: '固件版本', value: `v${firmwareVersion.value}` },
-      { key: '支持层数', value: `${deviceInfo.value.maxLayers} 层` },
-      { key: 'FN 键数', value: `${deviceInfo.value.fnKeyCount} 个` },
     ];
   });
 
@@ -156,6 +153,22 @@ export const useDeviceStore = defineStore('device', () => {
     const config = await hidService.getFullKeymap();
     keymap.value = config;
     keymapOriginal.value = JSON.parse(JSON.stringify(config)); // 深拷贝
+    
+    // 根据键盘类型自动设置层数
+    if (deviceInfo.value) {
+      const expectedLayers = KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers || 4;
+      if (keymap.value.numLayers !== expectedLayers) {
+        keymap.value.numLayers = expectedLayers;
+        // 确保当前层在有效范围内
+        if (keymap.value.currentLayer >= expectedLayers) {
+          keymap.value.currentLayer = 0;
+        }
+        if (keymap.value.defaultLayer >= expectedLayers) {
+          keymap.value.defaultLayer = 0;
+        }
+        currentEditLayer.value = keymap.value.currentLayer;
+      }
+    }
   }
 
   /** 刷新 RGB 配置 */

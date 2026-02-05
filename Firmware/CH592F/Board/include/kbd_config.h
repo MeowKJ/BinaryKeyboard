@@ -119,10 +119,11 @@ typedef struct {
 
 #if defined(KBD_LAYOUT_BASIC)
 /*---------------------------------------------------------------------------*/
-/* 基础款: 4 键                                                               */
+/* 基础款: 4 键, 4 层                                                          */
 /*---------------------------------------------------------------------------*/
 #define KBD_CURRENT_TYPE    KBD_TYPE_BASIC
 #define KBD_NUM_KEYS        KBD_KEYS_BASIC
+#define KBD_DEFAULT_LAYERS  4u              /**< 默认层数 = 按键数 */
 
 #define KBD_K1_PORT         GPIO_PORT_B
 #define KBD_K1_PIN          GPIO_Pin_4
@@ -138,10 +139,11 @@ typedef struct {
 
 #elif defined(KBD_LAYOUT_5KEY)
 /*---------------------------------------------------------------------------*/
-/* 五键款: 5 键                                                               */
+/* 五键款: 5 键, 5 层                                                          */
 /*---------------------------------------------------------------------------*/
 #define KBD_CURRENT_TYPE    KBD_TYPE_5KEYS
 #define KBD_NUM_KEYS        KBD_KEYS_5KEYS
+#define KBD_DEFAULT_LAYERS  5u              /**< 默认层数 = 按键数 */
 
 #define KBD_K1_PORT         GPIO_PORT_B
 #define KBD_K1_PIN          GPIO_Pin_4
@@ -160,11 +162,12 @@ typedef struct {
 
 #elif defined(KBD_LAYOUT_KNOB)
 /*---------------------------------------------------------------------------*/
-/* 旋钮款: 4 普通键 + 1 旋钮 (等效 7 键)                                       */
+/* 旋钮款: 4 普通键 + 1 旋钮, 5 层 (4键 + 旋钮按下)                             */
 /*---------------------------------------------------------------------------*/
 #define KBD_CURRENT_TYPE    KBD_TYPE_KNOB
 #define KBD_NUM_KEYS        4u              /**< 实际物理普通键数量 */
 #define KBD_TOTAL_KEYS      KBD_KEYS_KNOB   /**< 总虚拟键数 (含旋钮) */
+#define KBD_DEFAULT_LAYERS  5u              /**< 默认层数 = 4键 + 旋钮按下 */
 #define KBD_HAS_ENCODER     1               /**< 启用编码器支持 */
 
 /* 普通按键 */
@@ -230,6 +233,14 @@ static inline uint8_t KBD_GetTotalKeyCount(void) {
  */
 static inline uint8_t KBD_GetPhysicalKeyCount(void) {
     return KBD_NUM_KEYS;
+}
+
+/**
+ * @brief 获取默认层数
+ * @return 层数 (等于按键数或5)
+ */
+static inline uint8_t KBD_GetDefaultLayers(void) {
+    return KBD_DEFAULT_LAYERS;
 }
 
 /** @} */

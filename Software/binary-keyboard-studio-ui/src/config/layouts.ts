@@ -75,8 +75,10 @@ export const LAYOUT_FIVE_KEYS: LayoutDef = {
 
 /**
  * 旋钮款布局 (4 键 + 旋钮)
- * · · |   [旋钮]
- * · —
+ * + · |
+ * · ·
+ * 说明: + 代表旋钮（被分成3份：左转、按下、右转）
+ * 旋钮的3个操作都在同一个位置（row 0, col 0），由 EncoderButton 组件合并显示
  * 虚拟按键: 0-3=物理键, 4=顺时针, 5=逆时针, 6=按下
  */
 export const LAYOUT_KNOB: LayoutDef = {
@@ -85,14 +87,33 @@ export const LAYOUT_KNOB: LayoutDef = {
   rows: 2,
   hasEncoder: true,
   keys: [
-    { index: 0, row: 0, col: 0, size: '1u' },
-    { index: 1, row: 0, col: 1, size: '1u' },
+    { index: 6, row: 0, col: 0, size: '1u', label: '●', type: 'encoder-press' }, // 旋钮按下（+）
+    { index: 4, row: 0, col: 0, size: '1u', label: '↻', type: 'encoder-cw' }, // 旋钮右转（与按下同一位置）
+    { index: 5, row: 0, col: 0, size: '1u', label: '↺', type: 'encoder-ccw' }, // 旋钮左转（与按下同一位置）
+    { index: 0, row: 0, col: 1, size: '1u' }, // 按键0（·）
+    { index: 2, row: 0, col: 2, size: '2u-v' }, // 按键2（|，竖向2u）
+    { index: 1, row: 1, col: 0, size: '1u' }, // 按键1（·）
+    { index: 3, row: 1, col: 1, size: '1u' }, // 按键3（·）
+  ],
+};
+
+/**
+ * 旋钮款层选择布局（只包含物理按键 + 旋钮按下）
+ * + · |
+ * · ·
+ * 说明: + 只代表旋钮按下操作，用于层切换
+ */
+export const LAYOUT_KNOB_LAYER: LayoutDef = {
+  name: '旋钮款（层选择）',
+  cols: 3,
+  rows: 2,
+  hasEncoder: false,
+  keys: [
+    { index: 6, row: 0, col: 0, size: '1u', label: '●', type: 'encoder-press' }, // 旋钮按下
+    { index: 0, row: 0, col: 1, size: '1u' },
     { index: 2, row: 0, col: 2, size: '2u-v' },
-    { index: 3, row: 1, col: 0, size: '2u-h' },
-    // 旋钮虚拟按键
-    { index: 4, row: 0, col: 4, size: '1u', label: '↻', type: 'encoder-cw' },
-    { index: 5, row: 1, col: 4, size: '1u', label: '↺', type: 'encoder-ccw' },
-    { index: 6, row: 0.5, col: 5, size: '1u', label: '●', type: 'encoder-press' },
+    { index: 1, row: 1, col: 0, size: '1u' },
+    { index: 3, row: 1, col: 1, size: '1u' },
   ],
 };
 
@@ -102,6 +123,16 @@ export function getLayoutByType(type: number): LayoutDef {
     case 0: return LAYOUT_BASIC;
     case 1: return LAYOUT_FIVE_KEYS;
     case 2: return LAYOUT_KNOB;
+    default: return LAYOUT_BASIC;
+  }
+}
+
+/** 根据键盘类型获取层选择布局（用于层选择面板） */
+export function getLayerLayoutByType(type: number): LayoutDef {
+  switch (type) {
+    case 0: return LAYOUT_BASIC; // 基础款：4个按键对应4层
+    case 1: return LAYOUT_FIVE_KEYS; // 五键款：5个按键对应5层
+    case 2: return LAYOUT_KNOB_LAYER; // 旋钮款：5个按键对应5层（包含旋钮按下）
     default: return LAYOUT_BASIC;
   }
 }

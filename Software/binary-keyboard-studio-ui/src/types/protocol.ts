@@ -26,10 +26,10 @@ export enum KeyboardType {
   KNOB = 2,     // 旋钮款: 4 键 + 旋钮 (7 虚拟键)
 }
 
-export const KeyboardTypeInfo: Record<KeyboardType, { name: string; keys: number; physical: number }> = {
-  [KeyboardType.BASIC]: { name: '基础款', keys: 4, physical: 4 },
-  [KeyboardType.FIVE_KEYS]: { name: '五键款', keys: 5, physical: 5 },
-  [KeyboardType.KNOB]: { name: '旋钮款', keys: 7, physical: 4 },
+export const KeyboardTypeInfo: Record<KeyboardType, { name: string; keys: number; physical: number; layers: number }> = {
+  [KeyboardType.BASIC]: { name: '基础款', keys: 4, physical: 4, layers: 4 },
+  [KeyboardType.FIVE_KEYS]: { name: '五键款', keys: 5, physical: 5, layers: 5 },
+  [KeyboardType.KNOB]: { name: '旋钮款', keys: 7, physical: 4, layers: 5 },
 };
 
 // ============================================================================
@@ -270,7 +270,7 @@ export interface CommandFrame {
 // 常量
 // ============================================================================
 
-export const MAX_LAYERS = 4;
+export const MAX_LAYERS = 5;
 export const MAX_KEYS = 8;
 export const MAX_FN_KEYS = 4;
 export const MACRO_SLOTS = 8;

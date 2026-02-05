@@ -11,6 +11,7 @@
 #include "kbd_rgb.h"
 #include "kbd_mode.h"
 #include "hal_utils.h"
+#include "key.h"
 #include "debug.h"
 
 #define TAG "CORE"
@@ -99,6 +100,19 @@ void KBD_Core_Process(void)
 }
 
 /**
+ * @brief 检查是否有 FN 键被按下
+ */
+static bool IsFnKeyHeld(void)
+{
+    for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++) {
+        if (FnKey_IsDown(i) == 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * @brief 处理普通按键事件
  */
 void KBD_Core_HandleKeyEvent(const key_event_t *evt)
@@ -106,11 +120,25 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
     if (evt == NULL || evt->key >= KBD_MAX_KEYS)
         return;
 
+    bool pressed = (evt->type == KEY_EVT_PRESS);
+    
+    /* FN 组合键：按住 FN + 按键 = 切换到对应层 */
+    if (IsFnKeyHeld() && pressed) {
+        uint8_t target_layer = evt->key;  /* 按键0->层0, 按键1->层1... */
+        kbd_keymap_t *keymap = KBD_GetKeymap();
+        
+        if (target_layer < keymap->num_layers) {
+            KBD_SetCurrentLayer(target_layer);
+            LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
+            KBD_RGB_FlashLayer(target_layer);
+            return;  /* 不执行按键原本的动作 */
+        }
+    }
+    
     const kbd_action_t *action = KBD_GetKeyAction(evt->key);
     if (action == NULL)
         return;
 
-    bool pressed = (evt->type == KEY_EVT_PRESS);
     LOG_D(TAG, "key %d %s", evt->key, pressed ? "press" : "release");
     ExecuteKeyAction(action, pressed);
 }
@@ -376,6 +404,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         {
             uint8_t layer = KBD_NextLayer();
             LOG_I(TAG, "FN: layer next -> %d", layer);
+            KBD_RGB_FlashLayer(layer);
         }
         break;
 
@@ -383,12 +412,14 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         {
             uint8_t layer = KBD_PrevLayer();
             LOG_I(TAG, "FN: layer prev -> %d", layer);
+            KBD_RGB_FlashLayer(layer);
         }
         break;
 
     case KBD_FN_LAYER_SET:
         LOG_I(TAG, "FN: layer set %d", param);
         KBD_SetCurrentLayer(param);
+        KBD_RGB_FlashLayer(param);
         break;
 
     /* 系统 */

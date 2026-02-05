@@ -451,3 +451,37 @@ void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms)
     WS2812_Fill(r, g, b);
     WS2812_Update();
 }
+
+void KBD_RGB_FlashLayer(uint8_t layer)
+{
+    /* 层颜色定义 */
+    static const uint8_t layer_colors[5][3] = {
+        {0, 100, 255},   /* 层1: 蓝色 */
+        {0, 255, 100},   /* 层2: 绿色 */
+        {255, 200, 0},   /* 层3: 黄色 */
+        {200, 0, 255},   /* 层4: 紫色 */
+        {255, 50, 50},   /* 层5: 红色 */
+    };
+    
+    if (layer >= 5) layer = 4;
+    
+    uint8_t r = layer_colors[layer][0];
+    uint8_t g = layer_colors[layer][1];
+    uint8_t b = layer_colors[layer][2];
+    uint8_t blinks = layer + 1;  /* 层1闪1次，层2闪2次... */
+    
+    /* 执行闪烁 */
+    for (uint8_t i = 0; i < blinks; i++) {
+        WS2812_Fill(r, g, b);
+        WS2812_Update();
+        mDelaymS(100);
+        WS2812_Fill(0, 0, 0);
+        WS2812_Update();
+        if (i < blinks - 1) {
+            mDelaymS(100);
+        }
+    }
+    
+    /* 恢复正常灯效 */
+    s_effect_phase = 0;
+}

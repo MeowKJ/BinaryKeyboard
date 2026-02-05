@@ -38,7 +38,7 @@ extern "C" {
 #define KBD_CONFIG_MAGIC        0x4D454F57  /**< 配置魔数 "MEOW" */
 #define KBD_CONFIG_VERSION      0x0101      /**< 配置版本 v1.1 (添加键盘类型) */
 
-#define KBD_MAX_LAYERS          4           /**< 最大层数 */
+#define KBD_MAX_LAYERS          5           /**< 最大层数 (5键款/旋钮款支持5层) */
 #define KBD_MAX_KEYS            8           /**< 单层最大按键数 (支持所有类型) */
 #define KBD_MAX_FN_KEYS         4           /**< 最大 FN 键数 */
 
@@ -163,10 +163,10 @@ typedef struct __attribute__((packed)) {
 } kbd_layer_t;
 
 /**
- * @brief 完整按键映射配置 (132 字节)
+ * @brief 完整按键映射配置 (164 字节)
  */
 typedef struct __attribute__((packed)) {
-    uint8_t     num_layers;             /**< 实际使用的层数 (1-4) */
+    uint8_t     num_layers;             /**< 实际使用的层数 (1-5) */
     uint8_t     current_layer;          /**< 当前激活层 */
     uint8_t     default_layer;          /**< 默认层 */
     uint8_t     reserved;               /**< 保留字段 */

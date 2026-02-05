@@ -1,32 +1,20 @@
 <template>
   <div class="keyboard-layout">
-    <!-- 主键盘区域 -->
+    <!-- 主键盘区域（包含所有按键，包括旋钮） -->
     <div class="keyboard-grid" :style="gridStyle">
-      <KeyButton 
-        v-for="key in mainKeys" 
-        :key="key.index"
-        :key-def="key"
-        :action="getAction(key.index)"
-        :selected="selectedIndex === key.index"
-        @click="emit('select', key.index)"
-      />
-    </div>
-
-    <!-- 旋钮区域 (如果有) -->
-    <div v-if="layout.hasEncoder" class="encoder-section">
-      <div class="encoder-container">
-        <div class="encoder-ring">
-          <KeyButton 
-            v-for="key in encoderKeys" 
-            :key="key.index"
-            :key-def="key"
-            :action="getAction(key.index)"
-            :selected="selectedIndex === key.index"
-            @click="emit('select', key.index)"
-          />
-        </div>
-        <span class="encoder-label">旋钮</span>
-      </div>
+      <template v-for="key in displayKeys" :key="key.index">
+        <!-- 旋钮按键：使用特殊的3分区组件 -->
+        <EncoderButton v-if="key.type === 'encoder-press' && encoderIndices" :key-def="key" :actions="{
+          cw: getAction(encoderIndices.cw),
+          press: getAction(encoderIndices.press),
+          ccw: getAction(encoderIndices.ccw),
+        }" :selected-index="selectedIndex" :encoder-indices="encoderIndices" :disabled="disabled"
+          @select="!disabled && emit('select', $event)" />
+        <!-- 普通按键 -->
+        <KeyButton v-else-if="key.type !== 'encoder-cw' && key.type !== 'encoder-ccw'" :key-def="key"
+          :action="getAction(key.index)" :selected="selectedIndex === key.index" :disabled="disabled"
+          @click="!disabled && emit('select', key.index)" />
+      </template>
     </div>
   </div>
 </template>
@@ -36,11 +24,13 @@ import { computed } from 'vue';
 import { getLayoutByType, type KeyDef } from '@/config/layouts';
 import { type KeyAction, createEmptyAction } from '@/types/protocol';
 import KeyButton from './KeyButton.vue';
+import EncoderButton from './EncoderButton.vue';
 
 const props = defineProps<{
   keyboardType: number;
   keys: KeyAction[];
   selectedIndex: number;
+  disabled?: boolean; // 预览模式下禁用点击
 }>();
 
 const emit = defineEmits<{
@@ -50,14 +40,32 @@ const emit = defineEmits<{
 /** 获取当前布局 */
 const layout = computed(() => getLayoutByType(props.keyboardType));
 
-/** 主键盘按键 (非旋钮) */
-const mainKeys = computed(() => {
-  return layout.value.keys.filter(k => !k.type || k.type === 'normal');
+/** 所有按键（包括旋钮，都集成在主grid中） */
+const allKeys = computed(() => {
+  return layout.value.keys;
 });
 
-/** 旋钮按键 */
-const encoderKeys = computed(() => {
-  return layout.value.keys.filter(k => k.type && k.type.startsWith('encoder'));
+/** 显示按键（过滤掉旋钮的 cw 和 ccw，因为它们已经包含在 EncoderButton 中） */
+const displayKeys = computed(() => {
+  return allKeys.value.filter(key =>
+    key.type !== 'encoder-cw' && key.type !== 'encoder-ccw'
+  );
+});
+
+/** 旋钮的3个按键索引 */
+const encoderIndices = computed(() => {
+  const encoderPress = allKeys.value.find(k => k.type === 'encoder-press');
+  const encoderCw = allKeys.value.find(k => k.type === 'encoder-cw');
+  const encoderCcw = allKeys.value.find(k => k.type === 'encoder-ccw');
+
+  if (encoderPress && encoderCw && encoderCcw) {
+    return {
+      press: encoderPress.index,
+      cw: encoderCw.index,
+      ccw: encoderCcw.index,
+    };
+  }
+  return null;
 });
 
 /** 网格样式 */
@@ -79,9 +87,10 @@ function getAction(index: number): KeyAction {
 <style scoped>
 .keyboard-layout {
   display: flex;
-  gap: 2.5rem;
   align-items: center;
+  justify-content: center;
   padding: 1.5rem;
+  width: 100%;
 }
 
 .keyboard-grid {
@@ -90,51 +99,29 @@ function getAction(index: number): KeyAction {
   border: 1px solid var(--c-border);
   border-radius: var(--radius-xl);
   padding: 1.25rem;
-  box-shadow: 
+  box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* 旋钮区域 */
-.encoder-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* 响应式 */
+@media (max-width: 768px) {
+  .keyboard-layout {
+    padding: 1rem;
+  }
+
+  .keyboard-grid {
+    padding: 1rem;
+  }
 }
 
-.encoder-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--c-bg-tertiary);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-xl);
-  padding: 1.25rem;
-  box-shadow: 
-    0 4px 20px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
+@media (max-width: 480px) {
+  .keyboard-layout {
+    padding: 0.5rem;
+  }
 
-.encoder-ring {
-  display: grid;
-  grid-template-columns: 52px 56px 52px;
-  grid-template-rows: 52px 52px;
-  gap: 6px;
-  align-items: center;
-  justify-items: center;
-}
-
-/* 旋钮布局调整 */
-.encoder-ring > :nth-child(1) { grid-area: 1 / 1; }  /* 顺时针 */
-.encoder-ring > :nth-child(2) { grid-area: 2 / 1; }  /* 逆时针 */
-.encoder-ring > :nth-child(3) { grid-area: 1 / 2 / 3 / 3; }  /* 按下 */
-
-.encoder-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--c-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  .keyboard-grid {
+    padding: 0.75rem;
+  }
 }
 </style>

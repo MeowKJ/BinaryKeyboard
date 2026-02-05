@@ -63,15 +63,15 @@ static uint16_t s_macro_write_size = 0;
  */
 #if defined(KBD_LAYOUT_BASIC)
 /*---------------------------------------------------------------------------*/
-/* 基础款: 4 键 → 数字键 1-4                                                   */
+/* 基础款: 4 键, 4 层 → 数字键 1-4                                             */
 /*---------------------------------------------------------------------------*/
 static const kbd_keymap_t s_default_keymap = {
-    .num_layers = 1,
+    .num_layers = KBD_DEFAULT_LAYERS,
     .current_layer = 0,
     .default_layer = 0,
     .reserved = 0,
     .layers = {
-        {
+        {   /* 层 1 */
             .keys = {
                 { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },  /* '1' */
                 { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },  /* '2' */
@@ -83,23 +83,24 @@ static const kbd_keymap_t s_default_keymap = {
                 { KBD_ACTION_NONE, 0, 0, 0 },
             }
         },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 2 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 3 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 4 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 5 (未使用) */
     }
 };
 
 #elif defined(KBD_LAYOUT_5KEY)
 /*---------------------------------------------------------------------------*/
-/* 五键款: 5 键 → 数字键 1-5                                                   */
+/* 五键款: 5 键, 5 层 → 数字键 1-5                                             */
 /*---------------------------------------------------------------------------*/
 static const kbd_keymap_t s_default_keymap = {
-    .num_layers = 1,
+    .num_layers = KBD_DEFAULT_LAYERS,
     .current_layer = 0,
     .default_layer = 0,
     .reserved = 0,
     .layers = {
-        {
+        {   /* 层 1 */
             .keys = {
                 { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },  /* '1' */
                 { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },  /* '2' */
@@ -111,41 +112,43 @@ static const kbd_keymap_t s_default_keymap = {
                 { KBD_ACTION_NONE, 0, 0, 0 },
             }
         },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 2 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 3 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 4 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 5 */
     }
 };
 
 #elif defined(KBD_LAYOUT_KNOB)
 /*---------------------------------------------------------------------------*/
-/* 旋钮款: 4 普通键 + 3 旋钮动作 (7 虚拟键)                                     */
+/* 旋钮款: 4 普通键 + 3 旋钮动作, 5 层 (4键 + 旋钮按下可切换)                    */
 /* [0-3] 普通键 → 数字键 1-4                                                   */
 /* [4]   旋钮顺时针 → 音量增加                                                 */
 /* [5]   旋钮逆时针 → 音量减少                                                 */
 /* [6]   旋钮按下 → 静音                                                       */
 /*---------------------------------------------------------------------------*/
 static const kbd_keymap_t s_default_keymap = {
-    .num_layers = 1,
+    .num_layers = KBD_DEFAULT_LAYERS,
     .current_layer = 0,
     .default_layer = 0,
     .reserved = 0,
     .layers = {
-        {
+        {   /* 层 1 */
             .keys = {
                 { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },      /* K1: '1' */
                 { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },      /* K2: '2' */
                 { KBD_ACTION_KEYBOARD, 0, 0x20, 0 },      /* K3: '3' */
                 { KBD_ACTION_KEYBOARD, 0, 0x21, 0 },      /* K4: '4' */
-                { KBD_ACTION_CONSUMER, 0, 0xE9, 0x00 },   /* 旋钮CW: 音量+ */
-                { KBD_ACTION_CONSUMER, 0, 0xEA, 0x00 },   /* 旋钮CCW: 音量- */
-                { KBD_ACTION_CONSUMER, 0, 0xE2, 0x00 },   /* 旋钮按下: 静音 */
+                { KBD_ACTION_CONSUMER, 0, 0xE9, 0x00 },   /* CW: Vol+ */
+                { KBD_ACTION_CONSUMER, 0, 0xEA, 0x00 },   /* CCW: Vol- */
+                { KBD_ACTION_CONSUMER, 0, 0xE2, 0x00 },   /* Click: Mute */
                 { KBD_ACTION_NONE, 0, 0, 0 },
             }
         },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 2 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 3 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 4 */
+        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },  /* 层 5 */
     }
 };
 
