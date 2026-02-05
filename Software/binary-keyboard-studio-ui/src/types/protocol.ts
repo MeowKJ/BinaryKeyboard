@@ -10,8 +10,9 @@
 export const VENDOR_ID = 0x413d;
 export const PRODUCT_ID = 0x2107;
 
-export const REPORT_ID_COMMAND = 4;  // 主机 → 键盘
-export const REPORT_ID_RESPONSE = 5; // 键盘 → 主机
+// 无 Report ID 模式 - 通过独立 HID 接口区分（兼容 Linux/macOS）
+export const REPORT_ID_COMMAND = 0;  // 主机 → 键盘 (Output Report, 无 Report ID)
+export const REPORT_ID_RESPONSE = 0; // 键盘 → 主机 (Input Report, 无 Report ID)
 
 export const FRAME_SIZE = 64;        // 帧大小
 

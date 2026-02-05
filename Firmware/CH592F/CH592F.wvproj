@@ -58,7 +58,8 @@
 					"${project}/MeowBLE/core/include/LED.h",
 					"${project}/MeowBLE/core/src/LED.c",
 					"${project}/MeowBLE/core/src/KEY.c",
-					"${project}/User/RGB_TEST.c"
+					"${project}/User/RGB_TEST.c",
+					"${project}/User/Main_Test.c"
 				],
 				"optimization": {
 					"level": "size",

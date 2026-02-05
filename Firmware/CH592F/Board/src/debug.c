@@ -17,37 +17,27 @@ void Debug_Init(void)
     UART1_BaudRateCfg(DEBUG_UART1_BAUDRATE);
 }
 
-static void Debug_PutChar(char c)
-{
-    while (R8_UART1_TFC == UART_FIFO_SIZE);
-    R8_UART1_THR = c;
-}
-
-static void Debug_PutString(const char *str)
-{
-    while (*str) {
-        Debug_PutChar(*str++);
-    }
-}
-
 void Log_Output(const char *level, const char *tag, const char *fmt, ...)
 {
-    char buf[128];
+    static char buf[80];
     va_list args;
-    int len;
 
-    // 格式: [L/TAG] message
-    len = snprintf(buf, sizeof(buf), "[%s/%s] ", level, tag);
-    if (len > 0) {
-        Debug_PutString(buf);
-    }
-
+    // 格式: [L/TAG] message\n
+    int len = snprintf(buf, sizeof(buf), "[%s/%s] ", level, tag);
+    
     va_start(args, fmt);
-    len = vsnprintf(buf, sizeof(buf), fmt, args);
+    len += vsnprintf(buf + len, sizeof(buf) - len, fmt, args);
     va_end(args);
-
-    if (len > 0) {
-        Debug_PutString(buf);
+    
+    // 添加换行
+    if (len < (int)sizeof(buf) - 1) {
+        buf[len++] = '\n';
+        buf[len] = '\0';
     }
-    Debug_PutChar('\n');
+    
+    // 直接输出到 UART1
+    for (int i = 0; i < len && buf[i]; i++) {
+        while (R8_UART1_TFC == UART_FIFO_SIZE);
+        R8_UART1_THR = buf[i];
+    }
 }
