@@ -1,86 +1,44 @@
 <template>
-  <div class="keyboard-layout" :class="layoutClass">
-    <!-- 基础款 4 键 -->
-    <template v-if="keyboardType === KeyboardType.BASIC">
+  <div class="keyboard-layout">
+    <!-- 主键盘区域 -->
+    <div class="keyboard-grid" :style="gridStyle">
       <KeyButton 
-        v-for="(key, i) in displayKeys" 
-        :key="i"
-        :index="i"
-        :action="key"
-        :selected="selectedIndex === i"
-        :shape="getBasicShape(i)"
-        @click="emit('select', i)"
+        v-for="key in mainKeys" 
+        :key="key.index"
+        :key-def="key"
+        :action="getAction(key.index)"
+        :selected="selectedIndex === key.index"
+        @click="emit('select', key.index)"
       />
-    </template>
+    </div>
 
-    <!-- 五键款 5 键 -->
-    <template v-else-if="keyboardType === KeyboardType.FIVE_KEYS">
-      <KeyButton 
-        v-for="(key, i) in displayKeys" 
-        :key="i"
-        :index="i"
-        :action="key"
-        :selected="selectedIndex === i"
-        :shape="getFiveKeyShape(i)"
-        @click="emit('select', i)"
-      />
-    </template>
-
-    <!-- 旋钮款 7 虚拟键 -->
-    <template v-else-if="keyboardType === KeyboardType.KNOB">
-      <div class="knob-layout">
-        <div class="knob-main-keys">
+    <!-- 旋钮区域 (如果有) -->
+    <div v-if="layout.hasEncoder" class="encoder-section">
+      <div class="encoder-container">
+        <div class="encoder-ring">
           <KeyButton 
-            v-for="i in 4" 
-            :key="i - 1"
-            :index="i - 1"
-            :action="keys[i - 1]"
-            :selected="selectedIndex === i - 1"
-            :shape="getKnobShape(i - 1)"
-            @click="emit('select', i - 1)"
+            v-for="key in encoderKeys" 
+            :key="key.index"
+            :key-def="key"
+            :action="getAction(key.index)"
+            :selected="selectedIndex === key.index"
+            @click="emit('select', key.index)"
           />
         </div>
-        <div class="knob-encoder">
-          <div class="encoder-ring">
-            <KeyButton 
-              :index="4"
-              :action="keys[4]"
-              :selected="selectedIndex === 4"
-              shape="encoder-cw"
-              label="↻"
-              @click="emit('select', 4)"
-            />
-            <KeyButton 
-              :index="6"
-              :action="keys[6]"
-              :selected="selectedIndex === 6"
-              shape="encoder-press"
-              label="●"
-              @click="emit('select', 6)"
-            />
-            <KeyButton 
-              :index="5"
-              :action="keys[5]"
-              :selected="selectedIndex === 5"
-              shape="encoder-ccw"
-              label="↺"
-              @click="emit('select', 5)"
-            />
-          </div>
-          <span class="encoder-label">旋钮</span>
-        </div>
+        <span class="encoder-label">旋钮</span>
       </div>
-    </template>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { KeyboardType, type KeyAction, createEmptyAction } from '@/types/protocol';
+import { getLayoutByType, type KeyDef } from '@/config/layouts';
+import { type KeyAction, createEmptyAction } from '@/types/protocol';
 import KeyButton from './KeyButton.vue';
 
 const props = defineProps<{
-  keyboardType: KeyboardType;
+  keyboardType: number;
   keys: KeyAction[];
   selectedIndex: number;
 }>();
@@ -89,99 +47,94 @@ const emit = defineEmits<{
   select: [index: number];
 }>();
 
-const layoutClass = computed(() => {
-  switch (props.keyboardType) {
-    case KeyboardType.BASIC: return 'layout-basic';
-    case KeyboardType.FIVE_KEYS: return 'layout-five';
-    case KeyboardType.KNOB: return 'layout-knob';
-    default: return 'layout-basic';
-  }
+/** 获取当前布局 */
+const layout = computed(() => getLayoutByType(props.keyboardType));
+
+/** 主键盘按键 (非旋钮) */
+const mainKeys = computed(() => {
+  return layout.value.keys.filter(k => !k.type || k.type === 'normal');
 });
 
-const displayKeys = computed(() => {
-  const count = props.keyboardType === KeyboardType.FIVE_KEYS ? 5 : 4;
-  return props.keys.slice(0, count);
+/** 旋钮按键 */
+const encoderKeys = computed(() => {
+  return layout.value.keys.filter(k => k.type && k.type.startsWith('encoder'));
 });
 
-function getBasicShape(index: number): string {
-  // 基础款布局: 2x2 + 长条
-  if (index === 2) return 'tall';
-  if (index === 3) return 'wide';
-  return 'square';
-}
+/** 网格样式 */
+const gridStyle = computed(() => {
+  const l = layout.value;
+  return {
+    gridTemplateColumns: `repeat(${l.cols}, var(--key-unit))`,
+    gridTemplateRows: `repeat(${l.rows}, var(--key-unit))`,
+    gap: 'var(--key-gap)',
+  };
+});
 
-function getFiveKeyShape(index: number): string {
-  // 五键款布局: 2x2 + 1
-  return 'square';
-}
-
-function getKnobShape(index: number): string {
-  if (index === 2) return 'tall';
-  if (index === 3) return 'wide';
-  return 'square';
+/** 获取按键动作 */
+function getAction(index: number): KeyAction {
+  return props.keys[index] || createEmptyAction();
 }
 </script>
 
 <style scoped>
 .keyboard-layout {
   display: flex;
-  justify-content: center;
+  gap: 2.5rem;
   align-items: center;
+  padding: 1.5rem;
 }
 
-/* 基础款布局 */
-.layout-basic {
+.keyboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, 80px);
-  grid-template-rows: repeat(2, 80px);
-  gap: 12px;
+  background: var(--c-bg-tertiary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-/* 五键款布局 */
-.layout-five {
-  display: grid;
-  grid-template-columns: repeat(3, 80px);
-  grid-template-rows: repeat(2, 80px);
-  gap: 12px;
-}
-
-/* 旋钮款布局 */
-.layout-knob {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-}
-
-.knob-layout {
-  display: flex;
-  gap: 2rem;
-  align-items: center;
-}
-
-.knob-main-keys {
-  display: grid;
-  grid-template-columns: repeat(3, 80px);
-  grid-template-rows: repeat(2, 80px);
-  gap: 12px;
-}
-
-.knob-encoder {
+/* 旋钮区域 */
+.encoder-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+}
+
+.encoder-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--c-bg-tertiary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .encoder-ring {
   display: grid;
-  grid-template-columns: 50px 60px 50px;
-  grid-template-rows: 50px;
-  gap: 4px;
+  grid-template-columns: 52px 56px 52px;
+  grid-template-rows: 52px 52px;
+  gap: 6px;
   align-items: center;
+  justify-items: center;
 }
+
+/* 旋钮布局调整 */
+.encoder-ring > :nth-child(1) { grid-area: 1 / 1; }  /* 顺时针 */
+.encoder-ring > :nth-child(2) { grid-area: 2 / 1; }  /* 逆时针 */
+.encoder-ring > :nth-child(3) { grid-area: 1 / 2 / 3 / 3; }  /* 按下 */
 
 .encoder-label {
   font-size: 0.8rem;
-  color: var(--app-text-muted);
+  font-weight: 600;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 </style>

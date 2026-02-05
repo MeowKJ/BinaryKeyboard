@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root">
+  <div class="app-root" :data-theme="currentTheme">
     <Toast position="top-center" />
 
     <!-- 加载遮罩 -->
@@ -8,13 +8,18 @@
       <span class="loading-text">正在通讯...</span>
     </div>
 
-    <!-- 未连接状态 -->
+    <!-- 未连接状态 - 欢迎页 -->
     <div v-if="!deviceStore.isConnected" class="welcome-screen">
+      <!-- 主题切换按钮 -->
+      <button class="theme-toggle welcome-theme-toggle" @click="toggleTheme">
+        <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
+      </button>
+
       <div class="welcome-content">
         <div class="logo-section">
-          <i class="pi pi-bolt logo-icon"></i>
-          <h1 class="app-title">MeowKeyboard Studio</h1>
-          <p class="app-subtitle">无线版改键工具</p>
+          <div class="logo-icon">🐱</div>
+          <h1 class="app-title">MeowKeyboard</h1>
+          <p class="app-subtitle">可爱键盘改键工具</p>
         </div>
 
         <div class="connect-section">
@@ -58,20 +63,20 @@
             <span>宏录制</span>
           </div>
           <div class="feature-item">
-            <i class="pi pi-cloud-upload"></i>
-            <span>云端备份</span>
+            <i class="pi pi-bolt"></i>
+            <span>USB / 蓝牙</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 已连接状态 -->
+    <!-- 已连接状态 - 主界面 -->
     <div v-else class="main-layout">
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
-          <i class="pi pi-bolt header-logo"></i>
-          <span class="header-title">MeowKeyboard Studio</span>
+          <span class="header-logo">🐱</span>
+          <span class="header-title">MeowKeyboard</span>
         </div>
 
         <div class="header-center">
@@ -82,6 +87,9 @@
         </div>
 
         <div class="header-right">
+          <button class="theme-toggle" @click="toggleTheme" v-tooltip.bottom="'切换主题'">
+            <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
+          </button>
           <Button 
             icon="pi pi-sync" 
             severity="secondary" 
@@ -103,7 +111,7 @@
 
       <!-- 主内容区 -->
       <main class="app-main">
-        <!-- 左侧面板 - 设备信息 -->
+        <!-- 左侧面板 -->
         <aside class="sidebar">
           <div class="panel device-panel">
             <h3 class="panel-title">
@@ -120,7 +128,7 @@
 
           <div class="panel layer-panel">
             <h3 class="panel-title">
-              <i class="pi pi-layer-group" style="font-size: 1rem;"></i>
+              <i class="pi pi-layer-group"></i>
               层选择
             </h3>
             <div class="layer-buttons">
@@ -198,7 +206,7 @@
       />
     </div>
 
-    <!-- 确认重置对话框 -->
+    <!-- 确认对话框 -->
     <ConfirmDialog />
   </div>
 </template>
@@ -211,12 +219,16 @@ import { useDeviceStore } from '@/stores/deviceStore';
 import { hidService } from '@/services/HidService';
 import type { KeyAction } from '@/types/protocol';
 import { createEmptyAction } from '@/types/protocol';
+import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 
 const toast = useToast();
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
+
+// 主题
+const currentTheme = ref<ThemeMode>('dark');
 
 // 编辑器状态
 const editorVisible = ref(false);
@@ -226,6 +238,22 @@ const selectedAction = computed<KeyAction>(() => {
   if (selectedKeyIndex.value < 0) return createEmptyAction();
   return deviceStore.getKeyAction(selectedKeyIndex.value) || createEmptyAction();
 });
+
+// ----------------------------------------
+// 主题切换
+// ----------------------------------------
+
+function initTheme() {
+  const saved = getSavedTheme();
+  currentTheme.value = saved || getSystemTheme();
+  applyTheme(currentTheme.value);
+}
+
+function toggleTheme() {
+  currentTheme.value = currentTheme.value === 'dark' ? 'light' : 'dark';
+  applyTheme(currentTheme.value);
+  saveTheme(currentTheme.value);
+}
 
 // ----------------------------------------
 // 设备连接
@@ -346,6 +374,7 @@ function onDeviceDisconnected(event: HIDConnectionEvent) {
 }
 
 onMounted(async () => {
+  initTheme();
   navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
   await autoConnect();
 });
@@ -356,21 +385,21 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* 全局样式变量 */
+/* ==========================================
+   全局样式变量 (兼容旧代码)
+========================================== */
 :root {
-  --app-bg: #0a0a0f;
-  --app-surface: #12121a;
-  --app-surface-hover: #1a1a24;
-  --app-border: #2a2a3a;
-  --app-text: #e8e8f0;
-  --app-text-muted: #8888a0;
-  --app-accent: #7c5cff;
-  --app-accent-soft: rgba(124, 92, 255, 0.15);
-  --app-success: #4ade80;
-  --app-danger: #f87171;
-  --app-warning: #fbbf24;
-  --header-height: 60px;
-  --sidebar-width: 280px;
+  --app-bg: var(--c-bg-primary);
+  --app-surface: var(--c-bg-secondary);
+  --app-surface-hover: var(--c-bg-hover);
+  --app-border: var(--c-border);
+  --app-text: var(--c-text-primary);
+  --app-text-muted: var(--c-text-muted);
+  --app-accent: var(--c-accent);
+  --app-accent-soft: var(--c-accent-soft);
+  --app-success: var(--c-success);
+  --app-danger: var(--c-danger);
+  --app-warning: var(--c-warning);
 }
 
 * {
@@ -380,9 +409,9 @@ onUnmounted(() => {
 body {
   margin: 0;
   padding: 0;
-  background: var(--app-bg);
-  color: var(--app-text);
-  font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--c-bg-primary);
+  color: var(--c-text-primary);
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .app-root {
@@ -391,34 +420,73 @@ body {
   flex-direction: column;
 }
 
-/* 加载遮罩 */
+/* ==========================================
+   加载遮罩
+========================================== */
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1rem;
   z-index: 9999;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
 }
 
 .loading-text {
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
   font-size: 0.9rem;
+  font-weight: 500;
 }
 
-/* 欢迎页面 */
+/* ==========================================
+   主题切换按钮
+========================================== */
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--c-bg-hover);
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.theme-toggle i {
+  font-size: 1.1rem;
+}
+
+.welcome-theme-toggle {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+}
+
+/* ==========================================
+   欢迎页面
+========================================== */
 .welcome-screen {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   background: 
-    radial-gradient(ellipse at top, rgba(124, 92, 255, 0.1) 0%, transparent 50%),
-    var(--app-bg);
+    radial-gradient(ellipse at top, var(--c-accent-soft) 0%, transparent 50%),
+    var(--c-bg-primary);
 }
 
 .welcome-content {
@@ -433,16 +501,20 @@ body {
 
 .logo-icon {
   font-size: 4rem;
-  color: var(--app-accent);
   margin-bottom: 1rem;
-  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 .app-title {
-  font-size: 2.5rem;
-  font-weight: 700;
+  font-size: 2.75rem;
+  font-weight: 800;
   margin: 0 0 0.5rem;
-  background: linear-gradient(135deg, #fff 0%, var(--app-accent) 100%);
+  background: var(--c-accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -450,8 +522,9 @@ body {
 
 .app-subtitle {
   font-size: 1.1rem;
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
   margin: 0;
+  font-weight: 500;
 }
 
 .connect-section {
@@ -459,10 +532,11 @@ body {
 }
 
 .connect-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 16px;
+  background: var(--c-bg-secondary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xl);
   padding: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .keyboard-preview {
@@ -478,9 +552,9 @@ body {
 }
 
 .preview-key {
-  background: var(--app-surface-hover);
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
+  background: var(--c-bg-tertiary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -488,21 +562,17 @@ body {
   grid-row: span 2;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
-}
-
 .connect-button {
   width: 100%;
   font-size: 1.1rem !important;
+  font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;
 }
 
 .connect-hint {
   margin: 1rem 0 0;
   font-size: 0.85rem;
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -521,27 +591,32 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
   font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .feature-item i {
   font-size: 1.5rem;
-  color: var(--app-accent);
+  color: var(--c-accent);
 }
 
-/* 主布局 */
+/* ==========================================
+   主布局
+========================================== */
 .main-layout {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-/* 顶部导航 */
+/* ==========================================
+   顶部导航
+========================================== */
 .app-header {
   height: var(--header-height);
-  background: var(--app-surface);
-  border-bottom: 1px solid var(--app-border);
+  background: var(--c-bg-secondary);
+  border-bottom: 1px solid var(--c-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -559,12 +634,15 @@ body {
 
 .header-logo {
   font-size: 1.5rem;
-  color: var(--app-accent);
 }
 
 .header-title {
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 700;
+  background: var(--c-accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .header-center {
@@ -577,22 +655,26 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--app-accent-soft);
+  background: var(--c-accent-soft);
   padding: 0.5rem 1rem;
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .connected-icon {
-  color: var(--app-success);
+  color: var(--c-success);
 }
 
 .header-right {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* 主内容 */
+/* ==========================================
+   主内容
+========================================== */
 .app-main {
   flex: 1;
   display: flex;
@@ -600,7 +682,9 @@ body {
   gap: 1.5rem;
 }
 
-/* 侧边栏 */
+/* ==========================================
+   侧边栏
+========================================== */
 .sidebar {
   width: var(--sidebar-width);
   display: flex;
@@ -610,9 +694,9 @@ body {
 }
 
 .panel {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
+  background: var(--c-bg-secondary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
   padding: 1rem;
 }
 
@@ -621,13 +705,14 @@ body {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 700;
   margin: 0 0 1rem;
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
 }
 
 .panel-title i {
-  color: var(--app-accent);
+  color: var(--c-accent);
+  font-size: 0.9rem;
 }
 
 .info-list {
@@ -643,11 +728,11 @@ body {
 }
 
 .info-label {
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
 }
 
 .info-value {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .layer-buttons {
@@ -667,7 +752,9 @@ body {
   justify-content: flex-start !important;
 }
 
-/* 键盘区域 */
+/* ==========================================
+   键盘区域
+========================================== */
 .keyboard-section {
   flex: 1;
   display: flex;
@@ -677,10 +764,11 @@ body {
 }
 
 .keyboard-container {
-  padding: 2rem;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: 16px;
+  background: var(--c-bg-secondary);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .changes-indicator {
@@ -688,7 +776,8 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--app-warning);
+  color: var(--c-warning);
   font-size: 0.9rem;
+  font-weight: 600;
 }
 </style>

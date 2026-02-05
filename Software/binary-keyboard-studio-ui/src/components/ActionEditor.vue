@@ -2,17 +2,18 @@
   <Dialog 
     v-model:visible="dialogVisible" 
     :header="`编辑按键 ${keyIndex + 1}`"
-    :style="{ width: '480px' }"
+    :style="{ width: '520px' }"
     modal
     :closable="!isListening"
     :closeOnEscape="!isListening"
+    class="action-editor-dialog"
   >
     <Tabs v-model:value="activeTab">
       <TabList>
         <Tab value="keyboard"><i class="pi pi-keyboard"></i> 键盘</Tab>
         <Tab value="media"><i class="pi pi-volume-up"></i> 媒体</Tab>
         <Tab value="mouse"><i class="pi pi-desktop"></i> 鼠标</Tab>
-        <Tab value="layer"><i class="pi pi-layer-group" style="font-size: 0.875rem;"></i> 层</Tab>
+        <Tab value="layer"><i class="pi pi-layer-group"></i> 层</Tab>
         <Tab value="macro"><i class="pi pi-code"></i> 宏</Tab>
       </TabList>
 
@@ -61,15 +62,15 @@
         <TabPanel value="media">
           <div class="editor-panel">
             <div class="media-grid">
-              <Button 
+              <button 
                 v-for="key in consumerKeys" 
                 :key="key.code"
-                :label="key.name"
-                :severity="editAction.param1 === (key.code & 0xff) && editAction.param2 === ((key.code >> 8) & 0xff) ? 'primary' : 'secondary'"
-                :outlined="!(editAction.param1 === (key.code & 0xff) && editAction.param2 === ((key.code >> 8) & 0xff))"
-                size="small"
+                class="media-key"
+                :class="{ active: isConsumerActive(key.code) }"
                 @click="selectConsumer(key.code)"
-              />
+              >
+                {{ key.name }}
+              </button>
             </div>
           </div>
         </TabPanel>
@@ -80,14 +81,15 @@
             <div class="mouse-section">
               <label class="section-label">鼠标按键</label>
               <div class="mouse-buttons">
-                <Button 
+                <button 
                   v-for="btn in mouseButtons" 
                   :key="btn.value"
-                  :label="btn.label"
-                  :severity="editAction.type === ActionType.MOUSE_BTN && editAction.param1 === btn.value ? 'primary' : 'secondary'"
-                  :outlined="!(editAction.type === ActionType.MOUSE_BTN && editAction.param1 === btn.value)"
+                  class="option-btn"
+                  :class="{ active: editAction.type === ActionType.MOUSE_BTN && editAction.param1 === btn.value }"
                   @click="selectMouseButton(btn.value)"
-                />
+                >
+                  {{ btn.label }}
+                </button>
               </div>
             </div>
 
@@ -96,14 +98,15 @@
             <div class="wheel-section">
               <label class="section-label">滚轮</label>
               <div class="wheel-buttons">
-                <Button 
+                <button 
                   v-for="dir in wheelDirections" 
                   :key="dir.value"
-                  :label="dir.label"
-                  :severity="editAction.type === ActionType.MOUSE_WHEEL && editAction.param1 === dir.value ? 'primary' : 'secondary'"
-                  :outlined="!(editAction.type === ActionType.MOUSE_WHEEL && editAction.param1 === dir.value)"
+                  class="option-btn"
+                  :class="{ active: editAction.type === ActionType.MOUSE_WHEEL && editAction.param1 === dir.value }"
                   @click="selectWheel(dir.value)"
-                />
+                >
+                  {{ dir.label }}
+                </button>
               </div>
             </div>
           </div>
@@ -114,12 +117,17 @@
           <div class="editor-panel">
             <div class="layer-section">
               <label class="section-label">操作类型</label>
-              <SelectButton 
-                v-model="layerOp" 
-                :options="layerOpOptions" 
-                optionLabel="label" 
-                optionValue="value"
-              />
+              <div class="layer-op-buttons">
+                <button 
+                  v-for="op in layerOpOptions" 
+                  :key="op.value"
+                  class="option-btn"
+                  :class="{ active: layerOp === op.value }"
+                  @click="layerOp = op.value"
+                >
+                  {{ op.label }}
+                </button>
+              </div>
             </div>
 
             <Divider />
@@ -127,14 +135,15 @@
             <div class="layer-target">
               <label class="section-label">目标层</label>
               <div class="layer-buttons">
-                <Button 
+                <button 
                   v-for="i in 4" 
                   :key="i"
-                  :label="`层 ${i}`"
-                  :severity="layerTarget === i - 1 ? 'primary' : 'secondary'"
-                  :outlined="layerTarget !== i - 1"
+                  class="option-btn layer-btn"
+                  :class="{ active: layerTarget === i - 1 }"
                   @click="layerTarget = i - 1"
-                />
+                >
+                  层 {{ i }}
+                </button>
               </div>
             </div>
           </div>
@@ -146,14 +155,15 @@
             <div class="macro-section">
               <label class="section-label">选择宏</label>
               <div class="macro-grid">
-                <Button 
+                <button 
                   v-for="i in 8" 
                   :key="i"
-                  :label="`宏 ${i}`"
-                  :severity="macroId === i - 1 ? 'primary' : 'secondary'"
-                  :outlined="macroId !== i - 1"
+                  class="option-btn macro-btn"
+                  :class="{ active: macroId === i - 1 }"
                   @click="macroId = i - 1"
-                />
+                >
+                  宏 {{ i }}
+                </button>
               </div>
               <p class="macro-hint">
                 <i class="pi pi-info-circle"></i>
@@ -339,7 +349,13 @@ function handleKeyDown(event: KeyboardEvent) {
   cancelListening();
 }
 
-// 选择多媒体键
+// 多媒体键
+function isConsumerActive(code: number): boolean {
+  return editAction.value.type === ActionType.CONSUMER &&
+    editAction.value.param1 === (code & 0xff) &&
+    editAction.value.param2 === ((code >> 8) & 0xff);
+}
+
 function selectConsumer(code: number) {
   editAction.value = {
     type: ActionType.CONSUMER,
@@ -349,7 +365,7 @@ function selectConsumer(code: number) {
   };
 }
 
-// 选择鼠标按键
+// 鼠标按键
 function selectMouseButton(button: number) {
   editAction.value = {
     type: ActionType.MOUSE_BTN,
@@ -359,7 +375,7 @@ function selectMouseButton(button: number) {
   };
 }
 
-// 选择滚轮
+// 滚轮
 function selectWheel(direction: number) {
   editAction.value = {
     type: ActionType.MOUSE_WHEEL,
@@ -434,24 +450,24 @@ function confirmAction() {
 .section-label {
   display: block;
   font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--app-text-muted);
+  font-weight: 700;
+  color: var(--c-text-muted);
   margin-bottom: 0.75rem;
 }
 
 /* 键盘捕获 */
 .keyboard-capture {
-  background: var(--app-surface);
-  border: 2px dashed var(--app-border);
-  border-radius: 12px;
+  background: var(--c-bg-tertiary);
+  border: 2px dashed var(--c-border);
+  border-radius: var(--radius-lg);
   padding: 1.5rem;
   text-align: center;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
 }
 
 .keyboard-capture.listening {
-  border-color: var(--app-accent);
-  background: var(--app-accent-soft);
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
 }
 
 .capture-preview {
@@ -463,8 +479,8 @@ function confirmAction() {
 
 .preview-key {
   font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--app-accent);
+  font-weight: 800;
+  color: var(--c-accent);
 }
 
 .capture-listening {
@@ -472,6 +488,7 @@ function confirmAction() {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+  color: var(--c-text-secondary);
 }
 
 /* 修饰键 */
@@ -481,11 +498,63 @@ function confirmAction() {
   flex-wrap: wrap;
 }
 
+/* 通用选项按钮 */
+.option-btn {
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.option-btn:hover {
+  background: var(--c-bg-hover);
+  border-color: var(--c-accent);
+  color: var(--c-text-secondary);
+}
+
+.option-btn.active {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}
+
 /* 媒体键 */
 .media-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
+}
+
+.media-key {
+  padding: 0.75rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.media-key:hover {
+  background: var(--c-bg-hover);
+  border-color: var(--c-accent);
+  color: var(--c-text-secondary);
+}
+
+.media-key.active {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent);
+  color: var(--c-accent);
 }
 
 /* 鼠标 */
@@ -497,9 +566,15 @@ function confirmAction() {
 }
 
 /* 层 */
+.layer-op-buttons,
 .layer-buttons {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.layer-btn {
+  min-width: 70px;
 }
 
 /* 宏 */
@@ -509,10 +584,14 @@ function confirmAction() {
   gap: 0.5rem;
 }
 
+.macro-btn {
+  text-align: center;
+}
+
 .macro-hint {
   margin-top: 1rem;
   font-size: 0.85rem;
-  color: var(--app-text-muted);
+  color: var(--c-text-muted);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -528,5 +607,20 @@ function confirmAction() {
 .footer-right {
   display: flex;
   gap: 0.5rem;
+}
+</style>
+
+<style>
+/* 对话框全局样式覆盖 */
+.action-editor-dialog .p-dialog-header {
+  background: var(--c-bg-secondary) !important;
+}
+
+.action-editor-dialog .p-dialog-content {
+  background: var(--c-bg-secondary) !important;
+}
+
+.action-editor-dialog .p-dialog-footer {
+  background: var(--c-bg-secondary) !important;
 }
 </style>
