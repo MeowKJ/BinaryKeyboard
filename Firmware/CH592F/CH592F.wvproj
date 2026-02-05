@@ -54,10 +54,10 @@
 					"${project}/StdPeriphDriver/CH59x_uart2.c",
 					"${project}/StdPeriphDriver/CH59x_spi0.c",
 					"${project}/StdPeriphDriver/CH59x_pwm.c",
-					"${project}/MeowBLE/hal/include/KEY.h",
-					"${project}/MeowBLE/hal/include/LED.h",
-					"${project}/MeowBLE/hal/src/LED.c",
-					"${project}/MeowBLE/hal/src/KEY.c",
+					"${project}/MeowBLE/core/include/KEY.h",
+					"${project}/MeowBLE/core/include/LED.h",
+					"${project}/MeowBLE/core/src/LED.c",
+					"${project}/MeowBLE/core/src/KEY.c",
 					"${project}/User/RGB_TEST.c"
 				],
 				"optimization": {
@@ -145,9 +145,9 @@
 							"${project}/Board/include",
 							"${project}/MeowUSB/include",
 							"${project}/MeowBLE/lib",
-							"${project}/MeowBLE/meow/include",
+							"${project}/MeowBLE/hid/include",
 							"${project}/MeowBLE/profile/include",
-							"${project}/MeowBLE/hal/include",
+							"${project}/MeowBLE/core/include",
 							"${project}/MeowKeyboard/include"
 						],
 						"include_system_paths": [],

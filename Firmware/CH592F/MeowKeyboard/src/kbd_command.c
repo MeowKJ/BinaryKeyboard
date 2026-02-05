@@ -17,6 +17,7 @@
 #include "kbd_storage.h"
 #include "kbd_rgb.h"
 #include "kbd_mode.h"
+#include "kbd_config.h"
 #include "debug.h"
 #include <string.h>
 
@@ -168,6 +169,22 @@ void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data, uin
 
 /**
  * @brief 处理系统信息查询
+ * 
+ * 响应格式 (14 字节):
+ * [0]  KBD_RESP_OK
+ * [1]  VID 高字节
+ * [2]  VID 低字节
+ * [3]  PID 高字节
+ * [4]  PID 低字节
+ * [5]  固件主版本
+ * [6]  固件次版本
+ * [7]  固件补丁版本
+ * [8]  最大层数
+ * [9]  最大按键数 (单层)
+ * [10] 宏槽位数
+ * [11] 键盘类型 (kbd_type_t)
+ * [12] 实际按键数 (当前类型)
+ * [13] FN 键数量
  */
 static void HandleSysInfo(const kbd_cmd_frame_t *frame)
 {
@@ -183,9 +200,12 @@ static void HandleSysInfo(const kbd_cmd_frame_t *frame)
     resp[8] = KBD_MAX_LAYERS;
     resp[9] = KBD_MAX_KEYS;
     resp[10] = KBD_MACRO_SLOTS;
+    resp[11] = (uint8_t)KBD_GetType();          /* 键盘类型 */
+    resp[12] = KBD_GetTotalKeyCount();          /* 实际键位数 */
+    resp[13] = KBD_FN_NUM_KEYS;                 /* FN 键数量 */
 
-    KBD_Command_SendResponse(KBD_CMD_SYS_INFO, 0, resp, 11);
-    LOG_D(TAG, "系统信息已发送");
+    KBD_Command_SendResponse(KBD_CMD_SYS_INFO, 0, resp, 14);
+    LOG_D(TAG, "系统信息已发送: 类型=%d 键数=%d", resp[11], resp[12]);
 }
 
 /**

@@ -148,12 +148,23 @@ STATIC_ASSERT ((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_b
  * @brief 普通按键引脚表。
  * @details
  * 该表由板级宏（kbd_config.h）决定具体端口与引脚。
- *
- * @note
- * 你当前代码以 KBD_LAYOUT_5KEY 为例定义 g_key_pins[]，
- * 若存在其它布局，请在对应条件编译分支下同样提供 g_key_pins[]。
+ * 根据不同键盘布局定义不同的引脚映射。
  */
-#ifdef KBD_LAYOUT_5KEY
+#if defined(KBD_LAYOUT_BASIC)
+/*---------------------------------------------------------------------------*/
+/* 基础款: 4 键                                                               */
+/*---------------------------------------------------------------------------*/
+static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+    {KBD_K1_PORT, KBD_K1_PIN},
+    {KBD_K2_PORT, KBD_K2_PIN},
+    {KBD_K3_PORT, KBD_K3_PIN},
+    {KBD_K4_PORT, KBD_K4_PIN},
+};
+
+#elif defined(KBD_LAYOUT_5KEY)
+/*---------------------------------------------------------------------------*/
+/* 五键款: 5 键                                                               */
+/*---------------------------------------------------------------------------*/
 static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
     {KBD_K1_PORT, KBD_K1_PIN},
     {KBD_K2_PORT, KBD_K2_PIN},
@@ -161,6 +172,20 @@ static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
     {KBD_K4_PORT, KBD_K4_PIN},
     {KBD_K5_PORT, KBD_K5_PIN},
 };
+
+#elif defined(KBD_LAYOUT_KNOB)
+/*---------------------------------------------------------------------------*/
+/* 旋钮款: 4 普通键 (旋钮由编码器模块单独处理)                                   */
+/*---------------------------------------------------------------------------*/
+static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+    {KBD_K1_PORT, KBD_K1_PIN},
+    {KBD_K2_PORT, KBD_K2_PIN},
+    {KBD_K3_PORT, KBD_K3_PIN},
+    {KBD_K4_PORT, KBD_K4_PIN},
+};
+
+#else
+#error "请在 kbd_config.h 中选择一个键盘布局"
 #endif
 
 /**
