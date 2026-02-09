@@ -316,12 +316,13 @@ export class HidService {
       colorG: resp.getUint8(d + 6),
       colorB: resp.getUint8(d + 7),
       indicatorEnabled: resp.getUint8(d + 8) !== 0,
+      indicatorBrightness: resp.byteLength >= d + 10 ? resp.getUint8(d + 9) : resp.getUint8(d + 3), // 兼容旧固件
     };
   }
 
   /** 设置 RGB 配置 */
   async setRgbConfig(config: RgbConfig): Promise<void> {
-    const data = new Uint8Array(8);
+    const data = new Uint8Array(9);
     data[0] = config.enabled ? 1 : 0;
     data[1] = config.mode;
     data[2] = config.brightness;
@@ -330,6 +331,7 @@ export class HidService {
     data[5] = config.colorG;
     data[6] = config.colorB;
     data[7] = config.indicatorEnabled ? 1 : 0;
+    data[8] = config.indicatorBrightness ?? config.brightness;
 
     const resp = await this.sendCommand(Command.RGB_SET, 0, data);
     const status = resp.getUint8(RESP_HEADER_SIZE + 0);
