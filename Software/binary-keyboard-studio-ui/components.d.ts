@@ -17,7 +17,6 @@ declare module 'vue' {
     KeyboardLayout: typeof import('./src/components/KeyboardLayout.vue')['default']
     KeyButton: typeof import('./src/components/KeyButton.vue')['default']
     ProgressSpinner: typeof import('primevue/progressspinner')['default']
-    SelectButton: typeof import('primevue/selectbutton')['default']
     Tab: typeof import('primevue/tab')['default']
     TabList: typeof import('primevue/tablist')['default']
     TabPanel: typeof import('primevue/tabpanel')['default']
