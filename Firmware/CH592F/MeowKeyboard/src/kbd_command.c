@@ -158,13 +158,14 @@ void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data, uin
      * 最终格式: [CMD][SUB][LEN][actual_data...]
      */
     uint8_t buf[63];
+    uint8_t copy_len = 0;
     buf[0] = sub;
     buf[1] = len;
     if (data && len > 0) {
-        uint8_t copy_len = (len > 61) ? 61 : len;
+        copy_len = (len > 61) ? 61 : len;
         memcpy(&buf[2], data, copy_len);
     }
-    USB_Config_SendResponse(cmd, buf, len + 2);
+    USB_Config_SendResponse(cmd, buf, copy_len + 2);
 }
 
 /*============================================================================*/
