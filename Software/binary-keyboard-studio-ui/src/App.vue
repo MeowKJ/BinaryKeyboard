@@ -77,7 +77,7 @@
           <div class="device-badge" :class="{ 'preview-mode': previewKeyboardType >= 0 }">
             <i :class="previewKeyboardType >= 0 ? 'pi pi-eye' : 'pi pi-check-circle connected-icon'"></i>
             <span v-if="previewKeyboardType >= 0">
-              预览模式 - {{ KeyboardTypeInfo[currentKeyboardType]?.name || '未知型号' }}
+              预览模式 - {{ KeyboardTypeInfo[currentKeyboardType as KeyboardType]?.name || '未知型号' }}
             </span>
             <span v-else>
               {{ deviceStore.device?.productName }} - {{ deviceStore.keyboardTypeName }}
@@ -348,7 +348,7 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { hidService } from '@/services/HidService';
 import type { KeyAction } from '@/types/protocol';
-import { createEmptyAction, KeyboardTypeInfo } from '@/types/protocol';
+import { createEmptyAction, KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
@@ -385,7 +385,7 @@ const currentKeyboardType = computed(() => {
 const currentLayerKeysForDisplay = computed(() => {
   if (previewKeyboardType.value >= 0) {
     // 预览模式：创建空的动作数据
-    const keyCount = KeyboardTypeInfo[currentKeyboardType.value]?.keys || 4;
+    const keyCount = KeyboardTypeInfo[currentKeyboardType.value as KeyboardType]?.keys || 4;
     return Array.from({ length: keyCount }, () => createEmptyAction());
   }
   // 实际设备：使用实际数据
@@ -395,7 +395,7 @@ const currentLayerKeysForDisplay = computed(() => {
 // 根据键盘类型获取应该显示的层数
 const availableLayers = computed(() => {
   const keyboardType = currentKeyboardType.value;
-  return KeyboardTypeInfo[keyboardType]?.layers || 4;
+  return KeyboardTypeInfo[keyboardType as KeyboardType]?.layers || 4;
 });
 
 // 获取当前键盘的层选择布局
@@ -459,7 +459,7 @@ function onPreviewTypeChange() {
   // 切换到预览模式时，重置当前编辑层为0
   if (previewKeyboardType.value >= 0) {
     deviceStore.setEditLayer(0);
-    showToast('info', '预览模式', `正在预览 ${KeyboardTypeInfo[previewKeyboardType.value]?.name || '未知型号'}`);
+    showToast('info', '预览模式', `正在预览 ${KeyboardTypeInfo[previewKeyboardType.value as KeyboardType]?.name || '未知型号'}`);
   } else {
     // 切换回实际设备时，恢复实际设备的当前层
     if (deviceStore.deviceInfo) {
