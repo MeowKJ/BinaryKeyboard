@@ -230,6 +230,36 @@
             </div>
           </div>
 
+          <div class="panel rgb-panel">
+            <h3 class="panel-title">
+              <i class="pi pi-palette"></i>
+              RGB 灯效
+            </h3>
+            <div class="rgb-config">
+              <div class="rgb-item">
+                <span class="rgb-label">模式</span>
+                <select v-model="deviceStore.rgbConfig.mode" class="rgb-select">
+                  <option :value="0">关闭</option>
+                  <option :value="1">静态</option>
+                  <option :value="2">呼吸</option>
+                  <option :value="3">闪烁</option>
+                  <option :value="4">彩虹</option>
+                  <option :value="5">状态指示</option>
+                </select>
+              </div>
+              <div class="rgb-item">
+                <span class="rgb-label">RGB 亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
+                <input type="range" v-model.number="deviceStore.rgbConfig.brightness" min="0" max="255" class="rgb-slider" />
+              </div>
+              <div class="rgb-item">
+                <span class="rgb-label">指示灯亮度 {{ Math.round(deviceStore.rgbConfig.indicatorBrightness * 100 / 255) }}%</span>
+                <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" min="0" max="255" class="rgb-slider" />
+              </div>
+              <Button label="保存 RGB" icon="pi pi-check" size="small" @click="saveRgbConfig"
+                class="rgb-save-btn btn-primary" />
+            </div>
+          </div>
+
           <div class="panel actions-panel">
             <h3 class="panel-title">
               <i class="pi pi-cog"></i>
@@ -247,7 +277,10 @@
           </div>
         </aside>
 
-        <!-- 中央键盘区 -->
+        <!-- 占位，保持布局 -->
+        <div class="keyboard-spacer"></div>
+
+        <!-- 中央键盘区 - 悬浮居中 -->
         <section class="keyboard-section">
           <!-- 装饰背景 -->
           <div class="keyboard-decoration">
@@ -498,6 +531,15 @@ async function saveFnConfig() {
   try {
     await deviceStore.saveFnKeyConfig();
     showToast('success', 'FN 键已保存', 'FN 键配置已保存到设备');
+  } catch (error) {
+    showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
+  }
+}
+
+async function saveRgbConfig() {
+  try {
+    await deviceStore.saveRgbConfig();
+    showToast('success', 'RGB 已保存', 'RGB 灯效配置已保存到设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
   }
@@ -1280,6 +1322,62 @@ body {
   margin-top: 0.25rem;
 }
 
+/* RGB 灯效配置 */
+.rgb-config {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rgb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.rgb-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+}
+
+.rgb-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-primary);
+  cursor: pointer;
+  outline: none;
+}
+
+.rgb-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c-bg-tertiary);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.rgb-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.rgb-save-btn {
+  margin-top: 0.25rem;
+}
+
 /* 浅色模式 FN select */
 [data-theme="light"] .fn-select {
   background: #f8fafc;
@@ -1303,17 +1401,32 @@ body {
   justify-content: flex-start !important;
 }
 
+/* 键盘区占位，保持 flex 布局 */
+.keyboard-spacer {
+  flex: 1;
+  min-width: 200px;
+}
+
 /* ==========================================
-   键盘区域
+   键盘区域 - 始终悬浮在屏幕正中间
 ========================================== */
 .keyboard-section {
-  flex: 1;
+  position: fixed;
+  left: var(--sidebar-width);
+  right: 0;
+  top: var(--header-height);
+  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  position: relative;
   overflow: hidden;
+  pointer-events: none;
+}
+
+.keyboard-section .keyboard-card,
+.keyboard-section .changes-indicator {
+  pointer-events: auto;
 }
 
 /* 装饰背景 */
@@ -1343,7 +1456,7 @@ body {
   width: 180px;
   height: 180px;
   top: 60%;
-  left: -60px;
+  left: 0;
   animation: float 6s ease-in-out infinite reverse;
 }
 

@@ -64,15 +64,15 @@ extern "C" {
  * @{
  */
 
-#define KBD_FLASH_BASE          0x00000     /**< 配置区基地址 */
-#define KBD_FLASH_HEADER        0x00000     /**< 配置头 (256B) */
-#define KBD_FLASH_SYSTEM        0x00100     /**< 系统配置 (256B) */
-#define KBD_FLASH_KEYMAP        0x00200     /**< 按键映射 (256B) */
-#define KBD_FLASH_FNKEY         0x00300     /**< FN 键配置 (64B) */
-#define KBD_FLASH_RGB           0x00340     /**< RGB 配置 (192B) */
-#define KBD_FLASH_RESERVED      0x00400     /**< 预留区 (15KB) */
-#define KBD_FLASH_MACRO_BASE    0x04000     /**< 宏数据区 (16KB) */
-#define KBD_FLASH_MACRO_SLOT    0x00800     /**< 单槽位大小 (2KB) */
+#define KBD_FLASH_BASE          0x00000     /**< DataFlash 基址 */
+#define KBD_FLASH_HEADER        0x00000     /**< 配置头偏移 (32B) */
+#define KBD_FLASH_SYSTEM        0x00100     /**< 系统配置偏移 (64B) */
+#define KBD_FLASH_KEYMAP        0x00200     /**< 按键映射偏移 (164B) */
+#define KBD_FLASH_FNKEY         0x00300     /**< FN 键配置偏移 (32B) */
+#define KBD_FLASH_RGB           0x00340     /**< RGB 配置偏移 (32B) */
+#define KBD_FLASH_RESERVED      0x00400     /**< 配置块内预留起始 */
+#define KBD_FLASH_MACRO_BASE    0x01000     /**< 宏数据区起始，避开 BLE SNV */
+#define KBD_FLASH_MACRO_SLOT    0x00800     /**< 单宏槽位 (2KB) */
 
 /** @} */ /* end of KBD_Flash */
 
@@ -327,19 +327,23 @@ typedef enum {
     KBD_STATE_LOW_BATTERY,              /**< 低电量警告 - 红色快闪 */
 } kbd_state_t;
 
+/** @brief 默认亮度 20% (255 * 20 / 100 ≈ 51) */
+#define KBD_RGB_DEFAULT_BRIGHTNESS       51
+
 /**
  * @brief RGB 配置结构 (32 字节)
  */
 typedef struct __attribute__((packed)) {
     uint8_t enabled;            /**< RGB 总开关 */
     uint8_t mode;               /**< 灯效模式 @ref kbd_rgb_mode_t */
-    uint8_t brightness;         /**< 亮度 (0-255) */
+    uint8_t brightness;         /**< RGB/按键灯亮度 (0-255) */
     uint8_t speed;              /**< 动画速度 (0-255) */
     uint8_t color_r;            /**< 静态颜色 - 红 */
     uint8_t color_g;            /**< 静态颜色 - 绿 */
     uint8_t color_b;            /**< 静态颜色 - 蓝 */
     uint8_t indicator_enabled;  /**< 状态指示开关 */
-    uint8_t reserved[24];       /**< 保留字段 */
+    uint8_t indicator_brightness; /**< 指示灯亮度 (0-255) */
+    uint8_t reserved[23];       /**< 保留字段 */
 } kbd_rgb_config_t;
 
 /** @} */ /* end of KBD_RGB */

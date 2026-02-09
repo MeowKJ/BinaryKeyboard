@@ -170,13 +170,13 @@ static void ProcessIndicatorMode(void)
     uint16_t period_ms;
     GetIndicatorParams(s_current_state, &r, &g, &b, &effect, &period_ms);
 
-    uint8_t brightness = cfg->brightness;
+    uint8_t brightness = cfg->indicator_brightness;
 
     if (effect == 1 && period_ms > 0) {
         /* 呼吸效果 */
         uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
         brightness = CalcBreathing(phase);
-        brightness = ((uint16_t)brightness * cfg->brightness) >> 8;
+        brightness = ((uint16_t)brightness * cfg->indicator_brightness) >> 8;
     } else if (effect == 2 && period_ms > 0) {
         /* 闪烁效果 */
         uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
@@ -272,6 +272,7 @@ void KBD_RGB_Init(void)
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     if (cfg) {
         WS2812_SetBrightness(cfg->brightness);
+        WS2812_SetIndicatorBrightness(cfg->indicator_brightness);
     }
 
     s_effect_phase = 0;
@@ -391,7 +392,19 @@ void KBD_RGB_SetBrightness(uint8_t brightness)
 {
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->brightness = brightness;
+#if (WS2812_LED_NUM == 1)
+    /* 仅指示灯模式：双亮度同步，确保保存时两者一致 */
+    cfg->indicator_brightness = brightness;
+    WS2812_SetIndicatorBrightness(brightness);
+#endif
     WS2812_SetBrightness(brightness);
+}
+
+void KBD_RGB_SetIndicatorBrightness(uint8_t brightness)
+{
+    kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
+    cfg->indicator_brightness = brightness;
+    WS2812_SetIndicatorBrightness(brightness);
 }
 
 void KBD_RGB_BrightnessUp(uint8_t step)

@@ -114,11 +114,18 @@ void KBD_RGB_PrevMode(void);
 void KBD_RGB_Toggle(void);
 
 /**
- * @brief 设置亮度
+ * @brief 设置 RGB/按键灯亮度
  *
  * @param[in] brightness 亮度值 (0-255)
  */
 void KBD_RGB_SetBrightness(uint8_t brightness);
+
+/**
+ * @brief 设置指示灯亮度
+ *
+ * @param[in] brightness 亮度值 (0-255)
+ */
+void KBD_RGB_SetIndicatorBrightness(uint8_t brightness);
 
 /**
  * @brief 增加亮度

@@ -11,11 +11,12 @@
  * DataFlash 特性：
  * - 总容量：32KB (0x0000 ~ 0x7FFF)
  * - 擦除粒度：4KB (CH592A 要求)
- * - 写入粒度：1 字节，推荐 256 字节对齐
+ * - 写入推荐：256 字节对齐
  *
  * 存储布局：
- * - 0x0000 ~ 0x03FF: 配置区 (1KB)
- * - 0x4000 ~ 0x7FFF: 宏数据区 (16KB, 8 槽位 × 2KB)
+ * - 0x0000 ~ 0x0FFF: 配置块 (4KB 整块擦写)
+ * - 0x1000 ~ 0x4FFF: 宏数据区 (16KB, 8 槽 × 2KB)
+ * - 0x7E00 ~ 0x7EFF: BLE SNV (蓝牙配对，WCH 库管理)
  *
  * @copyright Copyright (c) 2024 MeowKJ. All rights reserved.
  */
@@ -187,17 +188,18 @@ static const kbd_fnkey_config_t s_default_fnkey = {
 };
 
 /**
- * @brief 默认 RGB 配置
+ * @brief 默认 RGB 配置 (默认 20% 亮度)
  */
 static const kbd_rgb_config_t s_default_rgb = {
     .enabled = 1,
     .mode = KBD_RGB_INDICATOR,
-    .brightness = 128,
+    .brightness = KBD_RGB_DEFAULT_BRIGHTNESS,
     .speed = 128,
     .color_r = 255,
     .color_g = 255,
     .color_b = 255,
     .indicator_enabled = 1,
+    .indicator_brightness = KBD_RGB_DEFAULT_BRIGHTNESS,
 };
 
 /**
@@ -340,6 +342,11 @@ int KBD_Config_Load(void)
     EEPROM_READ(KBD_FLASH_KEYMAP, &s_keymap_config, sizeof(kbd_keymap_t));
     EEPROM_READ(KBD_FLASH_FNKEY, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
     EEPROM_READ(KBD_FLASH_RGB, &s_rgb_config, sizeof(kbd_rgb_config_t));
+
+    /* 迁移：旧配置可能无 indicator_brightness，若为 0 则使用默认值 */
+    if (s_rgb_config.indicator_brightness == 0) {
+        s_rgb_config.indicator_brightness = KBD_RGB_DEFAULT_BRIGHTNESS;
+    }
 
     memcpy(&s_config_header, &header, sizeof(header));
 

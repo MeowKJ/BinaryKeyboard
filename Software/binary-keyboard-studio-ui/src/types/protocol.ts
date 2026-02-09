@@ -222,16 +222,20 @@ export interface FnKeyConfig {
   fnKeys: FnKeyEntry[];  // 最多 4 个 FN 键
 }
 
+/** 默认亮度 20% (255 * 20 / 100 ≈ 51) */
+export const RGB_DEFAULT_BRIGHTNESS = 51;
+
 /** RGB 配置 */
 export interface RgbConfig {
   enabled: boolean;
   mode: RgbMode;
-  brightness: number;
+  brightness: number;           /**< RGB/按键灯亮度 (0-255) */
   speed: number;
   colorR: number;
   colorG: number;
   colorB: number;
   indicatorEnabled: boolean;
+  indicatorBrightness: number;  /**< 指示灯亮度 (0-255) */
 }
 
 /** 设备信息 (SYS_INFO 响应) */
@@ -345,16 +349,17 @@ export function createEmptyFnKeyConfig(): FnKeyConfig {
   return { fnKeys: Array.from({ length: MAX_FN_KEYS }, () => createEmptyFnKey()) };
 }
 
-/** 创建默认 RGB 配置 */
+/** 创建默认 RGB 配置 (默认 20% 亮度) */
 export function createDefaultRgbConfig(): RgbConfig {
   return {
     enabled: true,
-    mode: RgbMode.BREATHING,
-    brightness: 128,
+    mode: RgbMode.INDICATOR,
+    brightness: RGB_DEFAULT_BRIGHTNESS,
     speed: 128,
     colorR: 255,
-    colorG: 128,
-    colorB: 200,
+    colorG: 255,
+    colorB: 255,
     indicatorEnabled: true,
+    indicatorBrightness: RGB_DEFAULT_BRIGHTNESS,
   };
 }

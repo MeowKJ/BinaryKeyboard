@@ -56,6 +56,7 @@ export default defineConfig({
           { text: '刷写固件', link: '/wireless/flash' },
           { text: '改键软件', link: '/wireless/remap' },
           { text: '固件开发', link: '/wireless/dev' },
+          { text: 'DataFlash 布局', link: '/wireless/dataflash' },
         ]
       },
       {

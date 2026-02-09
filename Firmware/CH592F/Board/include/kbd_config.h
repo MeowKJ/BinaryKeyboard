@@ -74,16 +74,16 @@ typedef struct {
  * @{
  */
 
-/* WS2812 数据引脚: TMR1 PWM 输出 */
+/* WS2812 数据引脚: TMR1 PWM 输出 (PA10) */
 #define WS2812_PORT         GPIO_PORT_A
 #define WS2812_PIN          GPIO_Pin_10
 
-/* WS2812 使能引脚 */
+/* WS2812 使能引脚 (PA9) */
 #define WS2812_EN_PORT      GPIO_PORT_A
 #define WS2812_EN_PIN       GPIO_Pin_9
 
 /* WS2812 LED 配置：仅指示灯模式 (注释掉则启用按键灯) */
-#define WS2812_INDICATOR_ONLY
+// #define WS2812_INDICATOR_ONLY
 
 /** @} */
 

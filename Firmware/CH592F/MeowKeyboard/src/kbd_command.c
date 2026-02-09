@@ -373,8 +373,9 @@ static void HandleRgbGet(const kbd_cmd_frame_t *frame)
     resp[6] = rgb->color_g;
     resp[7] = rgb->color_b;
     resp[8] = rgb->indicator_enabled;
+    resp[9] = rgb->indicator_brightness;
 
-    KBD_Command_SendResponse(KBD_CMD_RGB_GET, 0, resp, 9);
+    KBD_Command_SendResponse(KBD_CMD_RGB_GET, 0, resp, 10);
 }
 
 /**
@@ -393,9 +394,14 @@ static void HandleRgbSet(const kbd_cmd_frame_t *frame)
         rgb->color_g = frame->data[5];
         rgb->color_b = frame->data[6];
         rgb->indicator_enabled = frame->data[7];
+        /* indicator_brightness: 兼容旧协议，若 data[8] 存在则使用 */
+        if (frame->len >= 9) {
+            rgb->indicator_brightness = frame->data[8];
+        }
 
         KBD_RGB_SetMode((kbd_rgb_mode_t)rgb->mode);
         KBD_RGB_SetBrightness(rgb->brightness);
+        KBD_RGB_SetIndicatorBrightness(rgb->indicator_brightness);
     }
 
     uint8_t resp[1] = { KBD_RESP_OK };

@@ -543,10 +543,16 @@ body {
   }
   
   .keyboard-section {
+    left: 0;
     min-height: 300px;
     width: 100%;
     align-items: center;
     justify-content: center;
+  }
+
+  .keyboard-spacer {
+    min-height: 300px;
+    min-width: 0;
   }
   
   .keyboard-card {
@@ -645,6 +651,7 @@ body {
   }
   
   .keyboard-section {
+    left: 0;
     padding: 0.5rem;
   }
   
