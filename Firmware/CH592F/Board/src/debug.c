@@ -35,9 +35,9 @@ void Log_Output(const char *level, const char *tag, const char *fmt, ...)
         buf[len] = '\0';
     }
     
-    // 直接输出到 UART1
-    for (int i = 0; i < len && buf[i]; i++) {
+    // 直接输出到 UART1，输出 len 字节（不以 null 提前结束）
+    for (int i = 0; i < len; i++) {
         while (R8_UART1_TFC == UART_FIFO_SIZE);
-        R8_UART1_THR = buf[i];
+        R8_UART1_THR = (uint8_t)buf[i];
     }
 }
