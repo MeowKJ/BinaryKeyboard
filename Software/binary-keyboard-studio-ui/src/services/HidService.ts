@@ -307,9 +307,10 @@ export class HidService {
       throw new Error(`RGB_GET 失败: 0x${status.toString(16)}`);
     }
 
+    const rawMode = resp.getUint8(d + 2);
     return {
       enabled: resp.getUint8(d + 1) !== 0,
-      mode: resp.getUint8(d + 2),
+      mode: rawMode === 0 ? 5 : rawMode, // 0(关闭) 已取消，映射为 5(仅指示灯)
       brightness: resp.getUint8(d + 3),
       speed: resp.getUint8(d + 4),
       colorR: resp.getUint8(d + 5),
@@ -324,7 +325,7 @@ export class HidService {
   async setRgbConfig(config: RgbConfig): Promise<void> {
     const data = new Uint8Array(9);
     data[0] = config.enabled ? 1 : 0;
-    data[1] = config.mode;
+    data[1] = config.mode === 0 ? 5 : config.mode; // 0(关闭) 已取消，发送时映射为 5(仅指示灯)
     data[2] = config.brightness;
     data[3] = config.speed;
     data[4] = config.colorR;

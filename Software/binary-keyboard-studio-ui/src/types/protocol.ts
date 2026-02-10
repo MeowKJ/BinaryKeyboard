@@ -11,25 +11,28 @@ export const VENDOR_ID = 0x413d;
 export const PRODUCT_ID = 0x2107;
 
 // 无 Report ID 模式 - 通过独立 HID 接口区分（兼容 Linux/macOS）
-export const REPORT_ID_COMMAND = 0;  // 主机 → 键盘 (Output Report, 无 Report ID)
+export const REPORT_ID_COMMAND = 0; // 主机 → 键盘 (Output Report, 无 Report ID)
 export const REPORT_ID_RESPONSE = 0; // 键盘 → 主机 (Input Report, 无 Report ID)
 
-export const FRAME_SIZE = 64;        // 帧大小
+export const FRAME_SIZE = 64; // 帧大小
 
 // ============================================================================
 // 键盘类型
 // ============================================================================
 
 export enum KeyboardType {
-  BASIC = 0,    // 基础款: 4 键
+  BASIC = 0, // 基础款: 4 键
   FIVE_KEYS = 1, // 五键款: 5 键
-  KNOB = 2,     // 旋钮款: 4 键 + 旋钮 (7 虚拟键)
+  KNOB = 2, // 旋钮款: 4 键 + 旋钮 (7 虚拟键)
 }
 
-export const KeyboardTypeInfo: Record<KeyboardType, { name: string; keys: number; physical: number; layers: number }> = {
-  [KeyboardType.BASIC]: { name: '基础款', keys: 4, physical: 4, layers: 4 },
-  [KeyboardType.FIVE_KEYS]: { name: '五键款', keys: 5, physical: 5, layers: 5 },
-  [KeyboardType.KNOB]: { name: '旋钮款', keys: 7, physical: 4, layers: 5 },
+export const KeyboardTypeInfo: Record<
+  KeyboardType,
+  { name: string; keys: number; physical: number; layers: number }
+> = {
+  [KeyboardType.BASIC]: { name: "基础款", keys: 4, physical: 4, layers: 4 },
+  [KeyboardType.FIVE_KEYS]: { name: "五键款", keys: 5, physical: 5, layers: 5 },
+  [KeyboardType.KNOB]: { name: "旋钮款", keys: 7, physical: 4, layers: 5 },
 };
 
 // ============================================================================
@@ -142,9 +145,9 @@ export enum WheelDirection {
 // ============================================================================
 
 export enum LayerOp {
-  MOMENTARY = 0,  // 按住切换，松开恢复
-  TOGGLE = 1,     // 切换开关
-  SET = 2,        // 直接设置
+  MOMENTARY = 0, // 按住切换，松开恢复
+  TOGGLE = 1, // 切换开关
+  SET = 2, // 直接设置
 }
 
 // ============================================================================
@@ -190,14 +193,14 @@ export enum RgbMode {
 /** 单键动作 (4 字节) */
 export interface KeyAction {
   type: ActionType;
-  modifier: number;   // 修饰键或操作类型
-  param1: number;     // 键码/按键/方向/ID
-  param2: number;     // 多媒体键高字节
+  modifier: number; // 修饰键或操作类型
+  param1: number; // 键码/按键/方向/ID
+  param2: number; // 多媒体键高字节
 }
 
 /** 单层映射 (32 字节 = 8 键 × 4 字节) */
 export interface LayerConfig {
-  keys: KeyAction[];  // 8 个按键
+  keys: KeyAction[]; // 8 个按键
 }
 
 /** 完整按键映射配置 */
@@ -205,7 +208,7 @@ export interface KeymapConfig {
   numLayers: number;
   currentLayer: number;
   defaultLayer: number;
-  layers: LayerConfig[];  // 最多 4 层
+  layers: LayerConfig[]; // 最多 4 层
 }
 
 /** FN 键配置 (8 字节) */
@@ -219,23 +222,40 @@ export interface FnKeyEntry {
 
 /** FN 键配置集合 */
 export interface FnKeyConfig {
-  fnKeys: FnKeyEntry[];  // 最多 4 个 FN 键
+  fnKeys: FnKeyEntry[]; // 最多 4 个 FN 键
 }
 
 /** 默认亮度 20% (255 * 20 / 100 ≈ 51) */
 export const RGB_DEFAULT_BRIGHTNESS = 51;
 
+/** 指示灯最低亮度 (5%)，不可完全关闭，与固件 KBD_INDICATOR_MIN_BRIGHTNESS 一致 */
+export const RGB_INDICATOR_MIN_BRIGHTNESS = 13;
+
+/** RGB(0-255) 转 hex 字符串，如 "#ffffff" */
+export function rgbToHex(r: number, g: number, b: number): string {
+  const pad = (n: number) => n.toString(16).padStart(2, '0');
+  return '#' + pad(r) + pad(g) + pad(b);
+}
+
+/** hex 字符串解析为 RGB，返回 {r,g,b} 或 null。支持 "#ffffff" 或 "ffffff" */
+export function hexToRgb(hex: string | unknown): { r: number; g: number; b: number } | null {
+  const s = typeof hex === 'string' ? hex.replace(/^#/, '') : '';
+  const m = s.match(/^([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
+  if (!m) return null;
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
+
 /** RGB 配置 */
 export interface RgbConfig {
   enabled: boolean;
   mode: RgbMode;
-  brightness: number;           /**< RGB/按键灯亮度 (0-255) */
+  brightness: number; /**< RGB/按键灯亮度 (0-255) */
   speed: number;
   colorR: number;
   colorG: number;
   colorB: number;
   indicatorEnabled: boolean;
-  indicatorBrightness: number;  /**< 指示灯亮度 (0-255) */
+  indicatorBrightness: number; /**< 指示灯亮度 (0-255) */
 }
 
 /** 设备信息 (SYS_INFO 响应) */
@@ -255,7 +275,7 @@ export interface DeviceInfo {
 
 /** 系统状态 (SYS_STATUS 响应) */
 export interface DeviceStatus {
-  workMode: number;       // 0=USB, 1=BLE
+  workMode: number; // 0=USB, 1=BLE
   connectionState: number; // 0=断开, 1=已连接
   currentLayer: number;
   batteryLevel: number;
@@ -300,12 +320,22 @@ export function createMouseButtonAction(button: MouseButton): KeyAction {
 
 /** 创建滚轮动作 */
 export function createWheelAction(direction: WheelDirection): KeyAction {
-  return { type: ActionType.MOUSE_WHEEL, modifier: 0, param1: direction, param2: 0 };
+  return {
+    type: ActionType.MOUSE_WHEEL,
+    modifier: 0,
+    param1: direction,
+    param2: 0,
+  };
 }
 
 /** 创建多媒体键动作 */
 export function createConsumerAction(usageId: number): KeyAction {
-  return { type: ActionType.CONSUMER, modifier: 0, param1: usageId & 0xff, param2: (usageId >> 8) & 0xff };
+  return {
+    type: ActionType.CONSUMER,
+    modifier: 0,
+    param1: usageId & 0xff,
+    param2: (usageId >> 8) & 0xff,
+  };
 }
 
 /** 创建层切换动作 */
@@ -346,7 +376,9 @@ export function createEmptyFnKey(): FnKeyEntry {
 
 /** 创建空 FN 键配置集合 */
 export function createEmptyFnKeyConfig(): FnKeyConfig {
-  return { fnKeys: Array.from({ length: MAX_FN_KEYS }, () => createEmptyFnKey()) };
+  return {
+    fnKeys: Array.from({ length: MAX_FN_KEYS }, () => createEmptyFnKey()),
+  };
 }
 
 /** 创建默认 RGB 配置 (默认 20% 亮度) */

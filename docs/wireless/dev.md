@@ -106,7 +106,7 @@ Firmware/CH592F/
 
 | 文件                | 功能                           |
 | :------------------ | :----------------------------- |
-| `kbd_mode.c`        | USB/BLE 双模切换、连接状态管理 |
+| `kbd_mode.c`        | USB/BLE/2.4G 多模切换、连接状态管理（2.4G 预留） |
 | `ble_hid.c`         | 蓝牙 HID 报告发送              |
 | `ble_hid_service.c` | HID GATT 服务实现              |
 
@@ -632,7 +632,15 @@ KBD_RGB_Flash(0, 255, 0, 200);  // 绿色闪烁 200ms
 
 **响应**: [状态码, seq]
 
-## 双模切换
+## 工作模式
+
+### 模式类型
+
+| 值 | 模式 | 说明 |
+|----|------|------|
+| 0 | USB | USB 有线模式 |
+| 1 | BLE | 蓝牙无线模式 |
+| 2 | 2.4G | 2.4G 无线模式（预留，暂未实现） |
 
 ### 模式管理
 
@@ -643,6 +651,7 @@ KBD_Mode_Init(KBD_WORK_MODE_USB, &callbacks);
 // 切换模式
 KBD_Mode_Toggle();
 KBD_Mode_Switch(KBD_WORK_MODE_BLE);
+// KBD_Mode_Switch(KBD_WORK_MODE_2G4);  // 预留：2.4G 模式
 
 // 获取当前模式
 kbd_work_mode_t mode = KBD_Mode_Get();
@@ -663,6 +672,30 @@ KBD_Mode_BLE_Disconnect();
 // 清除配对信息
 KBD_Mode_BLE_ClearBonds();
 ```
+
+### 2.4G 模式（预留）
+
+::: info 预留功能
+2.4G 无线模式已在代码和数据结构中预留（`KBD_WORK_MODE_2G4 = 2`），但当前版本暂未实现。
+
+**预留位置：**
+- `kbd_mode_config.h`: `kbd_work_mode_t` 枚举中已注释预留
+- `dataflash.md`: `default_mode` 字段支持值 2（2.4G）
+- 模式管理器架构支持扩展新工作模式
+
+**实现方案：**
+CH592F 芯片内置 2.4G 射频功能，可直接实现 2.4G 无线通信，无需外部模块。计划支持两种工作方式：
+
+1. **键盘作为接收器**：键盘本身可工作在接收器模式，通过 USB 连接电脑，接收其他 2.4G 键盘的信号
+2. **独立接收器**：使用 CH592F 设计专用接收器（无按键等外设，仅无线接收功能），通过 USB 连接电脑
+
+**未来实现方向：**
+- 实现 CH592F 内置 2.4G 射频驱动
+- 实现 2.4G 专用的 HID 报告发送接口
+- 添加 2.4G 连接状态管理（配对、连接、断开等）
+- 扩展 `KBD_Mode_Switch()` 支持 2.4G 模式切换
+- 支持键盘/接收器两种角色的切换
+:::
 
 ### 发送 HID 报告
 

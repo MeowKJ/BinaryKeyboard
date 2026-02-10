@@ -61,7 +61,7 @@ MeowKeyboard CH592F 固件在 DataFlash 中的存储布局说明。
 
 | 字节 | 偏移 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | 0x100 | default_mode | uint8_t | 默认模式 (0=USB, 1=BLE) |
+| 0 | 0x100 | default_mode | uint8_t | 默认模式 (0=USB, 1=BLE, 2=2.4G预留) |
 | 1 | 0x101 | auto_sleep_min | uint8_t | 自动休眠时间（分钟，0=禁用） |
 | 2 | 0x102 | debounce_ms | uint8_t | 按键消抖时间（毫秒） |
 | 3-63 | 0x103 | reserved | uint8_t[61] | 保留 |
