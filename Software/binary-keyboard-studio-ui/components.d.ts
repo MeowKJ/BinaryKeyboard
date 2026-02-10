@@ -10,6 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     ActionEditor: typeof import('./src/components/ActionEditor.vue')['default']
     Button: typeof import('primevue/button')['default']
+    ColorPicker: typeof import('primevue/colorpicker')['default']
     ConfirmDialog: typeof import('primevue/confirmdialog')['default']
     Dialog: typeof import('primevue/dialog')['default']
     Divider: typeof import('primevue/divider')['default']

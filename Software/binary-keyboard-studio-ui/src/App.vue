@@ -239,13 +239,30 @@
               <div class="rgb-item">
                 <span class="rgb-label">模式</span>
                 <select v-model="deviceStore.rgbConfig.mode" class="rgb-select">
-                  <option :value="0">关闭</option>
                   <option :value="1">静态</option>
                   <option :value="2">呼吸</option>
                   <option :value="3">闪烁</option>
                   <option :value="4">彩虹</option>
-                  <option :value="5">状态指示</option>
+                  <option :value="5">仅指示灯</option>
                 </select>
+              </div>
+              <div v-if="showRgbColorPicker" class="rgb-item rgb-color-row">
+                <span class="rgb-label">颜色</span>
+                <div class="rgb-color-controls">
+                  <ColorPicker
+                    v-model="rgbColorHex"
+                    format="hex"
+                    inline
+                    class="rgb-color-picker"
+                  />
+                  <input
+                    v-model="rgbColorHex"
+                    type="text"
+                    class="rgb-hex-input"
+                    placeholder="#ffffff"
+                    maxlength="7"
+                  />
+                </div>
               </div>
               <div class="rgb-item">
                 <span class="rgb-label">RGB 亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
@@ -253,7 +270,7 @@
               </div>
               <div class="rgb-item">
                 <span class="rgb-label">指示灯亮度 {{ Math.round(deviceStore.rgbConfig.indicatorBrightness * 100 / 255) }}%</span>
-                <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" min="0" max="255" class="rgb-slider" />
+                <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" :min="RGB_INDICATOR_MIN_BRIGHTNESS" max="255" class="rgb-slider" />
               </div>
               <Button label="保存 RGB" icon="pi pi-check" size="small" @click="saveRgbConfig"
                 class="rgb-save-btn btn-primary" />
@@ -348,7 +365,14 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { hidService } from '@/services/HidService';
 import type { KeyAction } from '@/types/protocol';
-import { createEmptyAction, KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
+import {
+  createEmptyAction,
+  KeyboardType,
+  KeyboardTypeInfo,
+  RGB_INDICATOR_MIN_BRIGHTNESS,
+  rgbToHex,
+  hexToRgb,
+} from '@/types/protocol';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
@@ -371,6 +395,30 @@ const selectedKeyIndex = ref(-1);
 const selectedAction = computed<KeyAction>(() => {
   if (selectedKeyIndex.value < 0) return createEmptyAction();
   return deviceStore.getKeyAction(selectedKeyIndex.value) || createEmptyAction();
+});
+
+// 静态/呼吸/闪烁模式使用的颜色 (调色盘 + hex)
+const showRgbColorPicker = computed(
+  () =>
+    deviceStore.rgbConfig.mode === 1 ||
+    deviceStore.rgbConfig.mode === 2 ||
+    deviceStore.rgbConfig.mode === 3,
+);
+const rgbColorHex = computed({
+  get: () =>
+    rgbToHex(
+      deviceStore.rgbConfig.colorR,
+      deviceStore.rgbConfig.colorG,
+      deviceStore.rgbConfig.colorB,
+    ),
+  set: (hex: string) => {
+    const rgb = hexToRgb(hex);
+    if (rgb) {
+      deviceStore.rgbConfig.colorR = rgb.r;
+      deviceStore.rgbConfig.colorG = rgb.g;
+      deviceStore.rgbConfig.colorB = rgb.b;
+    }
+  },
 });
 
 // 获取当前使用的键盘类型（预览模式或实际设备）
@@ -1376,6 +1424,37 @@ body {
 
 .rgb-save-btn {
   margin-top: 0.25rem;
+}
+
+.rgb-color-row .rgb-label {
+  margin-bottom: 0.25rem;
+}
+
+.rgb-color-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rgb-color-picker {
+  --p-colorpicker-preview-width: 2rem;
+  --p-colorpicker-preview-height: 2rem;
+}
+
+.rgb-hex-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-family: monospace;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-primary);
+  outline: none;
+}
+
+.rgb-hex-input:focus {
+  border-color: var(--c-accent);
 }
 
 /* 浅色模式 FN select */

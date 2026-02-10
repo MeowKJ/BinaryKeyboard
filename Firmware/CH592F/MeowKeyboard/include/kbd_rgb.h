@@ -78,7 +78,7 @@ void KBD_RGB_Init(void);
  *
  * 根据当前模式更新 LED 状态
  *
- * @note 应在主循环中定期调用，建议间隔 10-20ms
+ * @note 由 TMOS 定时事件驱动，约每 20ms 调用一次
  */
 void KBD_RGB_Process(void);
 

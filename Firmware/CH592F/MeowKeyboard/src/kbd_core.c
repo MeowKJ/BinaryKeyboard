@@ -25,9 +25,6 @@ static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
 
-/** RGB 处理计数器 */
-static uint32_t s_rgb_tick = 0;
-
 /*============================================================================*/
 /* 私有函数声明 */
 /*============================================================================*/
@@ -59,7 +56,6 @@ void KBD_Core_Init(void)
 {
     s_pressed_count = 0;
     s_current_modifier = 0;
-    s_rgb_tick = 0;
 
     for (uint8_t i = 0; i < 6; i++) {
         s_pressed_keys[i] = 0;
@@ -90,12 +86,6 @@ void KBD_Core_Process(void)
     if (BootKey_IsPressed()) {
         LOG_W(TAG, "BOOT key pressed!");
         Hal_JumpToBootloader();
-    }
-
-    /* RGB 效果处理 (约每 20 次调用) */
-    if (++s_rgb_tick >= 20) {
-        s_rgb_tick = 0;
-        KBD_RGB_Process();
     }
 }
 
