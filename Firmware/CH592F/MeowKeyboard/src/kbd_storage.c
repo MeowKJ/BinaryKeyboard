@@ -202,9 +202,10 @@ static const kbd_rgb_config_t s_default_rgb = {
  * @brief 默认系统配置
  */
 static const kbd_system_config_t s_default_system = {
-    .default_mode = 0,   /* USB */
-    .auto_sleep_min = 5, /* 5 分钟 */
-    .debounce_ms = 10,   /* 10ms */
+    .default_mode = 0,          /* USB */
+    .auto_sleep_min = 5,        /* 5 分钟 */
+    .debounce_ms = 10,          /* 10ms */
+    .log_enabled = 1,           /* HID 日志默认开启 */
 };
 
 /*============================================================================*/
@@ -336,6 +337,12 @@ int KBD_Config_Load(void) {
   /* 迁移：旧配置可能无 indicator_brightness，若低于最低值则提升（不可完全关闭） */
   if (s_rgb_config.indicator_brightness < KBD_INDICATOR_MIN_BRIGHTNESS) {
     s_rgb_config.indicator_brightness = KBD_INDICATOR_MIN_BRIGHTNESS;
+  }
+
+  /* 迁移 v1.1 → v1.2: 初始化 HID 日志开关 */
+  if (header.version < 0x0102) {
+    s_system_config.log_enabled = 1;
+    LOG_I(TAG, "Migrated log config (v1.1->v1.2)");
   }
 
   memcpy(&s_config_header, &header, sizeof(header));

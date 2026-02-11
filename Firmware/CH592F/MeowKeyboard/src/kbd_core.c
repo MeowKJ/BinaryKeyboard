@@ -10,6 +10,7 @@
 #include "kbd_storage.h"
 #include "kbd_rgb.h"
 #include "kbd_mode.h"
+#include "kbd_log.h"
 #include "hal_utils.h"
 #include "key.h"
 #include "debug.h"
@@ -118,8 +119,10 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         kbd_keymap_t *keymap = KBD_GetKeymap();
         
         if (target_layer < keymap->num_layers) {
+            uint8_t old_layer = keymap->current_layer;
             KBD_SetCurrentLayer(target_layer);
             LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
+            KBD_Log_LayerEvent(old_layer, target_layer);
             KBD_RGB_FlashLayer(target_layer);
             return;  /* 不执行按键原本的动作 */
         }
@@ -130,6 +133,7 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         return;
 
     LOG_D(TAG, "key %d %s", evt->key, pressed ? "press" : "release");
+    KBD_Log_KeyEvent(evt->key, pressed ? 1 : 0, action->type, action->param1);
     ExecuteKeyAction(action, pressed);
 }
 
@@ -146,9 +150,11 @@ void KBD_Core_HandleFnEvent(const fnkey_event_t *evt)
 
     if (evt->type == FNKEY_EVT_LONG) {
         LOG_D(TAG, "FN%d long", evt->id + 1);
+        KBD_Log_FnEvent(evt->id, 1, entry->long_action, entry->long_param);
         ExecuteFnAction((kbd_fn_action_t)entry->long_action, entry->long_param);
     } else {
         LOG_D(TAG, "FN%d click", evt->id + 1);
+        KBD_Log_FnEvent(evt->id, 0, entry->click_action, entry->click_param);
         ExecuteFnAction((kbd_fn_action_t)entry->click_action, entry->click_param);
     }
 }
@@ -183,7 +189,9 @@ void *KBD_Core_GetCallbacks(void)
  */
 static void OnModeChange(kbd_work_mode_t new_mode)
 {
+    uint8_t old_mode = (new_mode == KBD_WORK_MODE_USB) ? 1 : 0; /* 反推旧模式 */
     LOG_I(TAG, "mode changed: %s", (new_mode == KBD_WORK_MODE_USB) ? "USB" : "BLE");
+    KBD_Log_ModeEvent(old_mode, (uint8_t)new_mode);
 
     /* 切换模式时释放所有按键 */
     KBD_Core_ReleaseAll();
@@ -202,6 +210,7 @@ static void OnModeChange(kbd_work_mode_t new_mode)
 static void OnConnStateChange(kbd_conn_state_t state)
 {
     LOG_I(TAG, "conn state: %d", state);
+    KBD_Log_BleEvent((uint8_t)state);
 
     /* RGB 状态指示 */
     if (KBD_Mode_Get() == KBD_WORK_MODE_USB) {
@@ -318,8 +327,10 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
 
     case KBD_ACTION_LAYER:
         if (pressed) {
+            uint8_t old_l = KBD_GetCurrentLayer();
             KBD_SetCurrentLayer(action->param1);
             LOG_I(TAG, "Layer -> %d", action->param1);
+            KBD_Log_LayerEvent(old_l, action->param1);
         }
         break;
 

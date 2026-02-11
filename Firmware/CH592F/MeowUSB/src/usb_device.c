@@ -88,7 +88,6 @@ static void USB_HandleSetupPacket(void)
             case DEF_USB_SET_REPORT: /* 0x09 */
                 // 保存接口号，在 OUT 阶段处理数据
                 g_SetupReqInterface = pSetupReqPak->wIndex & 0xFF;
-                LOG_D(TAG, "SET_REPORT intf=%d len=%d", g_SetupReqInterface, g_SetupReqLen);
                 break;
 
             case DEF_USB_GET_REPORT: /* 0x01 */
@@ -381,15 +380,12 @@ void USB_Device_TransferProcess(void)
 
             case UIS_TOKEN_OUT: // EP0 OUT
                 len = R8_USB_RX_LEN;
-                LOG_D(TAG, "EP0 OUT len=%d code=%02X", len, g_SetupReqCode);
                 if (g_SetupReqCode == DEF_USB_SET_REPORT)
                 {
-                    LOG_D(TAG, "SET_REPORT data intf=%d", g_SetupReqInterface);
                     if (g_SetupReqInterface == INTF_CONFIG && len > 0)
                     {
                         // 配置接口 SET_REPORT - 调用命令处理
                         USB_ConfigReport_t *report = (USB_ConfigReport_t *)pEP0_DataBuf;
-                        LOG_I(TAG, "Config cmd=%02X", report->cmd);
                         USB_Config_ProcessCommand(report);
                     }
                 }
@@ -421,12 +417,10 @@ void USB_Device_TransferProcess(void)
                 break;
 
             case UIS_TOKEN_OUT | 4: // EP4 OUT (Config)
-                LOG_D(TAG, "EP4 OUT tog=%d", (R8_USB_INT_ST & RB_UIS_TOG_OK) ? 1 : 0);
                 if (R8_USB_INT_ST & RB_UIS_TOG_OK)
                 {
                     R8_UEP4_CTRL ^= RB_UEP_R_TOG;
                     len = R8_USB_RX_LEN;
-                    LOG_I(TAG, "EP4 OUT len=%d", len);
                     DevEP4_OUT_Deal(len);
                 }
                 break;
