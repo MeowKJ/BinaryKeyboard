@@ -16,8 +16,10 @@
 #include "kbd_command.h"
 #include "debug.h"
 #include "kbd_config.h"
+#include "kbd_battery.h"
 #include "kbd_mode.h"
 #include "kbd_rgb.h"
+#include "kbd_log.h"
 #include "kbd_storage.h"
 #include <string.h>
 
@@ -56,6 +58,8 @@ static void HandleMacroDel(const kbd_cmd_frame_t *frame);
 static void HandleFnkeyGet(const kbd_cmd_frame_t *frame);
 static void HandleFnkeySet(const kbd_cmd_frame_t *frame);
 static void HandleBattery(const kbd_cmd_frame_t *frame);
+static void HandleLogGet(const kbd_cmd_frame_t *frame);
+static void HandleLogSet(const kbd_cmd_frame_t *frame);
 
 /*============================================================================*/
 /*                              公共函数实现 */
@@ -64,9 +68,6 @@ static void HandleBattery(const kbd_cmd_frame_t *frame);
 void KBD_Command_Init(void) { LOG_I(TAG, "Command handler init"); }
 
 int KBD_Command_Process(const kbd_cmd_frame_t *frame) {
-  LOG_D(TAG, "cmd=0x%02X sub=0x%02X len=%d", frame->cmd, frame->sub,
-        frame->len);
-
   switch (frame->cmd) {
   /* 系统命令 */
   case KBD_CMD_SYS_INFO:
@@ -134,6 +135,14 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame) {
   /* 电池信息 */
   case KBD_CMD_BATTERY:
     HandleBattery(frame);
+    break;
+
+  /* 日志配置 */
+  case KBD_CMD_LOG_GET:
+    HandleLogGet(frame);
+    break;
+  case KBD_CMD_LOG_SET:
+    HandleLogSet(frame);
     break;
 
   default:
@@ -218,8 +227,8 @@ static void HandleSysStatus(const kbd_cmd_frame_t *frame) {
   resp[1] = (uint8_t)DualMode_GetMode();
   resp[2] = (uint8_t)DualMode_GetConnState();
   resp[3] = KBD_GetCurrentLayer();
-  resp[4] = 100; /* 电池电量 (占位) */
-  resp[5] = 0;   /* 充电状态 (占位) */
+  resp[4] = KBD_Battery_GetLevel();
+  resp[5] = (uint8_t)KBD_Battery_GetChargeState();
 
   KBD_Command_SendResponse(KBD_CMD_SYS_STATUS, 0, resp, 6);
 }
@@ -559,14 +568,50 @@ static void HandleFnkeySet(const kbd_cmd_frame_t *frame) {
 
 /**
  * @brief 处理电池信息查询
+ *
+ * 响应格式 (4 字节):
+ * [0] KBD_RESP_OK
+ * [1] 电量百分比 (0-100)
+ * [2] 充电状态 (0=未充电, 1=充电中)
+ * [3] 电压 (0.1V 单位, 如 42 = 4.2V)
  */
 static void HandleBattery(const kbd_cmd_frame_t *frame) {
-  /* 电池功能占位 */
   uint8_t resp[4];
   resp[0] = KBD_RESP_OK;
-  resp[1] = 100; /* 电量百分比 */
-  resp[2] = 0;   /* 充电状态 */
-  resp[3] = 42;  /* 电压 (0.1V 单位) */
+  resp[1] = KBD_Battery_GetLevel();
+  resp[2] = (uint8_t)KBD_Battery_GetChargeState();
+  resp[3] = KBD_Battery_GetVoltage_dV();
 
   KBD_Command_SendResponse(KBD_CMD_BATTERY, 0, resp, 4);
+}
+
+/**
+ * @brief 处理日志配置获取
+ *
+ * 响应格式 (2 字节):
+ * [0] KBD_RESP_OK
+ * [1] enabled
+ */
+static void HandleLogGet(const kbd_cmd_frame_t *frame) {
+  uint8_t resp[2];
+  resp[0] = KBD_RESP_OK;
+  resp[1] = KBD_Log_IsEnabled();
+
+  KBD_Command_SendResponse(KBD_CMD_LOG_GET, 0, resp, 2);
+}
+
+/**
+ * @brief 处理日志配置设置
+ *
+ * 请求格式 (1 字节):
+ * [0] enabled (0=关, 非0=开)
+ */
+static void HandleLogSet(const kbd_cmd_frame_t *frame) {
+  if (frame->len >= 1) {
+    KBD_Log_SetEnabled(frame->data[0]);
+    LOG_D(TAG, "Log enabled=%d", frame->data[0]);
+  }
+
+  uint8_t resp[1] = {KBD_RESP_OK};
+  KBD_Command_SendResponse(KBD_CMD_LOG_SET, 0, resp, 1);
 }

@@ -123,6 +123,8 @@
             </div>
           </div>
 
+          <BatteryStatus />
+
           <div class="panel layer-panel">
             <h3 class="panel-title">
               <i class="pi pi-layer-group"></i>
@@ -298,7 +300,7 @@
         <div class="keyboard-spacer"></div>
 
         <!-- 中央键盘区 - 悬浮居中 -->
-        <section class="keyboard-section">
+        <section class="keyboard-section" :style="keyboardSectionStyle">
           <!-- 装饰背景 -->
           <div class="keyboard-decoration">
             <div class="deco-circle deco-1"></div>
@@ -355,6 +357,9 @@
 
     <!-- 确认对话框 -->
     <ConfirmDialog />
+
+    <!-- 调试终端 -->
+    <DebugTerminal />
   </div>
 </template>
 
@@ -377,10 +382,13 @@ import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } 
 import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
+import DebugTerminal from '@/components/DebugTerminal.vue';
+import { useTerminalStore } from '@/stores/terminalStore';
 
 const toast = useToast();
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
+const terminalStore = useTerminalStore();
 
 // 主题
 const currentTheme = ref<ThemeMode>('dark');
@@ -419,6 +427,15 @@ const rgbColorHex = computed({
       deviceStore.rgbConfig.colorB = rgb.b;
     }
   },
+});
+
+// 键盘区域底部偏移（为终端面板腾出空间）
+const keyboardSectionStyle = computed(() => {
+  const statusBarH = 32;
+  if (terminalStore.isOpen) {
+    return { bottom: (terminalStore.panelHeight + statusBarH) + 'px' };
+  }
+  return { bottom: statusBarH + 'px' };
 });
 
 // 获取当前使用的键盘类型（预览模式或实际设备）
@@ -697,6 +714,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  padding-bottom: 32px; /* 底部状态栏高度 */
 }
 
 /* ==========================================
