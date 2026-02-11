@@ -71,6 +71,67 @@ export enum Command {
 
   // 电源管理 0x60-0x6F
   BATTERY = 0x60,
+
+  // 设备日志 0x70-0x7F
+  LOG = 0x70,
+  LOG_GET = 0x71,
+  LOG_SET = 0x72,
+}
+
+// ============================================================================
+// 固件日志类别
+// ============================================================================
+
+export enum LogCategory {
+  KEY_EVENT = 0x01,
+  FN_EVENT = 0x02,
+  LAYER_EVENT = 0x03,
+  MODE_EVENT = 0x04,
+  BLE_EVENT = 0x05,
+  RGB_EVENT = 0x06,
+  SYSTEM_EVENT = 0x07,
+}
+
+export enum SystemLogEvent {
+  BOOT = 0x01,
+  SLEEP = 0x02,
+  WAKEUP = 0x03,
+}
+
+// ============================================================================
+// 日志配置
+// ============================================================================
+
+/** 日志类别掩码常量 */
+export const LOG_MASK = {
+  KEY:   0x01,
+  FN:    0x02,
+  LAYER: 0x04,
+  MODE:  0x08,
+  BLE:   0x10,
+  RGB:   0x20,
+  SYS:   0x40,
+  ALL:   0x7F,
+} as const;
+
+/** 日志类别掩码标签 (用于 UI) */
+export const LOG_MASK_LABELS: { mask: number; label: string; key: string }[] = [
+  { mask: LOG_MASK.KEY,   label: '按键',  key: 'key' },
+  { mask: LOG_MASK.FN,    label: 'FN',    key: 'fn' },
+  { mask: LOG_MASK.LAYER, label: '层切换', key: 'layer' },
+  { mask: LOG_MASK.MODE,  label: '模式',  key: 'mode' },
+  { mask: LOG_MASK.BLE,   label: '蓝牙',  key: 'ble' },
+  { mask: LOG_MASK.RGB,   label: 'RGB',   key: 'rgb' },
+  { mask: LOG_MASK.SYS,   label: '系统',  key: 'sys' },
+];
+
+/** 固件端日志配置 (仅开关，类别过滤在 UI 端) */
+export interface LogConfig {
+  enabled: boolean;
+}
+
+export function createDefaultLogConfig(): LogConfig {
+  return { enabled: true };
 }
 
 // ============================================================================

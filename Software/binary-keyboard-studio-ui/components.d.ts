@@ -9,9 +9,11 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ActionEditor: typeof import('./src/components/ActionEditor.vue')['default']
+    BatteryStatus: typeof import('./src/components/BatteryStatus.vue')['default']
     Button: typeof import('primevue/button')['default']
     ColorPicker: typeof import('primevue/colorpicker')['default']
     ConfirmDialog: typeof import('primevue/confirmdialog')['default']
+    DebugTerminal: typeof import('./src/components/DebugTerminal.vue')['default']
     Dialog: typeof import('primevue/dialog')['default']
     Divider: typeof import('primevue/divider')['default']
     EncoderButton: typeof import('./src/components/EncoderButton.vue')['default']

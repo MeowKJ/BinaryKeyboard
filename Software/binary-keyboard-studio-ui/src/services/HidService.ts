@@ -22,6 +22,7 @@ import {
   type RgbConfig,
   type FnKeyConfig,
   type FnKeyEntry,
+  type LogConfig,
   KeyboardType,
   ActionType,
   createEmptyKeymap,
@@ -29,7 +30,10 @@ import {
   createEmptyAction,
   createEmptyFnKeyConfig,
   createDefaultRgbConfig,
+  createDefaultLogConfig,
 } from '@/types/protocol';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { parseSendFrame, parseReceiveFrame, parseLogFrame, toHexDump } from '@/utils/protocolParser';
 
 // ============================================================================
 // HID 过滤器
@@ -132,6 +136,22 @@ export class HidService {
 
     console.log('发送命令:', { cmd: '0x' + cmd.toString(16), sub, dataLen: data.length, reportId: REPORT_ID_COMMAND });
 
+    // 记录到终端
+    try {
+      const terminalStore = useTerminalStore();
+      const parsed = parseSendFrame(frame);
+      terminalStore.addEntry({
+        direction: 'send',
+        level: 'info',
+        command: parsed.command,
+        cmdHex: parsed.cmdHex,
+        sub: parsed.sub,
+        dataLen: parsed.dataLen,
+        rawHex: parsed.rawHex,
+        parsed: parsed.parsed,
+      });
+    } catch { /* terminal store may not be ready */ }
+
     // 发送
     try {
       await this.device.sendReport(REPORT_ID_COMMAND, frame);
@@ -156,7 +176,47 @@ export class HidService {
     // 有 Report ID 模式：检查 reportId 是否匹配
     if (REPORT_ID_RESPONSE !== 0 && event.reportId !== REPORT_ID_RESPONSE) return;
 
+    const frameBytes = new Uint8Array(event.data.buffer);
+    const cmd = frameBytes[0];
+
+    // CMD=0x70: 设备主动推送日志 → 路由到终端, 不走 responsePromise
+    if (cmd === Command.LOG) {
+      try {
+        const terminalStore = useTerminalStore();
+        const parsed = parseLogFrame(frameBytes);
+        terminalStore.addEntry({
+          direction: 'device',
+          level: 'info',
+          command: parsed.command,
+          cmdHex: parsed.cmdHex,
+          sub: parsed.sub,
+          dataLen: parsed.dataLen,
+          rawHex: parsed.rawHex,
+          parsed: parsed.parsed,
+          category: parsed.category,
+        });
+      } catch { /* terminal store may not be ready */ }
+      return;
+    }
+
     console.log('收到响应, reportId:', event.reportId, 'len:', event.data.byteLength);
+
+    // 记录到终端
+    try {
+      const terminalStore = useTerminalStore();
+      const parsed = parseReceiveFrame(frameBytes);
+      terminalStore.addEntry({
+        direction: 'receive',
+        level: parsed.isError ? 'error' : 'success',
+        command: parsed.command,
+        cmdHex: parsed.cmdHex,
+        sub: parsed.sub,
+        dataLen: parsed.dataLen,
+        rawHex: parsed.rawHex,
+        parsed: parsed.parsed,
+        statusCode: parsed.statusCode,
+      });
+    } catch { /* terminal store may not be ready */ }
 
     if (this.responsePromise) {
       if (this.responseTimeout) {
@@ -431,6 +491,38 @@ export class HidService {
       isCharging: resp.getUint8(d + 2) !== 0,
       voltage: resp.getUint8(d + 3) / 10, // 0.1V 单位
     };
+  }
+
+  // ----------------------------------------
+  // 日志配置
+  // ----------------------------------------
+
+  /** 获取日志配置 (仅开关) */
+  async getLogConfig(): Promise<LogConfig> {
+    const resp = await this.sendCommand(Command.LOG_GET);
+
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
+    if (status !== ResponseCode.OK) {
+      throw new Error(`LOG_GET 失败: 0x${status.toString(16)}`);
+    }
+
+    return {
+      enabled: resp.getUint8(d + 1) !== 0,
+    };
+  }
+
+  /** 设置日志配置 (仅开关) */
+  async setLogConfig(config: LogConfig): Promise<void> {
+    const data = new Uint8Array([config.enabled ? 1 : 0]);
+
+    const resp = await this.sendCommand(Command.LOG_SET, 0, data);
+
+    const d = RESP_HEADER_SIZE;
+    const status = resp.getUint8(d + 0);
+    if (status !== ResponseCode.OK) {
+      throw new Error(`LOG_SET 失败: 0x${status.toString(16)}`);
+    }
   }
 }
 
