@@ -88,6 +88,23 @@ typedef struct {
 /* 指示灯最低亮度 (5%)，用户不可完全关闭 */
 #define KBD_INDICATOR_MIN_BRIGHTNESS  13
 
+/* TP4054 充电状态引脚: PA13 (开漏输出, 低=充电中, 高阻=未充电) */
+/* 注意: KNOB 款 PA13 用于编码器 B，充电检测不可用 */
+#if !defined(KBD_LAYOUT_KNOB)
+#define KBD_HAS_CHARGE_DET 1
+#define KBD_CHG_PORT GPIO_PORT_A
+#define KBD_CHG_PIN GPIO_Pin_13
+#else
+#define KBD_HAS_CHARGE_DET 0
+#endif
+
+/* VBAT 电压采样: 两个 100K 电阻分压 (1/2), 经 PMOS 使能 */
+/* PA14 (AIN4): ADC 输入 */
+/* PA15: 分压电路使能 (低电平有效, PMOS 默认下拉) */
+#define KBD_VBAT_ADC_CH CH_EXTIN_4
+#define KBD_VBAT_ADC_PIN GPIO_Pin_14
+#define KBD_VBAT_EN_PIN GPIO_Pin_15
+
 /** @} */
 
 /*============================================================================*/

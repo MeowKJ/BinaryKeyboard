@@ -36,7 +36,7 @@ extern "C" {
  */
 
 #define KBD_CONFIG_MAGIC 0x4D454F57 /**< 配置魔数 "MEOW" */
-#define KBD_CONFIG_VERSION 0x0101   /**< 配置版本 v1.1 (添加键盘类型) */
+#define KBD_CONFIG_VERSION 0x0102   /**< 配置版本 v1.2 (添加 HID 日志配置) */
 
 #define KBD_MAX_LAYERS 5  /**< 最大层数 (5键款/旋钮款支持5层) */
 #define KBD_MAX_KEYS 8    /**< 单层最大按键数 (支持所有类型) */
@@ -359,10 +359,12 @@ typedef struct __attribute__((packed)) {
  * @brief 系统配置结构 (64 字节)
  */
 typedef struct __attribute__((packed)) {
-  uint8_t default_mode;   /**< 默认工作模式 (0=USB, 1=BLE) */
-  uint8_t auto_sleep_min; /**< 自动休眠时间 (分钟, 0=禁用) */
-  uint8_t debounce_ms;    /**< 按键消抖时间 (毫秒) */
-  uint8_t reserved[61];   /**< 保留字段 */
+  uint8_t default_mode;        /**< 默认工作模式 (0=USB, 1=BLE) */
+  uint8_t auto_sleep_min;      /**< 自动休眠时间 (分钟, 0=禁用) */
+  uint8_t debounce_ms;         /**< 按键消抖时间 (毫秒) */
+  /* HID 日志配置 (v1.2+) */
+  uint8_t log_enabled;         /**< HID 日志开关 (0=关, 非0=开, 默认1) */
+  uint8_t reserved[60];        /**< 保留字段 */
 } kbd_system_config_t;
 
 /**
@@ -423,7 +425,34 @@ typedef enum {
 
   /* 电源管理 0x60-0x6F */
   KBD_CMD_BATTERY = 0x60, /**< 获取电池信息 */
+
+  /* 设备日志 0x70-0x7F */
+  KBD_CMD_LOG = 0x70,     /**< 设备日志推送 (设备 → 主机, 异步) */
+  KBD_CMD_LOG_GET = 0x71, /**< 获取日志配置 */
+  KBD_CMD_LOG_SET = 0x72, /**< 设置日志配置 */
 } kbd_cmd_t;
+
+/**
+ * @brief HID 日志类别 (KBD_CMD_LOG 的 SUB 字段)
+ */
+typedef enum {
+  KBD_LOG_KEY_EVENT    = 0x01, /**< 按键按下/释放 */
+  KBD_LOG_FN_EVENT     = 0x02, /**< FN 键单击/长按 */
+  KBD_LOG_LAYER_EVENT  = 0x03, /**< 层切换 */
+  KBD_LOG_MODE_EVENT   = 0x04, /**< USB/BLE 模式切换 */
+  KBD_LOG_BLE_EVENT    = 0x05, /**< 蓝牙状态变化 */
+  KBD_LOG_RGB_EVENT    = 0x06, /**< RGB 模式变化 */
+  KBD_LOG_SYSTEM_EVENT = 0x07, /**< 系统事件 */
+} kbd_log_category_t;
+
+/**
+ * @brief 系统事件子类型
+ */
+typedef enum {
+  KBD_LOG_SYS_BOOT   = 0x01, /**< 设备启动 */
+  KBD_LOG_SYS_SLEEP  = 0x02, /**< 进入休眠 */
+  KBD_LOG_SYS_WAKEUP = 0x03, /**< 唤醒 */
+} kbd_log_sys_event_t;
 
 /**
  * @brief HID 响应码

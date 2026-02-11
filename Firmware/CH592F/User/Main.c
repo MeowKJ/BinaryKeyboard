@@ -17,9 +17,11 @@
 #include "kbd_storage.h"
 #include "kbd_command.h"
 #include "kbd_rgb.h"
+#include "kbd_log.h"
 
 /* 硬件抽象层 */
 #include "key.h"
+#include "kbd_battery.h"
 #include "hal_utils.h"
 #include "ws2812.h"
 #include "debug.h"
@@ -39,6 +41,7 @@ __attribute__((noinline)) void Main_Circulation(void)
         TMOS_SystemProcess();
         KBD_Mode_Process();
         KBD_Core_Process();
+        KBD_Log_Flush();
     }
 }
 
@@ -82,14 +85,23 @@ int main(void)
     
     /* RGB 灯效初始化 */
     KBD_RGB_Init();
-    
+
+    /* 电池检测初始化 */
+    KBD_Battery_Init();
+
+    /* HID 日志系统初始化 */
+    KBD_Log_Init();
+
     /* 键盘核心模块初始化 */
     KBD_Core_Init();
     
     /* 模式管理器初始化（默认USB模式） */
     kbd_work_mode_t initial_mode = KBD_WORK_MODE_USB;
     KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks());
-    
+
+    /* 记录启动事件 */
+    KBD_Log_SystemEvent(KBD_LOG_SYS_BOOT);
+
     /* 进入主循环 */
     Main_Circulation();
     
