@@ -107,7 +107,7 @@
       </header>
 
       <!-- 主内容区 -->
-      <main class="app-main">
+      <main class="app-main" :class="{ 'terminal-open': terminalStore.isOpen }">
         <!-- 左侧面板 -->
         <aside class="sidebar">
           <div class="panel device-panel">
@@ -123,7 +123,7 @@
             </div>
           </div>
 
-          <BatteryStatus />
+          <KeyboardStatus />
 
           <div class="panel layer-panel">
             <h3 class="panel-title">
@@ -132,7 +132,17 @@
             </h3>
             <div class="layer-hint">
               <i class="pi pi-info-circle"></i>
-              <span>点击按键切换到对应层 · 按住 FN + 按键N 在键盘上切换</span>
+              <span>按住 FN + 按键N 在键盘上切换层</span>
+            </div>
+            <div class="layer-legend">
+              <div class="legend-item">
+                <span class="legend-dot current-dot"></span>
+                <span class="legend-text">当前层</span>
+              </div>
+              <div class="legend-item">
+                <span class="legend-dot edit-dot"></span>
+                <span class="legend-text">编辑层</span>
+              </div>
             </div>
             <!-- 缩小版键盘布局 -->
             <div v-if="layerLayout" class="layer-keyboard-mini" :style="{
@@ -140,26 +150,22 @@
               gridTemplateRows: `repeat(${layerLayout.rows}, 1fr)`,
             }">
               <div v-for="key in layerLayout.keys" :key="key.index" class="layer-key-mini" :class="{
-                active: deviceStore.currentEditLayer === getLayerIndexByKeyIndex(key.index, currentKeyboardType),
+                'current-layer': deviceStore.deviceStatus?.currentLayer === getLayerIndexByKeyIndex(key.index, currentKeyboardType),
+                'edit-layer': deviceStore.currentEditLayer === getLayerIndexByKeyIndex(key.index, currentKeyboardType),
                 [`key-${key.size}`]: true,
-                'key-encoder-press': key.type === 'encoder-press'
+                'key-encoder-press': key.type === 'encoder-press',
+                'disabled': isLayerKeyDisabled(key, currentKeyboardType)
               }" :style="getKeyStyle(key)"
-                @click="deviceStore.setEditLayer(getLayerIndexByKeyIndex(key.index, currentKeyboardType))"
-                :title="`层 ${getLayerIndexByKeyIndex(key.index, currentKeyboardType) + 1} - 点击编辑 | FN + ${getLayerIndexByKeyIndex(key.index, currentKeyboardType) + 1} 切换`">
-                <span class="layer-key-number">{{ getLayerIndexByKeyIndex(key.index, currentKeyboardType) + 1 }}</span>
+                @click="onLayerKeyClick(key, currentKeyboardType)"
+                :title="getLayerKeyTitle(key, currentKeyboardType)">
+                <span class="layer-key-number" v-if="!isLayerKeyDisabled(key, currentKeyboardType)">{{ getLayerIndexByKeyIndex(key.index, currentKeyboardType) + 1 }}</span>
                 <span class="layer-key-label" v-if="key.type !== 'encoder-press'">层{{ getLayerIndexByKeyIndex(key.index,
                   currentKeyboardType) + 1 }}</span>
-                <span class="layer-key-label" v-else>旋钮</span>
+                <span class="layer-key-label encoder-label" v-else>🎚️</span>
               </div>
             </div>
             <div v-else class="layer-keyboard-mini-placeholder">
               <span>未连接设备</span>
-            </div>
-            <div class="layer-info">
-              <div class="current-layer-badge">
-                <span class="layer-label">当前编辑</span>
-                <span class="layer-number">层 {{ deviceStore.currentEditLayer + 1 }}</span>
-              </div>
             </div>
           </div>
 
@@ -194,6 +200,11 @@
                     <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
+                    <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x13">亮度+</option>
+                    <option :value="0x14">亮度-</option>
+                    <option :value="0x20">下一层</option>
+                    <option :value="0x21">上一层</option>
                     <option :value="0x40">休眠</option>
                   </select>
                 </div>
@@ -223,6 +234,11 @@
                     <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
+                    <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x13">亮度+</option>
+                    <option :value="0x14">亮度-</option>
+                    <option :value="0x20">下一层</option>
+                    <option :value="0x21">上一层</option>
                     <option :value="0x40">休眠</option>
                   </select>
                 </div>
@@ -383,6 +399,7 @@ import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
+import KeyboardStatus from '@/components/KeyboardStatus.vue';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const toast = useToast();
@@ -500,6 +517,30 @@ function getKeyStyle(key: any) {
   return style;
 }
 
+// 判断层按键是否禁用（旋钮款的旋钮位置禁用）
+function isLayerKeyDisabled(key: any, keyboardType: number): boolean {
+  // 旋钮款（type 2）的旋钮按下位置（encoder-press）禁用
+  return keyboardType === 2 && key.type === 'encoder-press';
+}
+
+// 层按键点击处理
+function onLayerKeyClick(key: any, keyboardType: number): void {
+  if (isLayerKeyDisabled(key, keyboardType)) {
+    return; // 禁用的按键不响应点击
+  }
+  const layerIndex = getLayerIndexByKeyIndex(key.index, keyboardType);
+  deviceStore.setEditLayer(layerIndex);
+}
+
+// 获取层按键的提示文本
+function getLayerKeyTitle(key: any, keyboardType: number): string {
+  if (isLayerKeyDisabled(key, keyboardType)) {
+    return '旋钮位置无RGB，不可用作层切换';
+  }
+  const layerIndex = getLayerIndexByKeyIndex(key.index, keyboardType);
+  return `层 ${layerIndex + 1} - 点击编辑 | FN + ${layerIndex + 1} 切换`;
+}
+
 // ----------------------------------------
 // 主题切换
 // ----------------------------------------
@@ -543,6 +584,7 @@ async function requestDevice() {
     if (device) {
       const success = await deviceStore.connectDevice(device);
       if (success) {
+        deviceStore.startStatusPolling();
         showToast('success', '连接成功', `已连接到 ${device.productName}`);
       } else {
         showToast('error', '连接失败', deviceStore.errorMessage || '无法连接设备');
@@ -558,6 +600,7 @@ async function autoConnect() {
   if (device) {
     const success = await deviceStore.connectDevice(device);
     if (success) {
+      deviceStore.startStatusPolling();
       showToast('success', '自动连接', `已连接到 ${device.productName}`);
     }
   }
@@ -676,6 +719,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  deviceStore.stopStatusPolling();
   navigator.hid.removeEventListener('disconnect', onDeviceDisconnected);
 });
 </script>
@@ -1043,7 +1087,14 @@ body {
   flex: 1;
   display: flex;
   padding: 1.5rem;
+  padding-bottom: 50px; /* 默认只为状态栏留出空间 */
   gap: 1.5rem;
+  transition: padding-bottom 0.3s ease;
+}
+
+/* 当终端打开时，增加底部间距 */
+.app-main.terminal-open {
+  padding-bottom: 340px; /* 为打开的终端留出空间 (280px 终端 + 32px 状态栏 + 余量) */
 }
 
 /* ==========================================
@@ -1116,6 +1167,46 @@ body {
   color: var(--c-accent);
 }
 
+/* 层颜色图例 */
+.layer-legend {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  background: var(--c-bg-tertiary);
+  border-radius: var(--radius-sm);
+  justify-content: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot.current-dot {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+.legend-dot.edit-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+.legend-text {
+  font-size: 0.7rem;
+  color: var(--c-text-secondary);
+  font-weight: 500;
+}
+
 /* 缩小版键盘布局 */
 .layer-keyboard-mini {
   display: grid;
@@ -1184,15 +1275,61 @@ body {
   box-shadow: 0 1px 4px var(--c-key-shadow);
 }
 
-.layer-key-mini.active {
-  background: var(--c-accent-soft);
-  border-color: var(--c-accent);
-  box-shadow: 0 0 0 1.5px var(--c-accent-soft);
+/* 当前层（键盘硬件状态）- 绿色 */
+.layer-key-mini.current-layer {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 1.5px rgba(34, 197, 94, 0.15);
+}
+
+/* 编辑层（软件UI状态）- 橙色 */
+.layer-key-mini.edit-layer {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1.5px rgba(245, 158, 11, 0.15);
+}
+
+/* 当前层和编辑层是同一层时 - 混合渐变效果 */
+.layer-key-mini.current-layer.edit-layer {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+
+.layer-key-mini.current-layer.edit-layer::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: calc(var(--radius-sm) * 0.8);
+  padding: 2px;
+  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* 旋钮按键的圆形渐变边框 */
+.layer-key-mini.key-encoder-press.current-layer.edit-layer::before {
+  border-radius: 50%;
 }
 
 .layer-key-mini.disabled {
-  opacity: 0.3;
+  opacity: 0.35;
   cursor: not-allowed;
+  background: var(--c-bg-tertiary) !important;
+  border-color: var(--c-border-light) !important;
+  box-shadow: none !important;
+}
+
+.layer-key-mini.disabled:hover {
+  transform: none;
+  border-color: var(--c-border-light) !important;
+}
+
+.encoder-label {
+  font-size: 0.75rem !important;
 }
 
 .layer-key-number {
@@ -1202,9 +1339,23 @@ body {
   line-height: 1;
 }
 
-.layer-key-mini.active .layer-key-number {
-  color: var(--c-accent);
+.layer-key-mini.current-layer .layer-key-number {
+  color: #22c55e;
   font-size: 1rem;
+}
+
+.layer-key-mini.edit-layer .layer-key-number {
+  color: #f59e0b;
+  font-size: 1rem;
+}
+
+.layer-key-mini.current-layer.edit-layer .layer-key-number {
+  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 
 .layer-key-label {
@@ -1214,8 +1365,19 @@ body {
   font-weight: 600;
 }
 
-.layer-key-mini.active .layer-key-label {
-  color: var(--c-accent);
+.layer-key-mini.current-layer .layer-key-label {
+  color: #22c55e;
+}
+
+.layer-key-mini.edit-layer .layer-key-label {
+  color: #f59e0b;
+}
+
+.layer-key-mini.current-layer.edit-layer .layer-key-label {
+  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .layer-info {
@@ -1267,15 +1429,45 @@ body {
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
-[data-theme="light"] .layer-key-mini.active {
-  background: #dbeafe;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+/* 亮色主题 - 当前层 */
+[data-theme="light"] .layer-key-mini.current-layer {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
 }
 
-[data-theme="light"] .layer-key-mini.active .layer-key-number,
-[data-theme="light"] .layer-key-mini.active .layer-key-label {
-  color: #1d4ed8;
+/* 亮色主题 - 编辑层 */
+[data-theme="light"] .layer-key-mini.edit-layer {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
+}
+
+/* 亮色主题 - 同时是当前层和编辑层 */
+[data-theme="light"] .layer-key-mini.current-layer.edit-layer {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%);
+}
+
+[data-theme="light"] .layer-key-mini.current-layer.edit-layer::before {
+  background: linear-gradient(135deg, #16a34a 0%, #d97706 100%);
+}
+
+[data-theme="light"] .layer-key-mini.current-layer .layer-key-number,
+[data-theme="light"] .layer-key-mini.current-layer .layer-key-label {
+  color: #16a34a;
+}
+
+[data-theme="light"] .layer-key-mini.edit-layer .layer-key-number,
+[data-theme="light"] .layer-key-mini.edit-layer .layer-key-label {
+  color: #d97706;
+}
+
+[data-theme="light"] .layer-key-mini.current-layer.edit-layer .layer-key-number,
+[data-theme="light"] .layer-key-mini.current-layer.edit-layer .layer-key-label {
+  background: linear-gradient(135deg, #16a34a 0%, #d97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 [data-theme="light"] .card-layer-badge {
@@ -1301,8 +1493,13 @@ body {
     font-size: 0.8rem;
   }
 
-  .layer-key-mini.active .layer-key-number {
+  .layer-key-mini.current-layer .layer-key-number,
+  .layer-key-mini.edit-layer .layer-key-number {
     font-size: 0.9rem;
+  }
+
+  .layer-key-mini.current-layer.edit-layer .layer-key-number {
+    font-size: 0.95rem;
   }
 
   .layer-key-label {

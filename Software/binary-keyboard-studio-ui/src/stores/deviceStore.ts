@@ -50,11 +50,19 @@ export const useDeviceStore = defineStore('device', () => {
   /** 当前编辑的层索引 */
   const currentEditLayer = ref(0);
 
+  /** 电池电压 (V, 如 4.12) */
+  const batteryVoltage = ref(0);
+
   /** 加载状态 */
   const isLoading = ref(false);
 
   /** 错误信息 */
   const errorMessage = ref<string | null>(null);
+
+  /** 实时轮询定时器 */
+  let _pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** 轮询周期计数 (用于电压低频采样) */
+  let _pollTick = 0;
 
   // ========================================
   // 计算属性
@@ -134,10 +142,12 @@ export const useDeviceStore = defineStore('device', () => {
 
   /** 断开设备 */
   async function disconnectDevice(): Promise<void> {
+    stopStatusPolling();
     await hidService.disconnect();
     device.value = null;
     deviceInfo.value = null;
     deviceStatus.value = null;
+    batteryVoltage.value = 0;
     keymap.value = createEmptyKeymap();
     keymapOriginal.value = createEmptyKeymap();
   }
@@ -298,6 +308,52 @@ export const useDeviceStore = defineStore('device', () => {
     keymap.value = JSON.parse(JSON.stringify(keymapOriginal.value));
   }
 
+  // ========================================
+  // 实时轮询
+  // ========================================
+
+  /** 内部轮询: 每次取 SysStatus, 每 5 次额外取电压 */
+  async function _pollStatus(): Promise<void> {
+    try {
+      const status = await hidService.getSysStatus();
+      deviceStatus.value = status;
+
+      // 注释掉自动同步：让编辑层和当前层独立
+      // 用户可以在设备使用层5的同时，在软件上编辑层2
+      // if (status.currentLayer !== currentEditLayer.value) {
+      //   currentEditLayer.value = status.currentLayer;
+      // }
+
+      // 每 5 个 tick (~10s) 采样电压
+      _pollTick++;
+      if (_pollTick % 5 === 0) {
+        const bat = await hidService.getBattery();
+        batteryVoltage.value = bat.voltage;
+      }
+    } catch {
+      /* 轮询失败静默忽略, 下次重试 */
+    }
+  }
+
+  /** 启动实时状态轮询 (2s 间隔) */
+  function startStatusPolling(): void {
+    stopStatusPolling();
+    _pollTick = 0;
+    // 立即采样一次电压
+    hidService.getBattery().then((bat) => {
+      batteryVoltage.value = bat.voltage;
+    }).catch(() => {});
+    _pollTimer = setInterval(_pollStatus, 2000);
+  }
+
+  /** 停止轮询 */
+  function stopStatusPolling(): void {
+    if (_pollTimer) {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+    }
+  }
+
   return {
     // 状态
     device,
@@ -308,6 +364,7 @@ export const useDeviceStore = defineStore('device', () => {
     rgbConfig,
     fnKeyConfig,
     currentEditLayer,
+    batteryVoltage,
     isLoading,
     errorMessage,
 
@@ -337,5 +394,7 @@ export const useDeviceStore = defineStore('device', () => {
     addLayer,
     removeLayer,
     discardChanges,
+    startStatusPolling,
+    stopStatusPolling,
   };
 });

@@ -274,6 +274,7 @@ typedef struct {
     volatile uint16_t lock_ms;     /**< 锁定倒计时（ms）。 */
     volatile uint8_t  is_down;     /**< 当前是否按下（1=按下，0=松开）。 */
     volatile uint8_t  expect;      /**< 期待边沿：0=按下(下降沿)，1=松开(上升沿)。 */
+    volatile uint8_t  combo_used;  /**< FN+Key 组合已触发，松开时跳过事件。 */
     volatile uint32_t press_tick;  /**< 按下边沿发生时的 tick（ms）。 */
 } fn_ctx_t;
 
@@ -515,6 +516,7 @@ static inline void HandleFnKeyEdge (uint8_t id) {
     if (s_fn_ctx[id].expect == 0) {
         /* Press edge. */
         s_fn_ctx[id].is_down = 1;
+        s_fn_ctx[id].combo_used = 0;
         s_fn_ctx[id].press_tick = now;
         s_fn_ctx[id].expect = 1;
         ConfigPinRiseEdge (pin);
@@ -524,12 +526,16 @@ static inline void HandleFnKeyEdge (uint8_t id) {
         s_fn_ctx[id].expect = 0;
         ConfigPinFallEdge (pin);
 
-        uint32_t dur = now - s_fn_ctx[id].press_tick;
-        if (dur >= (uint32_t)FN_LONG_PRESS_MS) {
-            PushFnEvent (id, FNKEY_EVT_LONG, now);
-        } else {
-            PushFnEvent (id, FNKEY_EVT_CLICK, now);
+        /* FN+Key 组合已使用过，跳过 click/long 事件 */
+        if (!s_fn_ctx[id].combo_used) {
+            uint32_t dur = now - s_fn_ctx[id].press_tick;
+            if (dur >= (uint32_t)FN_LONG_PRESS_MS) {
+                PushFnEvent (id, FNKEY_EVT_LONG, now);
+            } else {
+                PushFnEvent (id, FNKEY_EVT_CLICK, now);
+            }
         }
+        s_fn_ctx[id].combo_used = 0;
     }
 
     s_fn_ctx[id].lock_ms = FN_LOCKOUT_MS;
@@ -696,6 +702,16 @@ int8_t FnKey_IsDown (uint8_t id) {
     if (id >= KBD_FN_NUM_KEYS)
         return -1;
     return s_fn_ctx[id].is_down ? 1 : 0;
+}
+
+/**
+ * @brief 标记 FN 键已被 FN+Key 组合使用。
+ * @param id FN 键索引
+ * @details 调用后，该 FN 键松开时不会产生 CLICK/LONG 事件。
+ */
+void FnKey_MarkComboUsed (uint8_t id) {
+    if (id < KBD_FN_NUM_KEYS)
+        s_fn_ctx[id].combo_used = 1;
 }
 
 /**

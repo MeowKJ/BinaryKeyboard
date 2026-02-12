@@ -96,7 +96,7 @@ export type FilterMode = 'all' | 'send' | 'receive' | 'device';
 // 常量
 // ============================================================================
 
-const MAX_ENTRIES = 500;
+const MAX_ENTRIES = 2000;
 
 // ============================================================================
 // Store
@@ -182,7 +182,7 @@ export const useTerminalStore = defineStore('terminal', () => {
     entries.value.push(fullEntry);
 
     if (entries.value.length > MAX_ENTRIES) {
-      entries.value = entries.value.slice(-MAX_ENTRIES);
+      entries.value.splice(0, entries.value.length - MAX_ENTRIES);
     }
   }
 
