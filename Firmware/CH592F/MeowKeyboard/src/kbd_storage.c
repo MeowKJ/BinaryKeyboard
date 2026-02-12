@@ -431,8 +431,12 @@ int KBD_SetCurrentLayer(uint8_t layer) {
   if (layer >= s_keymap_config.num_layers) {
     return -1;
   }
+  if (s_keymap_config.current_layer == layer) {
+    return 0; // 未变化, 跳过写 Flash
+  }
   s_keymap_config.current_layer = layer;
-  LOG_D(TAG, "Switch to layer %d", layer);
+  LOG_D(TAG, "Switch to layer %d, saving", layer);
+  KBD_Config_Save();
   return 0;
 }
 

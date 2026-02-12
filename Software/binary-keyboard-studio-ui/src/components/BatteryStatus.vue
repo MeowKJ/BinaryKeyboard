@@ -2,38 +2,23 @@
 /**
  * BatteryStatus - 电池动画状态面板
  * SVG 液态波浪填充 + 充电闪电 + 发光效果
+ * 数据由 deviceStore 统一轮询提供
  */
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { hidService } from '@/services/HidService';
+import { ref, computed, onUnmounted, watch } from 'vue';
+import { useDeviceStore } from '@/stores/deviceStore';
 
-/* ── 数据 ─────────────────────────────────────────── */
+const deviceStore = useDeviceStore();
 
-const level = ref(0);
-const voltage = ref(0);
-const isCharging = ref(false);
-const isLoading = ref(false);
-const lastUpdate = ref<Date | null>(null);
+/* ── 从 store 读取数据 ────────────────────────────── */
+
+const level = computed(() => deviceStore.deviceStatus?.batteryLevel ?? 0);
+const voltage = computed(() => deviceStore.batteryVoltage);
+const isCharging = computed(() => deviceStore.deviceStatus?.isCharging ?? false);
 
 /** 用于平滑数字跳动的显示值 */
 const displayLevel = ref(0);
 
-let pollTimer: ReturnType<typeof setInterval> | null = null;
 let animFrame: ReturnType<typeof requestAnimationFrame> | null = null;
-
-async function fetchBattery() {
-  try {
-    isLoading.value = true;
-    const data = await hidService.getBattery();
-    level.value = data.level;
-    voltage.value = data.voltage;
-    isCharging.value = data.isCharging;
-    lastUpdate.value = new Date();
-  } catch {
-    /* 静默失败，保持上次数据 */
-  } finally {
-    isLoading.value = false;
-  }
-}
 
 /* 数字跳动动画 */
 watch(level, (target) => {
@@ -54,15 +39,9 @@ watch(level, (target) => {
   }
   if (animFrame) cancelAnimationFrame(animFrame);
   animFrame = requestAnimationFrame(step);
-});
-
-onMounted(() => {
-  fetchBattery();
-  pollTimer = setInterval(fetchBattery, 10000);
-});
+}, { immediate: true });
 
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer);
   if (animFrame) cancelAnimationFrame(animFrame);
 });
 
@@ -117,9 +96,9 @@ const statusIcon = computed(() => {
   return 'pi pi-times-circle';
 });
 
-const timeString = computed(() => {
-  if (!lastUpdate.value) return '--:--';
-  return lastUpdate.value.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const workModeText = computed(() => {
+  const mode = deviceStore.deviceStatus?.workMode ?? 0;
+  return mode === 1 ? 'BLE' : 'USB';
 });
 
 const cssVars = computed(() => ({
@@ -134,10 +113,6 @@ const cssVars = computed(() => ({
     <h3 class="panel-title">
       <i class="pi pi-bolt"></i>
       电池状态
-      <button class="bat-refresh" @click="fetchBattery" :disabled="isLoading"
-        :class="{ spinning: isLoading }">
-        <i class="pi pi-sync"></i>
-      </button>
     </h3>
 
     <!-- 电池可视化 -->
@@ -160,22 +135,27 @@ const cssVars = computed(() => ({
             <stop offset="0%" :stop-color="batColor" stop-opacity="0.5" />
             <stop offset="100%" :stop-color="batColor" stop-opacity="0.3" />
           </linearGradient>
+          <!-- 充电能量流渐变 -->
+          <linearGradient id="energy-flow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" v:stop-color="batColor" stop-opacity="0" />
+            <stop offset="50%" :stop-color="batColor" stop-opacity="1" />
+            <stop offset="100%" :stop-color="batColor" stop-opacity="0" />
+          </linearGradient>
         </defs>
 
         <!-- 电池正极帽 -->
-        <rect x="80" y="18" width="40" height="14" rx="4"
-          fill="none" :stroke="batColor" stroke-width="2.5" opacity="0.7" />
+        <rect x="80" y="18" width="40" height="14" rx="4" fill="none" :stroke="batColor" stroke-width="2.5"
+          opacity="0.7" />
 
         <!-- 电池外框 -->
-        <rect x="30" y="30" width="140" height="120" rx="10"
-          fill="none" :stroke="batColor" stroke-width="2.5"
+        <rect x="30" y="30" width="140" height="120" rx="10" fill="none" :stroke="batColor" stroke-width="2.5"
           class="battery-outline" />
 
         <!-- 裁剪组: 液态填充 -->
         <g clip-path="url(#bat-clip)">
           <!-- 底色填充 -->
-          <rect x="30" :y="fillY" width="140" :height="fillHeight + 2"
-            :fill="batColor" opacity="0.15" class="battery-fill-bg" />
+          <rect x="30" :y="fillY" width="140" :height="fillHeight + 2" :fill="batColor" opacity="0.15"
+            class="battery-fill-bg" />
 
           <!-- 波浪层2 (后) -->
           <path :d="wavePath2" fill="url(#wave-grad2)" class="wave wave-2" />
@@ -184,14 +164,39 @@ const cssVars = computed(() => ({
           <path :d="wavePath1" fill="url(#wave-grad)" class="wave wave-1" />
         </g>
 
-        <!-- 充电闪电 -->
-        <g v-if="isCharging" class="charge-bolt-group">
-          <path
-            d="M108,58 L92,92 H106 L90,128 L118,86 H104 L116,58 Z"
-            fill="#fff" fill-opacity="0.9"
-            :stroke="batColor" stroke-width="1"
-            class="charge-bolt"
-          />
+        <!-- 充电效果组 -->
+        <g v-if="isCharging">
+          <!-- 能量流线条 (环绕电池) -->
+          <g class="energy-flow-lines">
+            <!-- 左侧能量流 -->
+            <path d="M 25,45 Q 20,90 25,135" fill="none" :stroke="batColor" stroke-width="2" stroke-linecap="round"
+              opacity="0.6" class="energy-line energy-line-1" />
+            <!-- 右侧能量流 -->
+            <path d="M 175,45 Q 180,90 175,135" fill="none" :stroke="batColor" stroke-width="2" stroke-linecap="round"
+              opacity="0.6" class="energy-line energy-line-2" />
+            <!-- 顶部能量流 -->
+            <path d="M 55,25 Q 100,20 145,25" fill="none" :stop-color="batColor" stroke-width="2" stroke-linecap="round"
+              opacity="0.6" class="energy-line energy-line-3" />
+          </g>
+
+          <!-- 能量粒子 -->
+          <g class="energy-particles">
+            <circle cx="0" cy="0" r="2.5" :fill="batColor" opacity="0.8" class="particle particle-1">
+              <animateMotion dur="3s" repeatCount="indefinite" path="M 25,45 Q 20,90 25,135" />
+            </circle>
+            <circle cx="0" cy="0" r="2.5" :fill="batColor" opacity="0.8" class="particle particle-2">
+              <animateMotion dur="3s" repeatCount="indefinite" begin="1s" path="M 175,45 Q 180,90 175,135" />
+            </circle>
+            <circle cx="0" cy="0" r="2.5" :fill="batColor" opacity="0.8" class="particle particle-3">
+              <animateMotion dur="2.5s" repeatCount="indefinite" begin="0.5s" path="M 55,25 Q 100,20 145,25" />
+            </circle>
+          </g>
+
+          <!-- 充电闪电 -->
+          <g class="charge-bolt-group">
+            <path d="M108,58 L92,92 H106 L90,128 L118,86 H104 L116,58 Z" fill="#fff" fill-opacity="0.9"
+              :stroke="batColor" stroke-width="1" class="charge-bolt" />
+          </g>
         </g>
       </svg>
 
@@ -206,7 +211,7 @@ const cssVars = computed(() => ({
     <div class="battery-stats">
       <div class="stat-item">
         <span class="stat-label">电压</span>
-        <span class="stat-value">{{ voltage.toFixed(1) }}V</span>
+        <span class="stat-value">{{ voltage.toFixed(2) }}V</span>
       </div>
       <div class="stat-item">
         <span class="stat-label">状态</span>
@@ -216,8 +221,8 @@ const cssVars = computed(() => ({
         </span>
       </div>
       <div class="stat-item">
-        <span class="stat-label">刷新</span>
-        <span class="stat-value stat-time">{{ timeString }}</span>
+        <span class="stat-label">模式</span>
+        <span class="stat-value stat-time">{{ workModeText }}</span>
       </div>
     </div>
   </div>
@@ -258,27 +263,6 @@ const cssVars = computed(() => ({
   text-shadow: 0 0 8px var(--bat-color-glow, transparent);
 }
 
-.bat-refresh {
-  margin-left: auto;
-  background: none;
-  border: 1px solid var(--c-border-light);
-  border-radius: 6px;
-  color: var(--c-text-muted);
-  cursor: pointer;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.75rem;
-  transition: all 0.2s ease;
-}
-
-.bat-refresh:hover {
-  color: var(--bat-color);
-  border-color: var(--bat-color);
-}
-
-.bat-refresh.spinning i {
-  animation: spin 0.8s linear infinite;
-}
-
 /* ── 电池可视化 ──────────────────────────────────── */
 .battery-visual {
   position: relative;
@@ -304,8 +288,8 @@ const cssVars = computed(() => ({
 /* 填充高度过渡 */
 .battery-fill-bg {
   transition: y 1s cubic-bezier(0.4, 0, 0.2, 1),
-              height 1s cubic-bezier(0.4, 0, 0.2, 1),
-              fill 0.5s ease;
+    height 1s cubic-bezier(0.4, 0, 0.2, 1),
+    fill 0.5s ease;
 }
 
 /* ── 波浪动画 ─────────────────────────────────────── */
@@ -322,13 +306,76 @@ const cssVars = computed(() => ({
 }
 
 @keyframes waveScroll1 {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100px); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100px);
+  }
 }
 
 @keyframes waveScroll2 {
-  0% { transform: translateX(-100px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(-100px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* ── 充电能量流 ─────────────────────────────────────── */
+.energy-flow-lines {
+  animation: energyGlow 3s ease-in-out infinite;
+}
+
+.energy-line {
+  stroke-dasharray: 20 10;
+  stroke-dashoffset: 0;
+  animation: energyFlow 2s linear infinite;
+  filter: drop-shadow(0 0 4px var(--bat-color-glow, transparent));
+}
+
+.energy-line-2 {
+  animation-delay: 0.3s;
+}
+
+.energy-line-3 {
+  animation-delay: 0.6s;
+}
+
+@keyframes energyFlow {
+  0% {
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+
+  100% {
+    stroke-dashoffset: -30;
+    opacity: 0.6;
+  }
+}
+
+@keyframes energyGlow {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* 能量粒子 */
+.energy-particles .particle {
+  filter: drop-shadow(0 0 3px var(--bat-color, #4ade80)) drop-shadow(0 0 6px var(--bat-color-glow, transparent));
 }
 
 /* ── 充电闪电 ─────────────────────────────────────── */
@@ -337,18 +384,20 @@ const cssVars = computed(() => ({
 }
 
 .charge-bolt {
-  filter: drop-shadow(0 0 6px var(--bat-color, #4ade80))
-          drop-shadow(0 0 12px var(--bat-color-glow, transparent));
+  filter: drop-shadow(0 0 8px var(--bat-color, #4ade80)) drop-shadow(0 0 16px var(--bat-color-glow, transparent));
 }
 
 @keyframes chargePulse {
-  0%, 100% {
-    opacity: 0.7;
+
+  0%,
+  100% {
+    opacity: 0.8;
     transform: scale(1);
   }
+
   50% {
     opacity: 1;
-    transform: scale(1.05);
+    transform: scale(1.08);
   }
 }
 
@@ -402,8 +451,17 @@ const cssVars = computed(() => ({
 }
 
 @keyframes ringPulse {
-  0%, 100% { opacity: 0.3; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.08); }
+
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
 }
 
 /* ── 数据统计 ─────────────────────────────────────── */
@@ -460,20 +518,28 @@ const cssVars = computed(() => ({
 
 /* ── 全局动画 ─────────────────────────────────────── */
 @keyframes chargeGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     box-shadow: 0 0 6px var(--bat-color-soft, transparent);
     border-color: var(--c-border-light);
   }
+
   50% {
     box-shadow: 0 0 16px var(--bat-color-glow, transparent),
-                inset 0 0 12px var(--bat-color-soft, transparent);
+      inset 0 0 12px var(--bat-color-soft, transparent);
     border-color: var(--bat-color, var(--c-border));
   }
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── 浅色主题 ─────────────────────────────────────── */

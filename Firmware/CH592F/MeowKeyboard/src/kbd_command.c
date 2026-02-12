@@ -569,20 +569,22 @@ static void HandleFnkeySet(const kbd_cmd_frame_t *frame) {
 /**
  * @brief 处理电池信息查询
  *
- * 响应格式 (4 字节):
+ * 响应格式 (5 字节):
  * [0] KBD_RESP_OK
  * [1] 电量百分比 (0-100)
  * [2] 充电状态 (0=未充电, 1=充电中)
- * [3] 电压 (0.1V 单位, 如 42 = 4.2V)
+ * [3..4] 电压 mV, little-endian (如 4150 = 4.15V)
  */
 static void HandleBattery(const kbd_cmd_frame_t *frame) {
-  uint8_t resp[4];
+  uint8_t resp[5];
+  uint16_t mv = KBD_Battery_GetVoltage_mV();
   resp[0] = KBD_RESP_OK;
   resp[1] = KBD_Battery_GetLevel();
   resp[2] = (uint8_t)KBD_Battery_GetChargeState();
-  resp[3] = KBD_Battery_GetVoltage_dV();
+  resp[3] = (uint8_t)(mv & 0xFF);
+  resp[4] = (uint8_t)((mv >> 8) & 0xFF);
 
-  KBD_Command_SendResponse(KBD_CMD_BATTERY, 0, resp, 4);
+  KBD_Command_SendResponse(KBD_CMD_BATTERY, 0, resp, 5);
 }
 
 /**

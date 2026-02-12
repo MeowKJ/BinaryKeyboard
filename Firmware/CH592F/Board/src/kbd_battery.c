@@ -35,13 +35,14 @@ static int16_t s_adc_calib = 0;
 
 /**
  * @brief 分段线性映射 (LiPo 3.0V - 4.2V)
+ * 注: 实际充电时电压通常在4.15V-4.18V即停止，故调整最后一段使其更容易达到100%
  */
 static const struct {
   uint16_t mv;
   uint8_t pct;
 } lipo_curve[] = {
     {3000, 0},  {3300, 5},   {3600, 20}, {3700, 40},
-    {3800, 60}, {3950, 80},  {4100, 95}, {4200, 100},
+    {3800, 60}, {3950, 80},  {4100, 95}, {4150, 100},
 };
 #define CURVE_LEN (sizeof(lipo_curve) / sizeof(lipo_curve[0]))
 
@@ -134,12 +135,7 @@ void KBD_Battery_Init(void) {
 
 uint16_t KBD_Battery_GetVoltage_mV(void) {
   uint16_t adc = adc_sample_avg();
-  /*
-   * 1/2 外部分压 × 1/2 PGA(-6dB) = 总衰减 1/4
-   * Vref ≈ 1.05V, ADC 满量程 2048
-   * VBAT_mV = adc * (1.05 * 4 * 1000) / 2048 = adc * 4200 / 2048
-   */
-  return (uint16_t)((uint32_t)adc * 4200 / 2048);
+  return (uint16_t)((uint32_t)adc * KBD_VBAT_FULL_SCALE_MV / 2048);
 }
 
 uint8_t KBD_Battery_GetLevel(void) {

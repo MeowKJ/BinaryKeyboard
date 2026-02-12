@@ -60,6 +60,7 @@ static uint8_t s_layer_flash_blinks_left = 0;
 static bool s_layer_flash_is_on = false;
 static uint8_t s_layer_flash_wait_ticks = 0;
 static uint8_t s_layer_flash_r = 0, s_layer_flash_g = 0, s_layer_flash_b = 0;
+static uint8_t s_layer_flash_led_index = 0;
 
 /** @brief TMOS 任务 ID */
 static tmosTaskID s_rgb_task_id = TASK_NO_TASK;
@@ -366,7 +367,7 @@ void KBD_RGB_Process(void)
             if (s_layer_flash_is_on) {
                 /* 亮 -> 灭 */
                 s_layer_flash_is_on = false;
-                WS2812_Fill(0, 0, 0);
+                WS2812_Set(s_layer_flash_led_index, 0, 0, 0);
                 s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
             } else {
                 /* 灭 -> 一次闪烁完成 */
@@ -377,7 +378,7 @@ void KBD_RGB_Process(void)
                     /* 不 return，继续执行正常灯效 */
                 } else {
                     s_layer_flash_is_on = true;
-                    WS2812_Fill(s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+                    WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
                     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
                 }
             }
@@ -559,27 +560,44 @@ void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms)
     WS2812_Update();
 }
 
+/**
+ * @brief 获取层对应的RGB LED索引
+ * @param layer 层号 (0-4)
+ * @return WS2812 LED索引 (1-5, 0为指示灯)
+ * @note 映射关系定义在 kbd_config.h 中的 KBD_LAYER_TO_LED_MAP
+ */
+static uint8_t GetLayerLedIndex(uint8_t layer)
+{
+    /* 从配置文件读取映射表 */
+    static const uint8_t layer_to_led_map[] = KBD_LAYER_TO_LED_MAP;
+
+    if (layer < KBD_LAYER_TO_LED_MAP_SIZE) {
+        return layer_to_led_map[layer];
+    }
+
+    /* 超出范围时返回第一个LED (作为fallback) */
+    return 1;
+}
+
 void KBD_RGB_FlashLayer(uint8_t layer)
 {
-    static const uint8_t layer_colors[5][3] = {
-        {0, 100, 255},   /* 层1: 蓝色 */
-        {0, 255, 100},   /* 层2: 绿色 */
-        {255, 200, 0},   /* 层3: 黄色 */
-        {200, 0, 255},   /* 层4: 紫色 */
-        {255, 50, 50},   /* 层5: 红色 */
-    };
+    /* 从配置文件读取层颜色 */
+    static const uint8_t layer_colors[5][3] = KBD_LAYER_COLORS;
 
+    /* 限制层号范围 */
     if (layer >= 5) layer = 4;
 
+    /* 设置闪烁参数 */
     s_layer_flash_r = layer_colors[layer][0];
     s_layer_flash_g = layer_colors[layer][1];
     s_layer_flash_b = layer_colors[layer][2];
-    s_layer_flash_blinks_left = layer + 1;
+    s_layer_flash_led_index = GetLayerLedIndex(layer);
+    s_layer_flash_blinks_left = KBD_LAYER_FLASH_BLINKS;
     s_layer_flash_is_on = true;
     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
     s_layer_flash_active = true;
 
     /* 立即显示第一拍亮，后续由 Process 非阻塞推进 */
-    WS2812_Fill(s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+    WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
     WS2812_Update();
 }
