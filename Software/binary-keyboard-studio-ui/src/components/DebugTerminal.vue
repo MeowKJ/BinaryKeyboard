@@ -9,8 +9,9 @@
     <div class="glow-header">
       <div class="glow-header-left">
         <div class="glow-title">
-          <span class="glow-title-icon">&#x25C8;</span>
-          <span>HID Terminal</span>
+          <span class="glow-title-icon glow-paw">🐾</span>
+          <span>Meow Terminal</span>
+          <span class="glow-cat-emoji">😺</span>
         </div>
 
         <!-- 过滤器标签 -->
@@ -92,10 +93,19 @@
 
     <!-- 终端内容 -->
     <div class="glow-body" ref="terminalBodyRef">
+      <!-- 背景猫爪装饰 -->
+      <div class="glow-paw-decorations">
+        <span class="glow-deco-paw paw-1">🐾</span>
+        <span class="glow-deco-paw paw-2">🐾</span>
+        <span class="glow-deco-paw paw-3">🐾</span>
+        <span class="glow-deco-yarn">🧶</span>
+      </div>
+
       <div v-if="terminalStore.filteredEntries.length === 0" class="glow-empty">
-        <div class="glow-empty-icon">&#x2731;</div>
-        <span>Waiting for HID data...</span>
-        <span class="glow-empty-hint">Connect device to start capturing packets</span>
+        <div class="glow-empty-cat">😺</div>
+        <div class="glow-empty-icon">🐾 🐾 🐾</div>
+        <span>Waiting for meow data...</span>
+        <span class="glow-empty-hint">Connect keyboard to start capturing packets</span>
       </div>
 
       <div
@@ -199,11 +209,12 @@
   <!-- 底部状态栏 (始终显示) -->
   <div class="glow-statusbar">
     <button class="glow-statusbar-toggle" @click="terminalStore.toggle()" :class="{ active: terminalStore.isOpen }">
-      <span class="glow-statusbar-icon">&#x25C8;</span>
-      <span>Terminal</span>
+      <span class="glow-statusbar-icon">🐾</span>
+      <span>Meow Terminal</span>
       <span v-if="terminalStore.entries.length > 0" class="glow-statusbar-count">
         {{ terminalStore.entries.length }}
       </span>
+      <span v-if="terminalStore.isOpen" class="glow-statusbar-meow">😺</span>
     </button>
 
     <div class="glow-statusbar-info">
@@ -347,15 +358,19 @@ function onResizeEnd() {
 .glow-terminal-panel {
   position: fixed;
   bottom: 32px;
-  left: var(--sidebar-width, 280px);
+  left: 0;
   right: 0;
   z-index: 200;
   display: flex;
   flex-direction: column;
-  background: var(--glow-bg);
+  background:
+    radial-gradient(ellipse at bottom right, rgba(232, 121, 249, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at top left, rgba(96, 165, 250, 0.02) 0%, transparent 50%),
+    var(--glow-bg);
   border-top: 1px solid var(--glow-border);
   font-family: var(--glow-font);
   overflow: hidden;
+  box-shadow: 0 -4px 24px rgba(232, 121, 249, 0.08);
 }
 
 /* CRT 扫描线 */
@@ -439,6 +454,30 @@ function onResizeEnd() {
   color: #e879f9;
   font-size: 0.85rem;
   text-shadow: 0 0 8px rgba(232, 121, 249, 0.6);
+}
+
+/* 猫爪动画 */
+.glow-paw {
+  display: inline-block;
+  animation: pawBounce 2s ease-in-out infinite;
+}
+
+@keyframes pawBounce {
+  0%, 100% { transform: rotate(-10deg) scale(1); }
+  50% { transform: rotate(10deg) scale(1.1); }
+}
+
+/* 猫咪表情 */
+.glow-cat-emoji {
+  font-size: 0.9rem;
+  margin-left: 6px;
+  animation: catBlink 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(232, 121, 249, 0.3));
+}
+
+@keyframes catBlink {
+  0%, 90%, 100% { opacity: 1; }
+  95% { opacity: 0.3; }
 }
 
 /* Filter Buttons */
@@ -566,6 +605,70 @@ function onResizeEnd() {
   z-index: 1;
 }
 
+/* 背景猫爪装饰 */
+.glow-paw-decorations {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.glow-deco-paw {
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0.05;
+  filter: grayscale(30%);
+  user-select: none;
+}
+
+.paw-1 {
+  top: 15%;
+  right: 8%;
+  animation: pawFloat1 6s ease-in-out infinite;
+}
+
+.paw-2 {
+  bottom: 20%;
+  left: 5%;
+  animation: pawFloat2 7s ease-in-out infinite 1s;
+}
+
+.paw-3 {
+  top: 50%;
+  left: 50%;
+  animation: pawFloat3 8s ease-in-out infinite 2s;
+}
+
+@keyframes pawFloat1 {
+  0%, 100% { transform: translateY(0) rotate(10deg); }
+  50% { transform: translateY(-15px) rotate(-10deg); }
+}
+
+@keyframes pawFloat2 {
+  0%, 100% { transform: translateY(0) rotate(-15deg); }
+  50% { transform: translateY(-10px) rotate(15deg); }
+}
+
+@keyframes pawFloat3 {
+  0%, 100% { transform: translate(-50%, -50%) rotate(5deg); }
+  50% { transform: translate(-50%, calc(-50% - 12px)) rotate(-5deg); }
+}
+
+.glow-deco-yarn {
+  position: absolute;
+  bottom: 30%;
+  right: 12%;
+  font-size: 1.2rem;
+  opacity: 0.08;
+  animation: yarnRoll 5s linear infinite;
+}
+
+@keyframes yarnRoll {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Scrollbar */
 .glow-body::-webkit-scrollbar {
   width: 5px;
@@ -596,15 +699,27 @@ function onResizeEnd() {
   font-family: var(--glow-font);
 }
 
-.glow-empty-icon {
-  font-size: 2rem;
-  opacity: 0.15;
-  animation: glow-pulse 3s ease-in-out infinite;
+.glow-empty-cat {
+  font-size: 3.5rem;
+  animation: catFloat 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 12px rgba(232, 121, 249, 0.3));
 }
 
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.1; }
-  50% { opacity: 0.25; }
+@keyframes catFloat {
+  0%, 100% { transform: translateY(0) rotate(-5deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+}
+
+.glow-empty-icon {
+  font-size: 1.2rem;
+  opacity: 0.3;
+  animation: pawWalk 3s ease-in-out infinite;
+  letter-spacing: 0.5rem;
+}
+
+@keyframes pawWalk {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.4; }
 }
 
 .glow-empty span {
@@ -660,17 +775,37 @@ function onResizeEnd() {
   width: 2px;
   border-radius: 1px;
   opacity: 0.6;
-  transition: opacity 0.15s, box-shadow 0.25s;
+  transition: opacity 0.15s, box-shadow 0.25s, width 0.15s;
 }
 
 .glow-entry:hover .glow-entry-bar {
   opacity: 1;
   box-shadow: 0 0 6px var(--entry-glow, transparent);
+  width: 3px;
 }
 
 .glow-entry.expanded .glow-entry-bar {
   opacity: 1;
   box-shadow: 0 0 10px var(--entry-glow, transparent);
+  width: 3px;
+}
+
+/* 猫爪悬浮提示 */
+.glow-entry::before {
+  content: '🐾';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.8rem;
+  opacity: 0;
+  transition: opacity 0.2s, left 0.2s;
+  pointer-events: none;
+}
+
+.glow-entry:hover::before {
+  opacity: 0.4;
+  left: -16px;
 }
 
 /* Main content line */
@@ -945,6 +1080,17 @@ function onResizeEnd() {
   border-radius: 8px;
   min-width: 16px;
   text-align: center;
+}
+
+.glow-statusbar-meow {
+  font-size: 0.75rem;
+  margin-left: 4px;
+  animation: meowBounce 1.5s ease-in-out infinite;
+}
+
+@keyframes meowBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
 }
 
 .glow-statusbar-info {

@@ -105,6 +105,18 @@ typedef struct {
 #define KBD_VBAT_ADC_PIN GPIO_Pin_14
 #define KBD_VBAT_EN_PIN GPIO_Pin_15
 
+/**
+ * @brief ADC 满量程电压 (mV)
+ *
+ * 公式: VBAT_mV = adc * KBD_VBAT_FULL_SCALE_MV / 2048
+ * 默认值 4200 基于 Vref = 1.05V, 总衰减 1/4
+ *
+ * 校准方法: 用万用表测实际电压 Vreal,
+ *   新值 = 4200 * Vreal / V显示
+ *   例: 万用表 3.95V, 显示 4.10V → 4200 * 3.95 / 4.10 ≈ 4046
+ */
+#define KBD_VBAT_FULL_SCALE_MV 4200
+
 /** @} */
 
 /*============================================================================*/
@@ -223,6 +235,67 @@ typedef struct {
 #ifndef KBD_TOTAL_KEYS
 #define KBD_TOTAL_KEYS KBD_NUM_KEYS
 #endif
+
+/** @} */
+
+/*============================================================================*/
+/**
+ * @defgroup KBD_RGB_Map RGB LED 映射配置
+ * @brief 定义按键索引到 WS2812 LED 索引的映射关系
+ * @note WS2812 索引 0 为指示灯，1-N 为按键 RGB
+ * @{
+ */
+
+/**
+ * @brief 层到 RGB LED 的映射表
+ * @details 各键盘类型的层按键对应的 WS2812 LED 索引
+ *
+ * 映射关系说明：
+ * - 五键款: 层0(k0)->rgb3, 层1(k1)->rgb4, 层2(k2)->rgb5, 层3(k3)->rgb2, 层4(k4)->rgb1
+ * - 旋钮款: 层0(k0)->rgb3, 层1(k1)->rgb4, 层2(k2)->rgb2, 层3(k3)->rgb1
+ * - 经典款: 层0(k0)->rgb2, 层1(k1)->rgb3, 层2(k2)->rgb4, 层3(k3)->rgb1
+ */
+
+#if defined(KBD_LAYOUT_BASIC)
+/* 经典款: 4 层按键映射到 4 个 RGB LED (WS2812 索引 1-4) */
+#define KBD_LAYER_TO_LED_MAP {2, 3, 4, 1}
+#define KBD_LAYER_TO_LED_MAP_SIZE 4
+
+#elif defined(KBD_LAYOUT_5KEY)
+/* 五键款: 5 层按键映射到 5 个 RGB LED (WS2812 索引 1-5) */
+#define KBD_LAYER_TO_LED_MAP {3, 4, 5, 2, 1}
+#define KBD_LAYER_TO_LED_MAP_SIZE 5
+
+#elif defined(KBD_LAYOUT_KNOB)
+/* 旋钮款: 4 层按键映射到 4 个 RGB LED (WS2812 索引 1-4) */
+#define KBD_LAYER_TO_LED_MAP {3, 4, 2, 1}
+#define KBD_LAYER_TO_LED_MAP_SIZE 4
+
+#endif
+
+/**
+ * @brief 层切换闪烁颜色配置 (RGB格式)
+ * @details 每层对应的颜色 [R, G, B], 范围 0-255
+ *
+ * 默认配色方案：
+ * - 层0: 蓝色 (0, 100, 255)
+ * - 层1: 绿色 (0, 255, 100)
+ * - 层2: 黄色 (255, 200, 0)
+ * - 层3: 紫色 (200, 0, 255)
+ * - 层4: 红色 (255, 50, 50)
+ */
+#define KBD_LAYER_COLORS { \
+    {0, 100, 255},   /* 层0: 蓝色 */ \
+    {0, 255, 100},   /* 层1: 绿色 */ \
+    {255, 200, 0},   /* 层2: 黄色 */ \
+    {200, 0, 255},   /* 层3: 紫色 */ \
+    {255, 50, 50},   /* 层4: 红色 */ \
+}
+
+/**
+ * @brief 层切换闪烁次数 (固定值)
+ */
+#define KBD_LAYER_FLASH_BLINKS 3
 
 /** @} */
 

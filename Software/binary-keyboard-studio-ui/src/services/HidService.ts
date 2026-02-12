@@ -134,8 +134,6 @@ export class HidService {
     frame[2] = data.length;
     frame.set(data, 3);
 
-    console.log('发送命令:', { cmd: '0x' + cmd.toString(16), sub, dataLen: data.length, reportId: REPORT_ID_COMMAND });
-
     // 记录到终端
     try {
       const terminalStore = useTerminalStore();
@@ -198,8 +196,6 @@ export class HidService {
       } catch { /* terminal store may not be ready */ }
       return;
     }
-
-    console.log('收到响应, reportId:', event.reportId, 'len:', event.data.byteLength);
 
     // 记录到终端
     try {
@@ -489,7 +485,7 @@ export class HidService {
     return {
       level: resp.getUint8(d + 1),
       isCharging: resp.getUint8(d + 2) !== 0,
-      voltage: resp.getUint8(d + 3) / 10, // 0.1V 单位
+      voltage: resp.getUint16(d + 3, true) / 1000, // mV → V
     };
   }
 
