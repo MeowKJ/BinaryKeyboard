@@ -1,6 +1,6 @@
 {
-  "name": "binary-keyboard-studio-ui",
-  "version": "0.0.0",
+  "name": "meowkeyboard-studio",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {

@@ -7,7 +7,10 @@
  *******************************************************************************/
 
 #include "usb_device.h"
+#include "debug.h"
 #include <string.h>
+
+#define TAG "USB"
 
 /* ==================== Global Variables ==================== */
 USB_DeviceState_t g_USB_DeviceState = USB_STATE_DETACHED;
@@ -18,6 +21,7 @@ uint8_t g_USB_SleepStatus = 0;
 uint8_t g_SetupReqCode = 0;
 uint16_t g_SetupReqLen = 0;
 const uint8_t *g_pDescriptor = NULL;
+static uint8_t g_SetupReqInterface = 0;  // 保存当前请求的接口号
 
 uint8_t g_IdleValue[4] = {0};
 uint8_t g_ProtocolValue[4] = {0};
@@ -82,7 +86,8 @@ static void USB_HandleSetupPacket(void)
                 break;
 
             case DEF_USB_SET_REPORT: /* 0x09 */
-                // 将在 OUT 阶段处理
+                // 保存接口号，在 OUT 阶段处理数据
+                g_SetupReqInterface = pSetupReqPak->wIndex & 0xFF;
                 break;
 
             case DEF_USB_GET_REPORT: /* 0x01 */
@@ -377,19 +382,14 @@ void USB_Device_TransferProcess(void)
                 len = R8_USB_RX_LEN;
                 if (g_SetupReqCode == DEF_USB_SET_REPORT)
                 {
-                    // 键盘 LED 状态
-                    // if (len > 0) {
-                    //     g_KeyboardLEDs = pEP0_DataBuf[0];
-                    //     PRINT ("Keyboard LEDs: ");
-                    //     if (g_KeyboardLEDs & LED_NUM_LOCK)
-                    //         PRINT ("[NumLock] ");
-                    //     if (g_KeyboardLEDs & LED_CAPS_LOCK)
-                    //         PRINT ("[CapsLock] ");
-                    //     if (g_KeyboardLEDs & LED_SCROLL_LOCK)
-                    //         PRINT ("[ScrollLock] ");
-                    //     PRINT ("\n");
-                    // }
+                    if (g_SetupReqInterface == INTF_CONFIG && len > 0)
+                    {
+                        // 配置接口 SET_REPORT - 调用命令处理
+                        USB_ConfigReport_t *report = (USB_ConfigReport_t *)pEP0_DataBuf;
+                        USB_Config_ProcessCommand(report);
+                    }
                 }
+                R8_UEP0_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
                 break;
 
             case UIS_TOKEN_IN | 1: // EP1 IN (Keyboard)
@@ -469,4 +469,14 @@ void USB_Device_Wakeup(void)
     mDelaymS(2);
     R8_UDEV_CTRL &= ~RB_UD_LOW_SPEED;
     R16_PIN_ANALOG_IE |= RB_PIN_USB_DP_PU;
+}
+
+/**
+ * @brief USB 中断处理函数
+ */
+__INTERRUPT
+__HIGH_CODE
+void USB_IRQHandler(void)
+{
+    USB_Device_TransferProcess();
 }

@@ -11,11 +11,12 @@
  * DataFlash 特性：
  * - 总容量：32KB (0x0000 ~ 0x7FFF)
  * - 擦除粒度：4KB (CH592A 要求)
- * - 写入粒度：1 字节，推荐 256 字节对齐
+ * - 写入推荐：256 字节对齐
  *
  * 存储布局：
- * - 0x0000 ~ 0x03FF: 配置区 (1KB)
- * - 0x4000 ~ 0x7FFF: 宏数据区 (16KB, 8 槽位 × 2KB)
+ * - 0x0000 ~ 0x0FFF: 配置块 (4KB 整块擦写)
+ * - 0x1000 ~ 0x4FFF: 宏数据区 (16KB, 8 槽 × 2KB)
+ * - 0x7E00 ~ 0x7EFF: BLE SNV (蓝牙配对，WCH 库管理)
  *
  * @copyright Copyright (c) 2024 MeowKJ. All rights reserved.
  */
@@ -23,70 +24,135 @@
 #include "kbd_storage.h"
 #include "CH59x_common.h"
 #include "debug.h"
+#include "kbd_config.h"
 #include <string.h>
 
 /** @brief 模块日志标签 */
 #define TAG "STOR"
 
 /*============================================================================*/
-/*                              私有变量                                       */
+/*                              私有变量 */
 /*============================================================================*/
 
 /** @brief 配置头部 (RAM 缓存) */
-static kbd_config_header_t  s_config_header;
+static kbd_config_header_t s_config_header;
 
 /** @brief 系统配置 (RAM 缓存) */
-static kbd_system_config_t  s_system_config;
+static kbd_system_config_t s_system_config;
 
 /** @brief 按键映射配置 (RAM 缓存) */
-static kbd_keymap_t         s_keymap_config;
+static kbd_keymap_t s_keymap_config;
 
 /** @brief FN 键配置 (RAM 缓存) */
-static kbd_fnkey_config_t   s_fnkey_config;
+static kbd_fnkey_config_t s_fnkey_config;
 
 /** @brief RGB 配置 (RAM 缓存) */
-static kbd_rgb_config_t     s_rgb_config;
+static kbd_rgb_config_t s_rgb_config;
 
 /** @brief 宏写入状态：当前槽位 (0xFF=空闲) */
-static uint8_t  s_macro_write_slot = 0xFF;
+static uint8_t s_macro_write_slot = 0xFF;
 
 /** @brief 宏写入状态：总数据大小 */
 static uint16_t s_macro_write_size = 0;
 
 /*============================================================================*/
-/*                              默认配置                                       */
+/*                              默认配置 */
 /*============================================================================*/
 
 /**
- * @brief 默认按键映射
- *
- * 5 键映射为数字键 1-5
+ * @brief 默认按键映射 (根据键盘类型自动选择)
  */
+#if defined(KBD_LAYOUT_BASIC)
+/*---------------------------------------------------------------------------*/
+/* 基础款: 4 键, 4 层 → 数字键 1-4 */
+/*---------------------------------------------------------------------------*/
 static const kbd_keymap_t s_default_keymap = {
-    .num_layers = 1,
+    .num_layers = KBD_DEFAULT_LAYERS,
     .current_layer = 0,
     .default_layer = 0,
     .reserved = 0,
     .layers = {
-        /* Layer 0: 数字键 1-5 */
-        {
-            .keys = {
-                { KBD_ACTION_KEYBOARD, 0, 0x1E, 0 },  /* '1' */
-                { KBD_ACTION_KEYBOARD, 0, 0x1F, 0 },  /* '2' */
-                { KBD_ACTION_KEYBOARD, 0, 0x20, 0 },  /* '3' */
-                { KBD_ACTION_KEYBOARD, 0, 0x21, 0 },  /* '4' */
-                { KBD_ACTION_KEYBOARD, 0, 0x22, 0 },  /* '5' */
-                { KBD_ACTION_NONE, 0, 0, 0 },
-                { KBD_ACTION_NONE, 0, 0, 0 },
-                { KBD_ACTION_NONE, 0, 0, 0 },
-            }
-        },
-        /* Layer 1-3: 空 */
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-        { .keys = {{ KBD_ACTION_NONE, 0, 0, 0 }} },
-    }
-};
+        {/* 层 1 */
+         .keys =
+             {
+                 {KBD_ACTION_KEYBOARD, 0, 0x1E, 0}, /* '1' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x1F, 0}, /* '2' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x20, 0}, /* '3' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x21, 0}, /* '4' */
+                 {KBD_ACTION_NONE, 0, 0, 0},
+                 {KBD_ACTION_NONE, 0, 0, 0},
+                 {KBD_ACTION_NONE, 0, 0, 0},
+                 {KBD_ACTION_NONE, 0, 0, 0},
+             }},
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 2 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 3 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 4 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 5 (未使用) */
+    }};
+
+#elif defined(KBD_LAYOUT_5KEY)
+/*---------------------------------------------------------------------------*/
+/* 五键款: 5 键, 5 层 → 数字键 1-5 */
+/*---------------------------------------------------------------------------*/
+static const kbd_keymap_t s_default_keymap = {
+    .num_layers = KBD_DEFAULT_LAYERS,
+    .current_layer = 0,
+    .default_layer = 0,
+    .reserved = 0,
+    .layers = {
+        {/* 层 1 */
+         .keys =
+             {
+                 {KBD_ACTION_KEYBOARD, 0, 0x1E, 0}, /* '1' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x1F, 0}, /* '2' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x20, 0}, /* '3' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x21, 0}, /* '4' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x22, 0}, /* '5' */
+                 {KBD_ACTION_NONE, 0, 0, 0},
+                 {KBD_ACTION_NONE, 0, 0, 0},
+                 {KBD_ACTION_NONE, 0, 0, 0},
+             }},
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 2 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 3 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 4 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 5 */
+    }};
+
+#elif defined(KBD_LAYOUT_KNOB)
+/*---------------------------------------------------------------------------*/
+/* 旋钮款: 4 普通键 + 3 旋钮动作, 5 层 (4键 + 旋钮按下可切换) */
+/* [0-3] 普通键 → 数字键 1-4 */
+/* [4]   旋钮顺时针 → 音量增加 */
+/* [5]   旋钮逆时针 → 音量减少 */
+/* [6]   旋钮按下 → 静音 */
+/*---------------------------------------------------------------------------*/
+static const kbd_keymap_t s_default_keymap = {
+    .num_layers = KBD_DEFAULT_LAYERS,
+    .current_layer = 0,
+    .default_layer = 0,
+    .reserved = 0,
+    .layers = {
+        {/* 层 1 */
+         .keys =
+             {
+                 {KBD_ACTION_KEYBOARD, 0, 0x1E, 0},    /* K1: '1' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x1F, 0},    /* K2: '2' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x20, 0},    /* K3: '3' */
+                 {KBD_ACTION_KEYBOARD, 0, 0x21, 0},    /* K4: '4' */
+                 {KBD_ACTION_CONSUMER, 0, 0xE9, 0x00}, /* CW: Vol+ */
+                 {KBD_ACTION_CONSUMER, 0, 0xEA, 0x00}, /* CCW: Vol- */
+                 {KBD_ACTION_CONSUMER, 0, 0xE2, 0x00}, /* Click: Mute */
+                 {KBD_ACTION_NONE, 0, 0, 0},
+             }},
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 2 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 3 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 4 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 5 */
+    }};
+
+#else
+#error "请在 kbd_config.h 中选择一个键盘布局"
+#endif
 
 /**
  * @brief 默认 FN 键配置
@@ -113,36 +179,37 @@ static const kbd_fnkey_config_t s_default_fnkey = {
             .long_press_ms = 2000,
         },
         /* FN3-4: 未使用 */
-        { .click_action = KBD_FN_NONE },
-        { .click_action = KBD_FN_NONE },
-    }
-};
+        {.click_action = KBD_FN_NONE},
+        {.click_action = KBD_FN_NONE},
+    }};
 
 /**
- * @brief 默认 RGB 配置
+ * @brief 默认 RGB 配置 (默认 20% 亮度)
  */
 static const kbd_rgb_config_t s_default_rgb = {
     .enabled = 1,
     .mode = KBD_RGB_INDICATOR,
-    .brightness = 128,
+    .brightness = KBD_RGB_DEFAULT_BRIGHTNESS,
     .speed = 128,
     .color_r = 255,
     .color_g = 255,
     .color_b = 255,
     .indicator_enabled = 1,
+    .indicator_brightness = KBD_RGB_DEFAULT_BRIGHTNESS,
 };
 
 /**
  * @brief 默认系统配置
  */
 static const kbd_system_config_t s_default_system = {
-    .default_mode = 0,      /* USB */
-    .auto_sleep_min = 5,    /* 5 分钟 */
-    .debounce_ms = 10,      /* 10ms */
+    .default_mode = 0,          /* USB */
+    .auto_sleep_min = 5,        /* 5 分钟 */
+    .debounce_ms = 10,          /* 10ms */
+    .log_enabled = 1,           /* HID 日志默认开启 */
 };
 
 /*============================================================================*/
-/*                              CRC32 查找表                                   */
+/*                              CRC32 查找表 */
 /*============================================================================*/
 
 /** @brief CRC32 查找表 (IEEE 802.3 多项式) */
@@ -189,27 +256,25 @@ static const uint32_t s_crc32_table[256] = {
     0x40DF0B66, 0x37D83BF0, 0xA9BCAE53, 0xDEBB9EC5, 0x47B2CF7F, 0x30B5FFE9,
     0xBDBDF21C, 0xCABAC28A, 0x53B39330, 0x24B4A3A6, 0xBAD03605, 0xCDD706B3,
     0x54DE5729, 0x23D967BF, 0xB3667A2E, 0xC4614AB8, 0x5D681B02, 0x2A6F2B94,
-    0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D
-};
+    0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D};
 
 /*============================================================================*/
-/*                              私有函数                                       */
+/*                              私有函数 */
 /*============================================================================*/
 
 /**
  * @brief 加载默认配置到 RAM
  */
-static void LoadDefaults(void)
-{
-    memset(&s_config_header, 0, sizeof(s_config_header));
-    s_config_header.magic = KBD_CONFIG_MAGIC;
-    s_config_header.version = KBD_CONFIG_VERSION;
-    s_config_header.save_count = 0;
+static void LoadDefaults(void) {
+  memset(&s_config_header, 0, sizeof(s_config_header));
+  s_config_header.magic = KBD_CONFIG_MAGIC;
+  s_config_header.version = KBD_CONFIG_VERSION;
+  s_config_header.save_count = 0;
 
-    memcpy(&s_system_config, &s_default_system, sizeof(kbd_system_config_t));
-    memcpy(&s_keymap_config, &s_default_keymap, sizeof(kbd_keymap_t));
-    memcpy(&s_fnkey_config, &s_default_fnkey, sizeof(kbd_fnkey_config_t));
-    memcpy(&s_rgb_config, &s_default_rgb, sizeof(kbd_rgb_config_t));
+  memcpy(&s_system_config, &s_default_system, sizeof(kbd_system_config_t));
+  memcpy(&s_keymap_config, &s_default_keymap, sizeof(kbd_keymap_t));
+  memcpy(&s_fnkey_config, &s_default_fnkey, sizeof(kbd_fnkey_config_t));
+  memcpy(&s_rgb_config, &s_default_rgb, sizeof(kbd_rgb_config_t));
 }
 
 /**
@@ -217,381 +282,367 @@ static void LoadDefaults(void)
  * @param[in] slot 槽位号
  * @return Flash 地址
  */
-static uint32_t GetMacroSlotAddr(uint8_t slot)
-{
-    return KBD_FLASH_MACRO_BASE + (slot * KBD_FLASH_MACRO_SLOT);
+static uint32_t GetMacroSlotAddr(uint8_t slot) {
+  return KBD_FLASH_MACRO_BASE + (slot * KBD_FLASH_MACRO_SLOT);
 }
 
 /*============================================================================*/
-/*                              公共函数实现                                   */
+/*                              公共函数实现 */
 /*============================================================================*/
 
-uint32_t KBD_CalcCRC32(const uint8_t *data, uint32_t len)
-{
-    uint32_t crc = 0xFFFFFFFF;
-    while (len--) {
-        crc = s_crc32_table[(crc ^ *data++) & 0xFF] ^ (crc >> 8);
-    }
-    return crc ^ 0xFFFFFFFF;
+uint32_t KBD_CalcCRC32(const uint8_t *data, uint32_t len) {
+  uint32_t crc = 0xFFFFFFFF;
+  while (len--) {
+    crc = s_crc32_table[(crc ^ *data++) & 0xFF] ^ (crc >> 8);
+  }
+  return crc ^ 0xFFFFFFFF;
 }
 
-int KBD_Storage_Init(void)
-{
-    LOG_I(TAG, "初始化存储系统");
+int KBD_Storage_Init(void) {
+  LOG_I(TAG, "Storage init");
 
-    int ret = KBD_Config_Load();
-    if (ret != 0) {
-        LOG_W(TAG, "配置加载失败 (%d), 使用默认值", ret);
-        LoadDefaults();
-    }
-
-    return 0;
-}
-
-int KBD_Config_Load(void)
-{
-    __attribute__((aligned(4))) kbd_config_header_t header;
-
-    /* 读取配置头 */
-    EEPROM_READ(KBD_FLASH_HEADER, &header, sizeof(header));
-
-    /* 验证魔数 */
-    if (header.magic != KBD_CONFIG_MAGIC) {
-        LOG_W(TAG, "魔数无效: 0x%08X", header.magic);
-        return -1;
-    }
-
-    /* 验证主版本号 */
-    if ((header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
-        LOG_W(TAG, "版本不兼容: 0x%04X", header.version);
-        return -2;
-    }
-
-    /* 读取各配置块 */
-    EEPROM_READ(KBD_FLASH_SYSTEM, &s_system_config, sizeof(kbd_system_config_t));
-    EEPROM_READ(KBD_FLASH_KEYMAP, &s_keymap_config, sizeof(kbd_keymap_t));
-    EEPROM_READ(KBD_FLASH_FNKEY, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
-    EEPROM_READ(KBD_FLASH_RGB, &s_rgb_config, sizeof(kbd_rgb_config_t));
-
-    memcpy(&s_config_header, &header, sizeof(header));
-
-    LOG_I(TAG, "配置已加载, 版本=0x%04X, 保存次数=%d",
-          header.version, header.save_count);
-    LOG_D(TAG, "层数=%d, 当前层=%d",
-          s_keymap_config.num_layers, s_keymap_config.current_layer);
-
-    return 0;
-}
-
-int KBD_Config_Save(void)
-{
-    LOG_I(TAG, "保存配置...");
-
-    /* 更新头部 */
-    s_config_header.magic = KBD_CONFIG_MAGIC;
-    s_config_header.version = KBD_CONFIG_VERSION;
-    s_config_header.save_count++;
-
-    /* 计算 CRC */
-    uint32_t crc = 0;
-    crc = KBD_CalcCRC32((uint8_t*)&s_system_config, sizeof(kbd_system_config_t));
-    crc ^= KBD_CalcCRC32((uint8_t*)&s_keymap_config, sizeof(kbd_keymap_t));
-    crc ^= KBD_CalcCRC32((uint8_t*)&s_fnkey_config, sizeof(kbd_fnkey_config_t));
-    crc ^= KBD_CalcCRC32((uint8_t*)&s_rgb_config, sizeof(kbd_rgb_config_t));
-    s_config_header.crc32 = crc;
-
-    /* 准备 4KB 块数据 */
-    __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-    memset(block, 0xFF, sizeof(block));
-
-    /* 复制配置到块缓冲区 */
-    memcpy(block + 0x000, &s_config_header, sizeof(kbd_config_header_t));
-    memcpy(block + 0x100, &s_system_config, sizeof(kbd_system_config_t));
-    memcpy(block + 0x200, &s_keymap_config, sizeof(kbd_keymap_t));
-    memcpy(block + 0x300, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
-    memcpy(block + 0x340, &s_rgb_config, sizeof(kbd_rgb_config_t));
-
-    /* 擦除并写入 */
-    if (EEPROM_ERASE(0, EEPROM_BLOCK_SIZE) != 0) {
-        LOG_E(TAG, "擦除失败");
-        return -1;
-    }
-    if (EEPROM_WRITE(0, block, EEPROM_BLOCK_SIZE) != 0) {
-        LOG_E(TAG, "写入失败");
-        return -2;
-    }
-
-    LOG_I(TAG, "配置已保存, 次数=%d", s_config_header.save_count);
-    return 0;
-}
-
-int KBD_Config_Reset(void)
-{
-    LOG_I(TAG, "恢复出厂设置");
-
+  int ret = KBD_Config_Load();
+  if (ret != 0) {
+    LOG_W(TAG, "Config load failed (%d), using defaults", ret);
     LoadDefaults();
+  }
 
-    /* 清除所有宏 */
-    for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
-        Kbd_Macro_Delete(i);
-    }
+  return 0;
+}
 
-    return KBD_Config_Save();
+int KBD_Config_Load(void) {
+  __attribute__((aligned(4))) kbd_config_header_t header;
+
+  /* 读取配置头 */
+  EEPROM_READ(KBD_FLASH_HEADER, &header, sizeof(header));
+
+  /* 验证魔数 */
+  if (header.magic != KBD_CONFIG_MAGIC) {
+    LOG_W(TAG, "Invalid magic: 0x%08X", header.magic);
+    return -1;
+  }
+
+  /* 验证主版本号 */
+  if ((header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
+    LOG_W(TAG, "Version mismatch: 0x%04X", header.version);
+    return -2;
+  }
+
+  /* 读取各配置块 */
+  EEPROM_READ(KBD_FLASH_SYSTEM, &s_system_config, sizeof(kbd_system_config_t));
+  EEPROM_READ(KBD_FLASH_KEYMAP, &s_keymap_config, sizeof(kbd_keymap_t));
+  EEPROM_READ(KBD_FLASH_FNKEY, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
+  EEPROM_READ(KBD_FLASH_RGB, &s_rgb_config, sizeof(kbd_rgb_config_t));
+
+  /* 迁移：旧配置可能无 indicator_brightness，若低于最低值则提升（不可完全关闭） */
+  if (s_rgb_config.indicator_brightness < KBD_INDICATOR_MIN_BRIGHTNESS) {
+    s_rgb_config.indicator_brightness = KBD_INDICATOR_MIN_BRIGHTNESS;
+  }
+
+  /* 迁移 v1.1 → v1.2: 初始化 HID 日志开关 */
+  if (header.version < 0x0102) {
+    s_system_config.log_enabled = 1;
+    LOG_I(TAG, "Migrated log config (v1.1->v1.2)");
+  }
+
+  memcpy(&s_config_header, &header, sizeof(header));
+
+  LOG_I(TAG, "Config loaded, ver=0x%04X, saves=%d", header.version,
+        header.save_count);
+  LOG_D(TAG, "layers=%d, current=%d", s_keymap_config.num_layers,
+        s_keymap_config.current_layer);
+
+  return 0;
+}
+
+int KBD_Config_Save(void) {
+  LOG_I(TAG, "Saving config...");
+
+  /* 更新头部 */
+  s_config_header.magic = KBD_CONFIG_MAGIC;
+  s_config_header.version = KBD_CONFIG_VERSION;
+  s_config_header.save_count++;
+
+  /* 计算 CRC */
+  uint32_t crc = 0;
+  crc = KBD_CalcCRC32((uint8_t *)&s_system_config, sizeof(kbd_system_config_t));
+  crc ^= KBD_CalcCRC32((uint8_t *)&s_keymap_config, sizeof(kbd_keymap_t));
+  crc ^= KBD_CalcCRC32((uint8_t *)&s_fnkey_config, sizeof(kbd_fnkey_config_t));
+  crc ^= KBD_CalcCRC32((uint8_t *)&s_rgb_config, sizeof(kbd_rgb_config_t));
+  s_config_header.crc32 = crc;
+
+  /* 准备 4KB 块数据 */
+  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
+  memset(block, 0xFF, sizeof(block));
+
+  /* 复制配置到块缓冲区 */
+  memcpy(block + 0x000, &s_config_header, sizeof(kbd_config_header_t));
+  memcpy(block + 0x100, &s_system_config, sizeof(kbd_system_config_t));
+  memcpy(block + 0x200, &s_keymap_config, sizeof(kbd_keymap_t));
+  memcpy(block + 0x300, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
+  memcpy(block + 0x340, &s_rgb_config, sizeof(kbd_rgb_config_t));
+
+  /* 擦除并写入 */
+  if (EEPROM_ERASE(0, EEPROM_BLOCK_SIZE) != 0) {
+    LOG_E(TAG, "Erase failed");
+    return -1;
+  }
+  if (EEPROM_WRITE(0, block, EEPROM_BLOCK_SIZE) != 0) {
+    LOG_E(TAG, "Write failed");
+    return -2;
+  }
+
+  LOG_I(TAG, "Config saved, count=%d", s_config_header.save_count);
+  return 0;
+}
+
+int KBD_Config_Reset(void) {
+  LOG_I(TAG, "Factory reset");
+
+  LoadDefaults();
+
+  /* 清除所有宏 */
+  for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
+    Kbd_Macro_Delete(i);
+  }
+
+  return KBD_Config_Save();
 }
 
 /*============================================================================*/
-/*                              配置访问函数                                   */
+/*                              配置访问函数 */
 /*============================================================================*/
 
-kbd_system_config_t* KBD_GetSystemConfig(void)
-{
-    return &s_system_config;
-}
+kbd_system_config_t *KBD_GetSystemConfig(void) { return &s_system_config; }
 
-kbd_keymap_t* KBD_GetKeymap(void)
-{
-    return &s_keymap_config;
-}
+kbd_keymap_t *KBD_GetKeymap(void) { return &s_keymap_config; }
 
-kbd_fnkey_config_t* KBD_GetFnKeyConfig(void)
-{
-    return &s_fnkey_config;
-}
+kbd_fnkey_config_t *KBD_GetFnKeyConfig(void) { return &s_fnkey_config; }
 
-kbd_rgb_config_t* KBD_GetRgbConfig(void)
-{
-    return &s_rgb_config;
-}
+kbd_rgb_config_t *KBD_GetRgbConfig(void) { return &s_rgb_config; }
 
 /*============================================================================*/
-/*                              层操作函数                                     */
+/*                              层操作函数 */
 /*============================================================================*/
 
-uint8_t KBD_GetCurrentLayer(void)
-{
-    return s_keymap_config.current_layer;
+uint8_t KBD_GetCurrentLayer(void) { return s_keymap_config.current_layer; }
+
+int KBD_SetCurrentLayer(uint8_t layer) {
+  if (layer >= s_keymap_config.num_layers) {
+    return -1;
+  }
+  if (s_keymap_config.current_layer == layer) {
+    return 0; // 未变化, 跳过写 Flash
+  }
+  s_keymap_config.current_layer = layer;
+  LOG_D(TAG, "Switch to layer %d, saving", layer);
+  KBD_Config_Save();
+  return 0;
 }
 
-int KBD_SetCurrentLayer(uint8_t layer)
-{
-    if (layer >= s_keymap_config.num_layers) {
-        return -1;
-    }
-    s_keymap_config.current_layer = layer;
-    LOG_D(TAG, "切换到层 %d", layer);
-    return 0;
+uint8_t KBD_NextLayer(void) {
+  uint8_t next =
+      (s_keymap_config.current_layer + 1) % s_keymap_config.num_layers;
+  KBD_SetCurrentLayer(next);
+  return next;
 }
 
-uint8_t KBD_NextLayer(void)
-{
-    uint8_t next = (s_keymap_config.current_layer + 1) % s_keymap_config.num_layers;
-    KBD_SetCurrentLayer(next);
-    return next;
+uint8_t KBD_PrevLayer(void) {
+  uint8_t prev = (s_keymap_config.current_layer == 0)
+                     ? (s_keymap_config.num_layers - 1)
+                     : (s_keymap_config.current_layer - 1);
+  KBD_SetCurrentLayer(prev);
+  return prev;
 }
 
-uint8_t KBD_PrevLayer(void)
-{
-    uint8_t prev = (s_keymap_config.current_layer == 0) ?
-                   (s_keymap_config.num_layers - 1) :
-                   (s_keymap_config.current_layer - 1);
-    KBD_SetCurrentLayer(prev);
-    return prev;
-}
-
-const kbd_action_t* KBD_GetKeyAction(uint8_t key_index)
-{
-    if (key_index >= KBD_MAX_KEYS) {
-        return NULL;
-    }
-    uint8_t layer = s_keymap_config.current_layer;
-    if (layer >= s_keymap_config.num_layers) {
-        layer = s_keymap_config.default_layer;
-    }
-    return &s_keymap_config.layers[layer].keys[key_index];
+const kbd_action_t *KBD_GetKeyAction(uint8_t key_index) {
+  if (key_index >= KBD_MAX_KEYS) {
+    return NULL;
+  }
+  uint8_t layer = s_keymap_config.current_layer;
+  if (layer >= s_keymap_config.num_layers) {
+    layer = s_keymap_config.default_layer;
+  }
+  return &s_keymap_config.layers[layer].keys[key_index];
 }
 
 /*============================================================================*/
-/*                              宏操作函数                                     */
+/*                              宏操作函数 */
 /*============================================================================*/
 
-int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header)
-{
-    if (slot >= KBD_MACRO_SLOTS) {
-        return -1;
-    }
+int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header) {
+  if (slot >= KBD_MACRO_SLOTS) {
+    return -1;
+  }
 
-    __attribute__((aligned(4))) kbd_macro_header_t h;
-    EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
+  __attribute__((aligned(4))) kbd_macro_header_t h;
+  EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
 
-    if (h.valid != KBD_MACRO_VALID_MAGIC) {
-        return -2;
-    }
+  if (h.valid != KBD_MACRO_VALID_MAGIC) {
+    return -2;
+  }
 
-    if (header) {
-        memcpy(header, &h, sizeof(kbd_macro_header_t));
-    }
-    return 0;
+  if (header) {
+    memcpy(header, &h, sizeof(kbd_macro_header_t));
+  }
+  return 0;
 }
 
-int Kbd_Macro_Read(uint8_t slot, uint16_t offset, uint8_t *buf, uint16_t len)
-{
-    if (slot >= KBD_MACRO_SLOTS) {
-        return -1;
-    }
+int Kbd_Macro_Read(uint8_t slot, uint16_t offset, uint8_t *buf, uint16_t len) {
+  if (slot >= KBD_MACRO_SLOTS) {
+    return -1;
+  }
 
-    __attribute__((aligned(4))) kbd_macro_header_t h;
-    EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
+  __attribute__((aligned(4))) kbd_macro_header_t h;
+  EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
 
-    if (h.valid != KBD_MACRO_VALID_MAGIC) {
-        return -2;
-    }
+  if (h.valid != KBD_MACRO_VALID_MAGIC) {
+    return -2;
+  }
 
-    uint32_t data_addr = GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
-    uint16_t avail = h.data_size - offset;
-    if (avail < len) {
-        len = avail;
-    }
+  uint32_t data_addr =
+      GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
+  uint16_t avail = h.data_size - offset;
+  if (avail < len) {
+    len = avail;
+  }
 
-    EEPROM_READ(data_addr, buf, len);
-    return len;
+  EEPROM_READ(data_addr, buf, len);
+  return len;
 }
 
-int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header)
-{
-    if (slot >= KBD_MACRO_SLOTS) {
-        return -1;
-    }
+int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header) {
+  if (slot >= KBD_MACRO_SLOTS) {
+    return -1;
+  }
 
-    /* 检查大小限制 */
-    if (header->data_size > KBD_MACRO_MAX_SIZE - sizeof(kbd_macro_header_t)) {
-        LOG_W(TAG, "宏数据过大: %d 字节", header->data_size);
-        return KBD_RESP_ERR_TOO_LARGE;
-    }
+  /* 检查大小限制 */
+  if (header->data_size > KBD_MACRO_MAX_SIZE - sizeof(kbd_macro_header_t)) {
+    LOG_W(TAG, "Macro too large: %d bytes", header->data_size);
+    return KBD_RESP_ERR_TOO_LARGE;
+  }
 
-    if (header->action_count > KBD_MACRO_MAX_ACTIONS) {
-        LOG_W(TAG, "宏动作过多: %d", header->action_count);
-        return KBD_RESP_ERR_TOO_LARGE;
-    }
+  if (header->action_count > KBD_MACRO_MAX_ACTIONS) {
+    LOG_W(TAG, "Too many macro actions: %d", header->action_count);
+    return KBD_RESP_ERR_TOO_LARGE;
+  }
 
-    /* 准备槽位 */
-    uint32_t slot_addr = GetMacroSlotAddr(slot);
-    uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
+  /* 准备槽位 */
+  uint32_t slot_addr = GetMacroSlotAddr(slot);
+  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
 
-    __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-    EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
+  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
+  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    /* 清除当前槽位 */
-    uint32_t offset_in_block = slot_addr - block_addr;
-    memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
+  /* 清除当前槽位 */
+  uint32_t offset_in_block = slot_addr - block_addr;
+  memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
 
-    /* 写入头部 (暂时标记为无效) */
-    kbd_macro_header_t temp_header;
-    memcpy(&temp_header, header, sizeof(kbd_macro_header_t));
-    temp_header.valid = 0x00;
-    memcpy(block + offset_in_block, &temp_header, sizeof(kbd_macro_header_t));
+  /* 写入头部 (暂时标记为无效) */
+  kbd_macro_header_t temp_header;
+  memcpy(&temp_header, header, sizeof(kbd_macro_header_t));
+  temp_header.valid = 0x00;
+  memcpy(block + offset_in_block, &temp_header, sizeof(kbd_macro_header_t));
 
-    /* 写回块 */
-    EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-    EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
+  /* 写回块 */
+  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
+  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    s_macro_write_slot = slot;
-    s_macro_write_size = header->data_size;
+  s_macro_write_slot = slot;
+  s_macro_write_size = header->data_size;
 
-    LOG_D(TAG, "开始写入宏: 槽位=%d, 大小=%d", slot, header->data_size);
-    return 0;
+  LOG_D(TAG, "Macro write start: slot=%d size=%d", slot, header->data_size);
+  return 0;
 }
 
-int Kbd_Macro_WriteChunk(uint8_t slot, uint16_t offset, const uint8_t *buf, uint16_t len)
-{
-    if (slot != s_macro_write_slot) {
-        return -1;
-    }
+int Kbd_Macro_WriteChunk(uint8_t slot, uint16_t offset, const uint8_t *buf,
+                         uint16_t len) {
+  if (slot != s_macro_write_slot) {
+    return -1;
+  }
 
-    if (offset + len > s_macro_write_size) {
-        return -2;
-    }
+  if (offset + len > s_macro_write_size) {
+    return -2;
+  }
 
-    uint32_t data_addr = GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
-    uint32_t block_addr = data_addr & ~(EEPROM_BLOCK_SIZE - 1);
+  uint32_t data_addr =
+      GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
+  uint32_t block_addr = data_addr & ~(EEPROM_BLOCK_SIZE - 1);
 
-    __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-    EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
+  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
+  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    memcpy(block + (data_addr - block_addr), buf, len);
+  memcpy(block + (data_addr - block_addr), buf, len);
 
-    EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-    EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
+  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
+  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    return 0;
+  return 0;
 }
 
-int Kbd_Macro_EndWrite(uint8_t slot)
-{
-    if (slot != s_macro_write_slot) {
-        return -1;
-    }
+int Kbd_Macro_EndWrite(uint8_t slot) {
+  if (slot != s_macro_write_slot) {
+    return -1;
+  }
 
-    /* 标记为有效 */
-    uint32_t slot_addr = GetMacroSlotAddr(slot);
-    uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
+  /* 标记为有效 */
+  uint32_t slot_addr = GetMacroSlotAddr(slot);
+  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
 
-    __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-    EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
+  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
+  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    uint32_t offset_in_block = slot_addr - block_addr;
-    block[offset_in_block] = KBD_MACRO_VALID_MAGIC;
+  uint32_t offset_in_block = slot_addr - block_addr;
+  block[offset_in_block] = KBD_MACRO_VALID_MAGIC;
 
-    EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-    EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
+  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
+  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    s_macro_write_slot = 0xFF;
-    s_macro_write_size = 0;
+  s_macro_write_slot = 0xFF;
+  s_macro_write_size = 0;
 
-    LOG_I(TAG, "宏写入完成: 槽位=%d", slot);
-    return 0;
+  LOG_I(TAG, "Macro write done: slot=%d", slot);
+  return 0;
 }
 
-int Kbd_Macro_Delete(uint8_t slot)
-{
-    if (slot >= KBD_MACRO_SLOTS) {
-        return -1;
-    }
+int Kbd_Macro_Delete(uint8_t slot) {
+  if (slot >= KBD_MACRO_SLOTS) {
+    return -1;
+  }
 
-    uint32_t slot_addr = GetMacroSlotAddr(slot);
-    uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
+  uint32_t slot_addr = GetMacroSlotAddr(slot);
+  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
 
-    __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-    EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
+  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
+  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    uint32_t offset_in_block = slot_addr - block_addr;
-    memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
+  uint32_t offset_in_block = slot_addr - block_addr;
+  memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
 
-    EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-    EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
+  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
+  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
 
-    LOG_D(TAG, "宏已删除: 槽位=%d", slot);
-    return 0;
+  LOG_D(TAG, "Macro deleted: slot=%d", slot);
+  return 0;
 }
 
-bool Kbd_Macro_IsValid(uint8_t slot)
-{
-    if (slot >= KBD_MACRO_SLOTS) {
-        return false;
-    }
+bool Kbd_Macro_IsValid(uint8_t slot) {
+  if (slot >= KBD_MACRO_SLOTS) {
+    return false;
+  }
 
-    __attribute__((aligned(4))) uint8_t valid;
-    EEPROM_READ(GetMacroSlotAddr(slot), &valid, 1);
+  __attribute__((aligned(4))) uint8_t valid;
+  EEPROM_READ(GetMacroSlotAddr(slot), &valid, 1);
 
-    return (valid == KBD_MACRO_VALID_MAGIC);
+  return (valid == KBD_MACRO_VALID_MAGIC);
 }
 
-uint8_t Kbd_Macro_GetUsedCount(void)
-{
-    uint8_t count = 0;
-    for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
-        if (Kbd_Macro_IsValid(i)) {
-            count++;
-        }
+uint8_t Kbd_Macro_GetUsedCount(void) {
+  uint8_t count = 0;
+  for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
+    if (Kbd_Macro_IsValid(i)) {
+      count++;
     }
-    return count;
+  }
+  return count;
 }

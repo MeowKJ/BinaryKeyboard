@@ -10,7 +10,9 @@
 #include "kbd_storage.h"
 #include "kbd_rgb.h"
 #include "kbd_mode.h"
+#include "kbd_log.h"
 #include "hal_utils.h"
+#include "key.h"
 #include "debug.h"
 
 #define TAG "CORE"
@@ -23,9 +25,6 @@
 static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
-
-/** RGB 处理计数器 */
-static uint32_t s_rgb_tick = 0;
 
 /*============================================================================*/
 /* 私有函数声明 */
@@ -58,7 +57,6 @@ void KBD_Core_Init(void)
 {
     s_pressed_count = 0;
     s_current_modifier = 0;
-    s_rgb_tick = 0;
 
     for (uint8_t i = 0; i < 6; i++) {
         s_pressed_keys[i] = 0;
@@ -90,12 +88,19 @@ void KBD_Core_Process(void)
         LOG_W(TAG, "BOOT key pressed!");
         Hal_JumpToBootloader();
     }
+}
 
-    /* RGB 效果处理 (约每 20 次调用) */
-    if (++s_rgb_tick >= 20) {
-        s_rgb_tick = 0;
-        KBD_RGB_Process();
+/**
+ * @brief 检查是否有 FN 键被按下
+ */
+static bool IsFnKeyHeld(void)
+{
+    for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++) {
+        if (FnKey_IsDown(i) == 1) {
+            return true;
+        }
     }
+    return false;
 }
 
 /**
@@ -106,12 +111,34 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
     if (evt == NULL || evt->key >= KBD_MAX_KEYS)
         return;
 
+    bool pressed = (evt->type == KEY_EVT_PRESS);
+    
+    /* FN 组合键：按住 FN + 按键 = 切换到对应层 */
+    if (IsFnKeyHeld() && pressed) {
+        uint8_t target_layer = evt->key;  /* 按键0->层0, 按键1->层1... */
+        kbd_keymap_t *keymap = KBD_GetKeymap();
+
+        if (target_layer < keymap->num_layers) {
+            uint8_t old_layer = keymap->current_layer;
+            KBD_SetCurrentLayer(target_layer);
+            LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
+            KBD_Log_LayerEvent(old_layer, target_layer);
+            KBD_RGB_FlashLayer(target_layer);
+            /* 标记所有按住的 FN 键: 松开时不触发 click/long */
+            for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++) {
+                if (FnKey_IsDown(i) == 1)
+                    FnKey_MarkComboUsed(i);
+            }
+            return;  /* 不执行按键原本的动作 */
+        }
+    }
+    
     const kbd_action_t *action = KBD_GetKeyAction(evt->key);
     if (action == NULL)
         return;
 
-    bool pressed = (evt->type == KEY_EVT_PRESS);
     LOG_D(TAG, "key %d %s", evt->key, pressed ? "press" : "release");
+    KBD_Log_KeyEvent(evt->key, pressed ? 1 : 0, action->type, action->param1);
     ExecuteKeyAction(action, pressed);
 }
 
@@ -128,9 +155,11 @@ void KBD_Core_HandleFnEvent(const fnkey_event_t *evt)
 
     if (evt->type == FNKEY_EVT_LONG) {
         LOG_D(TAG, "FN%d long", evt->id + 1);
+        KBD_Log_FnEvent(evt->id, 1, entry->long_action, entry->long_param);
         ExecuteFnAction((kbd_fn_action_t)entry->long_action, entry->long_param);
     } else {
         LOG_D(TAG, "FN%d click", evt->id + 1);
+        KBD_Log_FnEvent(evt->id, 0, entry->click_action, entry->click_param);
         ExecuteFnAction((kbd_fn_action_t)entry->click_action, entry->click_param);
     }
 }
@@ -165,7 +194,9 @@ void *KBD_Core_GetCallbacks(void)
  */
 static void OnModeChange(kbd_work_mode_t new_mode)
 {
+    uint8_t old_mode = (new_mode == KBD_WORK_MODE_USB) ? 1 : 0; /* 反推旧模式 */
     LOG_I(TAG, "mode changed: %s", (new_mode == KBD_WORK_MODE_USB) ? "USB" : "BLE");
+    KBD_Log_ModeEvent(old_mode, (uint8_t)new_mode);
 
     /* 切换模式时释放所有按键 */
     KBD_Core_ReleaseAll();
@@ -184,6 +215,7 @@ static void OnModeChange(kbd_work_mode_t new_mode)
 static void OnConnStateChange(kbd_conn_state_t state)
 {
     LOG_I(TAG, "conn state: %d", state);
+    KBD_Log_BleEvent((uint8_t)state);
 
     /* RGB 状态指示 */
     if (KBD_Mode_Get() == KBD_WORK_MODE_USB) {
@@ -300,8 +332,10 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
 
     case KBD_ACTION_LAYER:
         if (pressed) {
+            uint8_t old_l = KBD_GetCurrentLayer();
             KBD_SetCurrentLayer(action->param1);
             LOG_I(TAG, "Layer -> %d", action->param1);
+            KBD_Log_LayerEvent(old_l, action->param1);
         }
         break;
 
@@ -376,6 +410,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         {
             uint8_t layer = KBD_NextLayer();
             LOG_I(TAG, "FN: layer next -> %d", layer);
+            KBD_RGB_FlashLayer(layer);
         }
         break;
 
@@ -383,12 +418,14 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         {
             uint8_t layer = KBD_PrevLayer();
             LOG_I(TAG, "FN: layer prev -> %d", layer);
+            KBD_RGB_FlashLayer(layer);
         }
         break;
 
     case KBD_FN_LAYER_SET:
         LOG_I(TAG, "FN: layer set %d", param);
         KBD_SetCurrentLayer(param);
+        KBD_RGB_FlashLayer(param);
         break;
 
     /* 系统 */

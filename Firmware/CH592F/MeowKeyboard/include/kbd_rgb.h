@@ -78,7 +78,7 @@ void KBD_RGB_Init(void);
  *
  * 根据当前模式更新 LED 状态
  *
- * @note 应在主循环中定期调用，建议间隔 10-20ms
+ * @note 由 TMOS 定时事件驱动，约每 20ms 调用一次
  */
 void KBD_RGB_Process(void);
 
@@ -114,11 +114,18 @@ void KBD_RGB_PrevMode(void);
 void KBD_RGB_Toggle(void);
 
 /**
- * @brief 设置亮度
+ * @brief 设置 RGB/按键灯亮度
  *
  * @param[in] brightness 亮度值 (0-255)
  */
 void KBD_RGB_SetBrightness(uint8_t brightness);
+
+/**
+ * @brief 设置指示灯亮度
+ *
+ * @param[in] brightness 亮度值 (0-255)
+ */
+void KBD_RGB_SetIndicatorBrightness(uint8_t brightness);
 
 /**
  * @brief 增加亮度
@@ -177,6 +184,20 @@ void KBD_RGB_EnableIndicator(bool enable);
  * @param[in] duration_ms 闪烁持续时间 (毫秒)
  */
 void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms);
+
+/**
+ * @brief 层切换指示闪烁
+ *
+ * 切换层时闪烁对应颜色:
+ * - 层1: 蓝色 (闪1次)
+ * - 层2: 绿色 (闪2次)
+ * - 层3: 黄色 (闪3次)
+ * - 层4: 紫色 (闪4次)
+ * - 层5: 红色 (闪5次)
+ *
+ * @param[in] layer 层号 (0-4)
+ */
+void KBD_RGB_FlashLayer(uint8_t layer);
 
 /** @} */ /* end of KBD_RGB_API */
 
