@@ -227,6 +227,12 @@ uint8_t FnKey_GetEvent(fnkey_event_t *evt);
 int8_t  FnKey_IsDown(uint8_t id);
 
 /**
+ * @brief 标记 FN 键已被 FN+Key 组合使用，松开时跳过 CLICK/LONG 事件。
+ * @param id FN 键索引（0..KBD_FN_NUM_KEYS-1）
+ */
+void FnKey_MarkComboUsed(uint8_t id);
+
+/**
  * @brief 读取 BOOT 键是否按下（原始电平读取，不使用中断）。
  * @return 1=按下，0=松开
  * @note Active-Low：按下为 0，松开为 1。

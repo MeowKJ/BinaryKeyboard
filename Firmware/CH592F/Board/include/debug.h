@@ -10,6 +10,11 @@ extern "C" {
 
 /* ======================= 配置 ======================= */
 
+/** UART 日志输出开关 (设为 0 禁用 UART，节省功耗与 ISR 时间) */
+#ifndef UART_LOG_ENABLE
+#define UART_LOG_ENABLE  0
+#endif
+
 #define DEBUG_UART1_BAUDRATE    115200
 
 /* 日志级别 */

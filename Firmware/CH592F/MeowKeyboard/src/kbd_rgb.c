@@ -21,12 +21,16 @@
 #include "ws2812.h"
 #include "debug.h"
 #include "CH59x_common.h"
+#include "ble_config.h"
 
 /** @brief 模块日志标签 */
 #define TAG "RGB"
 
 /** @brief RGB 更新间隔 (毫秒) */
 #define RGB_UPDATE_INTERVAL_MS  20
+
+/** @brief TMOS 定时事件 */
+#define RGB_UPDATE_EVT  0x0001
 
 /*============================================================================*/
 /*                              私有变量                                       */
@@ -47,9 +51,38 @@ static uint8_t s_flash_r, s_flash_g, s_flash_b;
 /** @brief 临时闪烁剩余计数 */
 static uint16_t s_flash_remain = 0;
 
+/** @brief 层切换闪烁：100ms 亮/灭 所需的 Process 调用次数 (约 20ms/次) */
+#define LAYER_FLASH_TICKS_PER_100MS  (100u / RGB_UPDATE_INTERVAL_MS)
+
+/** @brief 层切换闪烁状态（非阻塞） */
+static bool s_layer_flash_active = false;
+static uint8_t s_layer_flash_blinks_left = 0;
+static bool s_layer_flash_is_on = false;
+static uint8_t s_layer_flash_wait_ticks = 0;
+static uint8_t s_layer_flash_r = 0, s_layer_flash_g = 0, s_layer_flash_b = 0;
+static uint8_t s_layer_flash_led_index = 0;
+
+/** @brief TMOS 任务 ID */
+static tmosTaskID s_rgb_task_id = TASK_NO_TASK;
+
 /*============================================================================*/
 /*                              私有函数                                       */
 /*============================================================================*/
+
+/**
+ * @brief TMOS 事件处理
+ */
+static uint16_t KBD_RGB_ProcessEvent(uint8_t task_id, uint16_t events)
+{
+    (void)task_id;
+
+    if (events & RGB_UPDATE_EVT) {
+        KBD_RGB_Process();
+        tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
+        return (events ^ RGB_UPDATE_EVT);
+    }
+    return 0;
+}
 
 /**
  * @brief 应用亮度到颜色值
@@ -170,13 +203,13 @@ static void ProcessIndicatorMode(void)
     uint16_t period_ms;
     GetIndicatorParams(s_current_state, &r, &g, &b, &effect, &period_ms);
 
-    uint8_t brightness = cfg->brightness;
+    uint8_t brightness = cfg->indicator_brightness;
 
     if (effect == 1 && period_ms > 0) {
         /* 呼吸效果 */
         uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
         brightness = CalcBreathing(phase);
-        brightness = ((uint16_t)brightness * cfg->brightness) >> 8;
+        brightness = ((uint16_t)brightness * cfg->indicator_brightness) >> 8;
     } else if (effect == 2 && period_ms > 0) {
         /* 闪烁效果 */
         uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
@@ -199,11 +232,17 @@ static void ProcessStaticMode(void)
     uint8_t g = cfg->color_g;
     uint8_t b = cfg->color_b;
     ApplyBrightness(&r, &g, &b, cfg->brightness);
-    WS2812_Fill(r, g, b);
+    WS2812_FillKeys(r, g, b);
+    /* 多 LED 时，确保指示灯显示系统状态 */
+    if (WS2812_LED_NUM > 1) {
+        ProcessIndicatorMode();
+    }
 }
 
 /**
  * @brief 处理呼吸模式
+ * @note 低亮度下保证可见：呼吸范围映射为 [brightness*25%, brightness]
+ *       避免 0~brightness 时低亮度几乎不亮
  */
 static void ProcessBreathingMode(void)
 {
@@ -218,9 +257,16 @@ static void ProcessBreathingMode(void)
     uint8_t g = cfg->color_g;
     uint8_t b = cfg->color_b;
 
-    uint8_t final_brightness = ((uint16_t)breath_brightness * cfg->brightness) >> 8;
+    /* 映射 breath(0~255) 到 [brightness*25%, brightness]，低亮度下仍有明显起伏 */
+    uint8_t floor_val = (uint16_t)cfg->brightness * 64 >> 8;
+    uint8_t range = cfg->brightness - floor_val;
+    uint8_t final_brightness = floor_val + ((uint16_t)range * breath_brightness >> 8);
     ApplyBrightness(&r, &g, &b, final_brightness);
-    WS2812_Fill(r, g, b);
+    WS2812_FillKeys(r, g, b);
+    /* 多 LED 时，确保指示灯显示系统状态 */
+    if (WS2812_LED_NUM > 1) {
+        ProcessIndicatorMode();
+    }
 }
 
 /**
@@ -238,9 +284,13 @@ static void ProcessBlinkMode(void)
         uint8_t g = cfg->color_g;
         uint8_t b = cfg->color_b;
         ApplyBrightness(&r, &g, &b, cfg->brightness);
-        WS2812_Fill(r, g, b);
+        WS2812_FillKeys(r, g, b);
     } else {
-        WS2812_Fill(0, 0, 0);
+        WS2812_FillKeys(0, 0, 0);
+    }
+    /* 多 LED 时，确保指示灯显示系统状态 */
+    if (WS2812_LED_NUM > 1) {
+        ProcessIndicatorMode();
     }
 }
 
@@ -256,7 +306,11 @@ static void ProcessRainbowMode(void)
     uint16_t hue = (s_effect_phase * 360 / period_ms) % 360;
 
     WS2812_Color color = WS2812_HSVtoRGB(hue, 255, cfg->brightness);
-    WS2812_Fill(color.r, color.g, color.b);
+    WS2812_FillKeys(color.r, color.g, color.b);
+    /* 多 LED 时，确保指示灯显示系统状态 */
+    if (WS2812_LED_NUM > 1) {
+        ProcessIndicatorMode();
+    }
 }
 
 /*============================================================================*/
@@ -265,14 +319,22 @@ static void ProcessRainbowMode(void)
 
 void KBD_RGB_Init(void)
 {
-    LOG_I(TAG, "初始化 RGB 引擎");
+    LOG_I(TAG, "RGB init");
+
     WS2812_Init();
 
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
-    WS2812_SetBrightness(cfg->brightness);
+    if (cfg) {
+        WS2812_SetBrightness(cfg->brightness);
+        WS2812_SetIndicatorBrightness(cfg->indicator_brightness);
+    }
 
     s_effect_phase = 0;
     s_flash_active = false;
+    s_layer_flash_active = false;
+
+    s_rgb_task_id = TMOS_ProcessEventRegister(KBD_RGB_ProcessEvent);
+    tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
 }
 
 void KBD_RGB_Process(void)
@@ -297,9 +359,43 @@ void KBD_RGB_Process(void)
         }
     }
 
+    /* 处理层切换闪烁（非阻塞状态机） */
+    if (s_layer_flash_active) {
+        if (s_layer_flash_wait_ticks > 0) {
+            s_layer_flash_wait_ticks--;
+        } else {
+            if (s_layer_flash_is_on) {
+                /* 亮 -> 灭 */
+                s_layer_flash_is_on = false;
+                WS2812_Set(s_layer_flash_led_index, 0, 0, 0);
+                s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
+            } else {
+                /* 灭 -> 一次闪烁完成 */
+                s_layer_flash_blinks_left--;
+                if (s_layer_flash_blinks_left == 0) {
+                    s_layer_flash_active = false;
+                    s_effect_phase = 0;
+                    /* 不 return，继续执行正常灯效 */
+                } else {
+                    s_layer_flash_is_on = true;
+                    WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+                    s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
+                }
+            }
+        }
+        if (s_layer_flash_active) {
+            WS2812_Update();
+            return;
+        }
+    }
+
     /* RGB 已关闭 */
     if (!cfg->enabled) {
-        WS2812_Fill(0, 0, 0);
+        WS2812_FillKeys(0, 0, 0);
+        /* 多 LED 时，确保指示灯显示系统状态 */
+        if (WS2812_LED_NUM > 1) {
+            ProcessIndicatorMode();
+        }
         WS2812_Update();
         return;
     }
@@ -307,7 +403,11 @@ void KBD_RGB_Process(void)
     /* 根据模式处理 */
     switch (cfg->mode) {
         case KBD_RGB_OFF:
-            WS2812_Fill(0, 0, 0);
+            WS2812_FillKeys(0, 0, 0);
+            /* 多 LED 时，确保指示灯显示系统状态 */
+            if (WS2812_LED_NUM > 1) {
+                ProcessIndicatorMode();
+            }
             break;
 
         case KBD_RGB_STATIC:
@@ -342,7 +442,7 @@ void KBD_RGB_SetMode(kbd_rgb_mode_t mode)
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->mode = mode;
     s_effect_phase = 0;
-    LOG_D(TAG, "模式=%d", mode);
+    LOG_D(TAG, "mode=%d", mode);
 }
 
 kbd_rgb_mode_t KBD_RGB_GetMode(void)
@@ -376,10 +476,14 @@ void KBD_RGB_Toggle(void)
 {
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->enabled = !cfg->enabled;
-    LOG_D(TAG, "开关=%d", cfg->enabled);
+    LOG_D(TAG, "toggle=%d", cfg->enabled);
 
     if (!cfg->enabled) {
-        WS2812_Fill(0, 0, 0);
+        WS2812_FillKeys(0, 0, 0);
+        /* 多 LED 时，确保指示灯显示系统状态 */
+        if (WS2812_LED_NUM > 1) {
+            ProcessIndicatorMode();
+        }
         WS2812_Update();
     }
 }
@@ -389,6 +493,13 @@ void KBD_RGB_SetBrightness(uint8_t brightness)
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->brightness = brightness;
     WS2812_SetBrightness(brightness);
+}
+
+void KBD_RGB_SetIndicatorBrightness(uint8_t brightness)
+{
+    kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
+    cfg->indicator_brightness = brightness;
+    WS2812_SetIndicatorBrightness(brightness);
 }
 
 void KBD_RGB_BrightnessUp(uint8_t step)
@@ -426,7 +537,7 @@ void KBD_RGB_SetState(kbd_state_t state)
     if (state != s_current_state) {
         s_current_state = state;
         s_effect_phase = 0;
-        LOG_D(TAG, "状态=%d", state);
+        LOG_D(TAG, "state=%d", state);
     }
 }
 
@@ -443,4 +554,50 @@ void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms)
     s_flash_g = g;
     s_flash_b = b;
     s_flash_remain = duration_ms / RGB_UPDATE_INTERVAL_MS;
+
+    /* 立即点亮指示灯（用于启动动画等场景） */
+    WS2812_Set_Indicator(r, g, b);
+    WS2812_Update();
+}
+
+/**
+ * @brief 获取层对应的RGB LED索引
+ * @param layer 层号 (0-4)
+ * @return WS2812 LED索引 (1-5, 0为指示灯)
+ * @note 映射关系定义在 kbd_config.h 中的 KBD_LAYER_TO_LED_MAP
+ */
+static uint8_t GetLayerLedIndex(uint8_t layer)
+{
+    /* 从配置文件读取映射表 */
+    static const uint8_t layer_to_led_map[] = KBD_LAYER_TO_LED_MAP;
+
+    if (layer < KBD_LAYER_TO_LED_MAP_SIZE) {
+        return layer_to_led_map[layer];
+    }
+
+    /* 超出范围时返回第一个LED (作为fallback) */
+    return 1;
+}
+
+void KBD_RGB_FlashLayer(uint8_t layer)
+{
+    /* 从配置文件读取层颜色 */
+    static const uint8_t layer_colors[5][3] = KBD_LAYER_COLORS;
+
+    /* 限制层号范围 */
+    if (layer >= 5) layer = 4;
+
+    /* 设置闪烁参数 */
+    s_layer_flash_r = layer_colors[layer][0];
+    s_layer_flash_g = layer_colors[layer][1];
+    s_layer_flash_b = layer_colors[layer][2];
+    s_layer_flash_led_index = GetLayerLedIndex(layer);
+    s_layer_flash_blinks_left = KBD_LAYER_FLASH_BLINKS;
+    s_layer_flash_is_on = true;
+    s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
+    s_layer_flash_active = true;
+
+    /* 立即显示第一拍亮，后续由 Process 非阻塞推进 */
+    WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+    WS2812_Update();
 }
