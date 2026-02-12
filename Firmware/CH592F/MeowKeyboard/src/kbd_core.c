@@ -117,13 +117,18 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
     if (IsFnKeyHeld() && pressed) {
         uint8_t target_layer = evt->key;  /* 按键0->层0, 按键1->层1... */
         kbd_keymap_t *keymap = KBD_GetKeymap();
-        
+
         if (target_layer < keymap->num_layers) {
             uint8_t old_layer = keymap->current_layer;
             KBD_SetCurrentLayer(target_layer);
             LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
             KBD_Log_LayerEvent(old_layer, target_layer);
             KBD_RGB_FlashLayer(target_layer);
+            /* 标记所有按住的 FN 键: 松开时不触发 click/long */
+            for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++) {
+                if (FnKey_IsDown(i) == 1)
+                    FnKey_MarkComboUsed(i);
+            }
             return;  /* 不执行按键原本的动作 */
         }
     }

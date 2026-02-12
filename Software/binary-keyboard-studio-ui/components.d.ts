@@ -18,6 +18,7 @@ declare module 'vue' {
     Divider: typeof import('primevue/divider')['default']
     EncoderButton: typeof import('./src/components/EncoderButton.vue')['default']
     KeyboardLayout: typeof import('./src/components/KeyboardLayout.vue')['default']
+    KeyboardStatus: typeof import('./src/components/KeyboardStatus.vue')['default']
     KeyButton: typeof import('./src/components/KeyButton.vue')['default']
     ProgressSpinner: typeof import('primevue/progressspinner')['default']
     Tab: typeof import('primevue/tab')['default']
