@@ -148,12 +148,23 @@ STATIC_ASSERT ((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_b
  * @brief 普通按键引脚表。
  * @details
  * 该表由板级宏（kbd_config.h）决定具体端口与引脚。
- *
- * @note
- * 你当前代码以 KBD_LAYOUT_5KEY 为例定义 g_key_pins[]，
- * 若存在其它布局，请在对应条件编译分支下同样提供 g_key_pins[]。
+ * 根据不同键盘布局定义不同的引脚映射。
  */
-#ifdef KBD_LAYOUT_5KEY
+#if defined(KBD_LAYOUT_BASIC)
+/*---------------------------------------------------------------------------*/
+/* 基础款: 4 键                                                               */
+/*---------------------------------------------------------------------------*/
+static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+    {KBD_K1_PORT, KBD_K1_PIN},
+    {KBD_K2_PORT, KBD_K2_PIN},
+    {KBD_K3_PORT, KBD_K3_PIN},
+    {KBD_K4_PORT, KBD_K4_PIN},
+};
+
+#elif defined(KBD_LAYOUT_5KEY)
+/*---------------------------------------------------------------------------*/
+/* 五键款: 5 键                                                               */
+/*---------------------------------------------------------------------------*/
 static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
     {KBD_K1_PORT, KBD_K1_PIN},
     {KBD_K2_PORT, KBD_K2_PIN},
@@ -161,6 +172,20 @@ static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
     {KBD_K4_PORT, KBD_K4_PIN},
     {KBD_K5_PORT, KBD_K5_PIN},
 };
+
+#elif defined(KBD_LAYOUT_KNOB)
+/*---------------------------------------------------------------------------*/
+/* 旋钮款: 4 普通键 (旋钮由编码器模块单独处理)                                   */
+/*---------------------------------------------------------------------------*/
+static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+    {KBD_K1_PORT, KBD_K1_PIN},
+    {KBD_K2_PORT, KBD_K2_PIN},
+    {KBD_K3_PORT, KBD_K3_PIN},
+    {KBD_K4_PORT, KBD_K4_PIN},
+};
+
+#else
+#error "请在 kbd_config.h 中选择一个键盘布局"
 #endif
 
 /**
@@ -249,6 +274,7 @@ typedef struct {
     volatile uint16_t lock_ms;     /**< 锁定倒计时（ms）。 */
     volatile uint8_t  is_down;     /**< 当前是否按下（1=按下，0=松开）。 */
     volatile uint8_t  expect;      /**< 期待边沿：0=按下(下降沿)，1=松开(上升沿)。 */
+    volatile uint8_t  combo_used;  /**< FN+Key 组合已触发，松开时跳过事件。 */
     volatile uint32_t press_tick;  /**< 按下边沿发生时的 tick（ms）。 */
 } fn_ctx_t;
 
@@ -490,6 +516,7 @@ static inline void HandleFnKeyEdge (uint8_t id) {
     if (s_fn_ctx[id].expect == 0) {
         /* Press edge. */
         s_fn_ctx[id].is_down = 1;
+        s_fn_ctx[id].combo_used = 0;
         s_fn_ctx[id].press_tick = now;
         s_fn_ctx[id].expect = 1;
         ConfigPinRiseEdge (pin);
@@ -499,12 +526,16 @@ static inline void HandleFnKeyEdge (uint8_t id) {
         s_fn_ctx[id].expect = 0;
         ConfigPinFallEdge (pin);
 
-        uint32_t dur = now - s_fn_ctx[id].press_tick;
-        if (dur >= (uint32_t)FN_LONG_PRESS_MS) {
-            PushFnEvent (id, FNKEY_EVT_LONG, now);
-        } else {
-            PushFnEvent (id, FNKEY_EVT_CLICK, now);
+        /* FN+Key 组合已使用过，跳过 click/long 事件 */
+        if (!s_fn_ctx[id].combo_used) {
+            uint32_t dur = now - s_fn_ctx[id].press_tick;
+            if (dur >= (uint32_t)FN_LONG_PRESS_MS) {
+                PushFnEvent (id, FNKEY_EVT_LONG, now);
+            } else {
+                PushFnEvent (id, FNKEY_EVT_CLICK, now);
+            }
         }
+        s_fn_ctx[id].combo_used = 0;
     }
 
     s_fn_ctx[id].lock_ms = FN_LOCKOUT_MS;
@@ -671,6 +702,16 @@ int8_t FnKey_IsDown (uint8_t id) {
     if (id >= KBD_FN_NUM_KEYS)
         return -1;
     return s_fn_ctx[id].is_down ? 1 : 0;
+}
+
+/**
+ * @brief 标记 FN 键已被 FN+Key 组合使用。
+ * @param id FN 键索引
+ * @details 调用后，该 FN 键松开时不会产生 CLICK/LONG 事件。
+ */
+void FnKey_MarkComboUsed (uint8_t id) {
+    if (id < KBD_FN_NUM_KEYS)
+        s_fn_ctx[id].combo_used = 1;
 }
 
 /**

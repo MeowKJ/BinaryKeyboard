@@ -1,0 +1,676 @@
+/**
+ * MeowKeyboard Studio 全局样式
+ * 可爱猫咪风格 🐱
+ */
+
+/* ============================================
+   字体
+============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap');
+
+/* ============================================
+   CSS 变量 - 默认深色主题
+============================================ */
+:root {
+  /* 背景色 */
+  --c-bg-primary: #0d0a12;
+  --c-bg-secondary: #16121d;
+  --c-bg-tertiary: #1e1828;
+  --c-bg-hover: #251e32;
+  
+  /* 边框色 */
+  --c-border: #3d2f50;
+  --c-border-light: #2d2340;
+  
+  /* 文字色 */
+  --c-text-primary: #f5f0fa;
+  --c-text-secondary: #c9bfdb;
+  --c-text-muted: #8a7da0;
+  
+  /* 主色调 - 粉紫色 */
+  --c-accent: #e879f9;
+  --c-accent-light: #f0abfc;
+  --c-accent-soft: rgba(232, 121, 249, 0.15);
+  --c-accent-gradient: linear-gradient(135deg, #e879f9 0%, #a855f7 100%);
+  
+  /* 功能色 */
+  --c-success: #4ade80;
+  --c-warning: #fbbf24;
+  --c-danger: #fb7185;
+  --c-info: #60a5fa;
+  
+  /* 按键色 */
+  --c-key-bg: #1e1828;
+  --c-key-border: #3d2f50;
+  --c-key-active-bg: rgba(232, 121, 249, 0.2);
+  --c-key-active-border: #e879f9;
+  --c-key-shadow: rgba(232, 121, 249, 0.25);
+  
+  /* 尺寸 */
+  --header-height: 60px;
+  --sidebar-width: 280px;
+  --key-unit: 72px;
+  --key-gap: 10px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  
+  /* 动画 */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+/* ============================================
+   重置样式
+============================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  line-height: 1.5;
+  background: var(--c-bg-primary);
+  color: var(--c-text-primary);
+}
+
+/* ============================================
+   滚动条
+============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-muted);
+}
+
+/* ============================================
+   PrimeVue 主题覆盖
+============================================ */
+.app-root {
+  /* 背景色 */
+  --p-surface-0: var(--c-bg-primary);
+  --p-surface-50: var(--c-bg-secondary);
+  --p-surface-100: var(--c-bg-tertiary);
+  --p-surface-200: var(--c-bg-hover);
+  --p-surface-300: var(--c-border-light);
+  --p-surface-400: var(--c-border);
+  --p-surface-500: var(--c-text-muted);
+  --p-surface-600: var(--c-text-secondary);
+  --p-surface-700: var(--c-text-primary);
+  
+  /* 主色调 */
+  --p-primary-50: color-mix(in srgb, var(--c-accent) 10%, white);
+  --p-primary-100: color-mix(in srgb, var(--c-accent) 20%, white);
+  --p-primary-200: color-mix(in srgb, var(--c-accent) 40%, white);
+  --p-primary-300: color-mix(in srgb, var(--c-accent) 60%, white);
+  --p-primary-400: var(--c-accent-light);
+  --p-primary-500: var(--c-accent);
+  --p-primary-600: color-mix(in srgb, var(--c-accent) 90%, black);
+  --p-primary-700: color-mix(in srgb, var(--c-accent) 80%, black);
+  
+  /* 文字色 */
+  --p-text-color: var(--c-text-primary);
+  --p-text-muted-color: var(--c-text-muted);
+  
+  /* 边框 */
+  --p-content-border-color: var(--c-border);
+  
+  /* 组件背景 */
+  --p-content-background: var(--c-bg-secondary);
+}
+
+/* ============================================
+   PrimeVue 组件样式增强
+============================================ */
+
+/* 按钮 */
+.p-button {
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.p-button:not(.p-button-text):not(.p-button-outlined):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--c-key-shadow);
+}
+
+/* 对话框 */
+.p-dialog {
+  border-radius: var(--radius-xl) !important;
+  border: 1px solid var(--c-border) !important;
+  background: var(--c-bg-secondary) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4) !important;
+  overflow: hidden !important;
+}
+
+.p-dialog-header {
+  border-bottom: 1px solid var(--c-border) !important;
+  padding: 1.25rem 1.5rem !important;
+  background: var(--c-bg-secondary) !important;
+  color: var(--c-text-primary) !important;
+}
+
+.p-dialog-title {
+  font-weight: 700 !important;
+  color: var(--c-text-primary) !important;
+}
+
+.p-dialog-header-close {
+  color: var(--c-text-muted) !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.p-dialog-header-close:hover {
+  background: var(--c-accent-soft) !important;
+  color: var(--c-accent) !important;
+}
+
+.p-dialog-content {
+  padding: 1rem 1.5rem !important;
+  background: var(--c-bg-secondary) !important;
+  color: var(--c-text-primary) !important;
+}
+
+.p-dialog-footer {
+  border-top: 1px solid var(--c-border) !important;
+  padding: 1rem 1.5rem !important;
+  background: var(--c-bg-secondary) !important;
+}
+
+.p-dialog-footer .p-button {
+  min-width: 80px;
+}
+
+/* 对话框遮罩 */
+.p-dialog-mask {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* 确认对话框 */
+.p-confirmdialog {
+  max-width: 400px !important;
+}
+
+.p-confirmdialog .p-dialog-content {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.p-confirmdialog .p-confirmdialog-icon {
+  font-size: 1.5rem;
+  color: var(--c-warning);
+}
+
+.p-confirmdialog .p-confirmdialog-message {
+  color: var(--c-text-secondary);
+  line-height: 1.6;
+}
+
+/* Tabs */
+.p-tabs {
+  background: transparent !important;
+}
+
+.p-tabs .p-tablist {
+  background: var(--c-bg-tertiary) !important;
+  border: 1px solid var(--c-border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 4px !important;
+  gap: 4px !important;
+}
+
+.p-tabs .p-tab {
+  padding: 0.625rem 1rem !important;
+  border-radius: var(--radius-sm) !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--c-text-muted) !important;
+  font-weight: 600 !important;
+  transition: all var(--transition-fast) !important;
+}
+
+.p-tabs .p-tab:hover {
+  color: var(--c-text-secondary) !important;
+  background: var(--c-bg-hover) !important;
+}
+
+.p-tabs .p-tab[data-p-active="true"] {
+  background: var(--c-accent-soft) !important;
+  color: var(--c-accent) !important;
+}
+
+.p-tabs .p-tabpanels {
+  background: transparent !important;
+  padding: 1rem 0 0 !important;
+}
+
+.p-tabs .p-tabpanel {
+  padding: 0 !important;
+}
+
+/* Tab 下划线指示器隐藏 */
+.p-tabs .p-tablist-active-bar {
+  display: none !important;
+}
+
+/* Toast */
+.p-toast {
+  opacity: 0.98;
+}
+
+.p-toast-message {
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--c-border) !important;
+}
+
+/* ToggleButton */
+.p-togglebutton {
+  padding: 0.5rem 1rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--c-bg-tertiary) !important;
+  border: 1px solid var(--c-border) !important;
+  color: var(--c-text-muted) !important;
+}
+
+.p-togglebutton:hover {
+  background: var(--c-bg-hover) !important;
+  border-color: var(--c-border) !important;
+}
+
+.p-togglebutton[data-p-checked="true"],
+.p-togglebutton.p-togglebutton-checked {
+  background: var(--c-accent-soft) !important;
+  border-color: var(--c-accent) !important;
+  color: var(--c-accent) !important;
+}
+
+/* SelectButton */
+.p-selectbutton {
+  border-radius: var(--radius-md) !important;
+  background: var(--c-bg-tertiary) !important;
+  border: 1px solid var(--c-border) !important;
+  padding: 4px !important;
+  gap: 4px !important;
+}
+
+.p-selectbutton .p-togglebutton {
+  border: none !important;
+  background: transparent !important;
+}
+
+.p-selectbutton .p-togglebutton:hover {
+  background: var(--c-bg-hover) !important;
+}
+
+.p-selectbutton .p-togglebutton[data-p-checked="true"],
+.p-selectbutton .p-togglebutton.p-togglebutton-checked {
+  background: var(--c-accent-soft) !important;
+  color: var(--c-accent) !important;
+}
+
+/* Divider */
+.p-divider {
+  margin: 1.25rem 0 !important;
+}
+
+.p-divider::before {
+  border-color: var(--c-border) !important;
+}
+
+/* ProgressSpinner */
+.p-progress-spinner-circle {
+  stroke: var(--c-accent) !important;
+}
+
+/* ============================================
+   动画
+============================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes glow {
+  0%, 100% { 
+    box-shadow: 0 0 5px var(--c-accent), 0 0 10px var(--c-key-shadow);
+  }
+  50% { 
+    box-shadow: 0 0 10px var(--c-accent), 0 0 20px var(--c-key-shadow);
+  }
+}
+
+.fade-in { animation: fadeIn 0.3s ease; }
+.slide-in { animation: slideIn 0.3s ease; }
+.pulse { animation: pulse 2s ease-in-out infinite; }
+.glow { animation: glow 2s ease-in-out infinite; }
+
+/* ============================================
+   工具类
+============================================ */
+.text-accent { color: var(--c-accent); }
+.text-muted { color: var(--c-text-muted); }
+.text-success { color: var(--c-success); }
+.text-warning { color: var(--c-warning); }
+.text-danger { color: var(--c-danger); }
+
+.bg-primary { background: var(--c-bg-primary); }
+.bg-secondary { background: var(--c-bg-secondary); }
+.bg-tertiary { background: var(--c-bg-tertiary); }
+
+/* ============================================
+   浅色主题覆盖 - 使用自定义类名降低耦合
+============================================ */
+
+/* 浅色模式 - 次要按钮 (放弃更改) */
+[data-theme="light"] .btn-secondary {
+  background: #dbeafe !important;
+  border: 1px solid #93c5fd !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #bfdbfe !important;
+  border-color: #60a5fa !important;
+  color: #1e40af !important;
+}
+
+/* 浅色模式 - 危险轮廓按钮 (恢复出厂) */
+[data-theme="light"] .btn-danger-outline {
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-danger-outline:hover {
+  background: #fecaca !important;
+  border-color: #f87171 !important;
+  color: #b91c1c !important;
+}
+
+/* 浅色模式 - 主按钮 (保存配置) */
+[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="light"] .btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+}
+
+[data-theme="light"] .btn-primary:disabled {
+  background: #cbd5e1 !important;
+  color: #94a3b8 !important;
+}
+
+/* 浅色模式 - 图标按钮 (刷新配置) */
+[data-theme="light"] .btn-icon-secondary {
+  color: #1d4ed8 !important;
+}
+
+[data-theme="light"] .btn-icon-secondary:hover {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+
+/* 浅色模式 - 图标按钮 (断开连接) */
+[data-theme="light"] .btn-icon-danger {
+  color: #dc2626 !important;
+}
+
+[data-theme="light"] .btn-icon-danger:hover {
+  background: #fee2e2 !important;
+  color: #b91c1c !important;
+}
+
+/* ============================================
+   响应式设计
+============================================ */
+
+/* 平板 (768px - 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+    --key-unit: 64px;
+    --key-gap: 8px;
+  }
+  
+  .app-header {
+    padding: 0 1rem;
+  }
+  
+  .header-center {
+    display: none;
+  }
+  
+  .app-main {
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .panel {
+    padding: 0.875rem;
+  }
+  
+  .panel-title {
+    font-size: 0.85rem;
+  }
+}
+
+/* 手机横屏 / 小平板 (480px - 768px) */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100%;
+    --header-height: 54px;
+    --key-unit: 56px;
+    --key-gap: 6px;
+  }
+  
+  .app-main {
+    flex-direction: column;
+    padding: 0.75rem;
+    align-items: stretch;
+  }
+  
+  .sidebar {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  
+  .panel {
+    flex: 1 1 calc(50% - 0.375rem);
+    min-width: 140px;
+  }
+  
+  .device-panel {
+    flex: 1 1 100%;
+  }
+  
+  .keyboard-section {
+    left: 0;
+    min-height: 300px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .keyboard-spacer {
+    min-height: 300px;
+    min-width: 0;
+  }
+  
+  .keyboard-card {
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  
+  .keyboard-container {
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .card-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  /* 隐藏部分装饰 */
+  .deco-circle,
+  .deco-emoji,
+  .paw-walk {
+    display: none;
+  }
+  
+  .deco-star {
+    font-size: 1rem;
+  }
+}
+
+/* 手机竖屏 (< 480px) */
+@media (max-width: 480px) {
+  :root {
+    --key-unit: 48px;
+    --key-gap: 5px;
+  }
+  
+  .header-left .header-title {
+    display: none;
+  }
+  
+  .app-title {
+    font-size: 2rem;
+  }
+  
+  .app-subtitle {
+    font-size: 0.95rem;
+  }
+  
+  .logo-icon {
+    font-size: 3rem;
+  }
+  
+  .connect-card {
+    padding: 1.25rem;
+  }
+  
+  .preview-keys {
+    grid-template-columns: repeat(3, 40px);
+    grid-template-rows: repeat(2, 40px);
+    gap: 6px;
+  }
+  
+  .features-section {
+    gap: 1rem;
+  }
+  
+  .feature-item {
+    font-size: 0.75rem;
+  }
+  
+  .feature-item i {
+    font-size: 1.2rem;
+  }
+  
+  .sidebar {
+    flex-direction: column;
+  }
+  
+  .panel {
+    flex: 1 1 100%;
+  }
+  
+  .layer-buttons {
+    flex-wrap: wrap;
+  }
+  
+  .layer-buttons .p-button {
+    flex: 1;
+    min-width: 60px;
+  }
+  
+  .action-buttons .p-button {
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  .keyboard-section {
+    left: 0;
+    padding: 0.5rem;
+  }
+  
+  .keyboard-card {
+    width: auto;
+    margin: 0 auto;
+  }
+  
+  .keyboard-container {
+    padding: 0.75rem;
+    display: flex;
+    justify-content: center;
+  }
+  
+  .card-title {
+    font-size: 0.9rem;
+  }
+  
+  .card-subtitle {
+    display: none;
+  }
+}
