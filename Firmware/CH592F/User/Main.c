@@ -1,145 +1,109 @@
 /********************************** (C) COPYRIGHT *******************************
- * File Name          : main.c
+ * File Name          : Main.c
  * Author             : MeowKJ
  * Version            : V2.0
  * Date               : 2024/11/07
- * Description        : USB/BLE 双模键盘主程序
+ * Description        : CH592F 键盘主程序入口
  *******************************************************************************/
 
+/* BLE 相关头文件（包含 CH59x_common.h） */
 #include "ble_config.h"
 #include "ble_hal.h"
 #include "hiddev.h"
+
+/* 键盘核心模块 */
 #include "kbd_mode.h"
-#include "key.h"
-#include "hal_utils.h"
-#include "ws2812.h"
-#include "debug.h"
+#include "kbd_core.h"
 #include "kbd_storage.h"
 #include "kbd_command.h"
 #include "kbd_rgb.h"
-#include "kbd_core.h"
+#include "kbd_log.h"
 
-#define TAG "MAIN"
+/* 硬件抽象层 */
+#include "key.h"
+#include "kbd_battery.h"
+#include "hal_utils.h"
+#include "ws2812.h"
+#include "debug.h"
 
-/*============================================================================*/
-/* 全局变量 */
-/*============================================================================*/
-
-/** WS2812 DMA 缓冲区 */
-__attribute__((aligned(4))) uint32_t PwmBuf[WS2812_BUF_LEN];
-
-/** TMOS 内存池 */
+/* ============== TMOS 内存池 ============== */
 __attribute__((aligned(4))) uint32_t MEM_BUF[BLE_MEMHEAP_SIZE / 4];
 
-/** MAC 地址（如果使用自定义地址） */
 #if (defined(BLE_MAC)) && (BLE_MAC == TRUE)
 const uint8_t MacAddr[6] = {0x84, 0xC2, 0xE4, 0x03, 0x02, 0x02};
 #endif
 
-/*============================================================================*/
-/* 主循环 */
-/*============================================================================*/
-
-/**
- * @brief 主循环
- */
+/* ============== 主循环 ============== */
 __HIGH_CODE
 __attribute__((noinline)) void Main_Circulation(void)
 {
     while (1) {
-        /* TMOS 系统处理 */
         TMOS_SystemProcess();
-
-        /* 模式管理器处理 */
         KBD_Mode_Process();
-
-        /* 键盘核心处理（按键、FN、RGB） */
         KBD_Core_Process();
+        KBD_Log_Flush();
     }
 }
 
-/*============================================================================*/
-/* 主函数 */
-/*============================================================================*/
-
-/**
- * @brief 主函数
- */
+/* ============== 主函数 ============== */
 int main(void)
 {
-    kbd_work_mode_t initial_mode;
-
     /* 设置系统时钟 */
     SetSysClock(CLK_SOURCE_PLL_60MHz);
 
-    /* 低功耗配置：所有 GPIO 上拉输入 */
 #if (defined(HAL_SLEEP)) && (HAL_SLEEP == TRUE)
+    /* 低功耗模式：配置所有GPIO为上拉输入 */
     GPIOA_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
     GPIOB_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
 #endif
 
-    /* 初始化调试串口 */
 #ifdef DEBUG
+    /* 调试串口初始化 */
     Debug_Init();
 #endif
 
-    LOG_I(TAG, "=== USB/BLE Dual Mode Keyboard v2.0 ===");
-
-    /* 初始化 BLE 库 */
+    /* BLE 初始化 */
     CH59x_BLEInit();
-
-    /* 初始化 HAL */
+    
+    /* HAL 初始化 */
     HAL_Init();
-
-    /* 初始化 GAP 角色 */
+    
+    /* GAP 角色初始化（外设模式） */
     GAPRole_PeripheralInit();
-
-    /* 初始化 HID 设备 */
+    
+    /* HID 设备初始化 */
     HidDev_Init();
-
-    /* 初始化按键驱动 */
+    
+    /* 按键驱动初始化 */
     Key_Init();
-
-    /* 初始化配置存储 */
+    
+    /* 存储系统初始化 */
     KBD_Storage_Init();
-
-    /* 初始化配置命令处理 */
+    
+    /* 命令处理初始化 */
     KBD_Command_Init();
-
-    /* 初始化 RGB 效果引擎 */
+    
+    /* RGB 灯效初始化 */
     KBD_RGB_Init();
 
-    /* 初始化键盘核心 */
+    /* 电池检测初始化 */
+    KBD_Battery_Init();
+
+    /* HID 日志系统初始化 */
+    KBD_Log_Init();
+
+    /* 键盘核心模块初始化 */
     KBD_Core_Init();
+    
+    /* 模式管理器初始化（默认USB模式） */
+    kbd_work_mode_t initial_mode = KBD_WORK_MODE_USB;
+    KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks());
 
-    /* RGB 启动动画 */
-    KBD_RGB_Flash(255, 0, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(255, 255, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(0, 255, 0, 200);
-    DelayMs(250);
-    KBD_RGB_Flash(0, 0, 255, 200);
-    DelayMs(250);
-
-    /* 检测初始模式 */
-#if KBD_AUTO_SWITCH_TO_USB_ON_PLUG
-    initial_mode = KBD_WORK_MODE_USB;
-#else
-    initial_mode = KBD_WORK_MODE_BLE;
-#endif
-
-    /* 初始化模式管理器 */
-    if (KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks()) != 0) {
-        LOG_E(TAG, "Mode init failed!");
-        while (1);
-    }
-
-    LOG_I(TAG, "init mode: %s", (initial_mode == KBD_WORK_MODE_USB) ? "USB" : "BLE");
-    LOG_I(TAG, "system ready");
+    /* 记录启动事件 */
+    KBD_Log_SystemEvent(KBD_LOG_SYS_BOOT);
 
     /* 进入主循环 */
     Main_Circulation();
-
+    
     return 0;
 }

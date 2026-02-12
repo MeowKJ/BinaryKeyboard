@@ -248,12 +248,18 @@ void USB_Config_SendResponse(uint8_t cmd, uint8_t *data, uint8_t len)
  */
 void USB_Config_ProcessCommand(USB_ConfigReport_t *report)
 {
-    /* 转换为新的配置帧格式并调用配置命令处理器 */
+    /* 
+     * 帧格式: [CMD][SUB][LEN][DATA...]
+     * report->cmd = CMD
+     * report->data[0] = SUB
+     * report->data[1] = LEN
+     * report->data[2+] = DATA
+     */
     kbd_cmd_frame_t frame;
     frame.cmd = report->cmd;
     frame.sub = report->data[0];
-    frame.len = 60;  /* USB_ConfigReport_t.data 有效长度 */
-    memcpy(frame.data, &report->data[1], 60);
+    frame.len = report->data[1];  /* 使用包中的实际长度 */
+    memcpy(frame.data, &report->data[2], 59);  /* 跳过 SUB 和 LEN，从实际 DATA 开始 */
 
     KBD_Command_Process(&frame);
 }
