@@ -5,6 +5,7 @@
 
 void Debug_Init(void)
 {
+#if UART_LOG_ENABLE
     // 启用 UART1 引脚重映射: PA8/PA9 -> PB12/PB13
     GPIOPinRemap(ENABLE, RB_PIN_UART1);
 
@@ -15,39 +16,36 @@ void Debug_Init(void)
     // 初始化 UART1
     UART1_DefInit();
     UART1_BaudRateCfg(DEBUG_UART1_BAUDRATE);
-}
-
-static void Debug_PutChar(char c)
-{
-    while (R8_UART1_TFC == UART_FIFO_SIZE);
-    R8_UART1_THR = c;
-}
-
-static void Debug_PutString(const char *str)
-{
-    while (*str) {
-        Debug_PutChar(*str++);
-    }
+#endif
 }
 
 void Log_Output(const char *level, const char *tag, const char *fmt, ...)
 {
-    char buf[128];
+#if UART_LOG_ENABLE
+    static char buf[80];
     va_list args;
-    int len;
 
-    // 格式: [L/TAG] message
-    len = snprintf(buf, sizeof(buf), "[%s/%s] ", level, tag);
-    if (len > 0) {
-        Debug_PutString(buf);
-    }
+    // 格式: [L/TAG] message\n
+    int len = snprintf(buf, sizeof(buf), "[%s/%s] ", level, tag);
 
     va_start(args, fmt);
-    len = vsnprintf(buf, sizeof(buf), fmt, args);
+    len += vsnprintf(buf + len, sizeof(buf) - len, fmt, args);
     va_end(args);
 
-    if (len > 0) {
-        Debug_PutString(buf);
+    // 添加换行
+    if (len < (int)sizeof(buf) - 1) {
+        buf[len++] = '\n';
+        buf[len] = '\0';
     }
-    Debug_PutChar('\n');
+
+    // 直接输出到 UART1，输出 len 字节（不以 null 提前结束）
+    for (int i = 0; i < len; i++) {
+        while (R8_UART1_TFC == UART_FIFO_SIZE);
+        R8_UART1_THR = (uint8_t)buf[i];
+    }
+#else
+    (void)level;
+    (void)tag;
+    (void)fmt;
+#endif
 }

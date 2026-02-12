@@ -30,22 +30,8 @@ extern "C" {
 
 /*============================================================================*/
 /**
- * @defgroup KBD_CMD_DeviceInfo 设备信息
- * @brief 用于设备识别的常量定义
- * @{
- */
-
-#define KBD_VENDOR_ID           0x1234      /**< 厂商 ID */
-#define KBD_PRODUCT_ID          0x5678      /**< 产品 ID */
-#define KBD_VERSION_MAJOR       1           /**< 主版本号 */
-#define KBD_VERSION_MINOR       0           /**< 次版本号 */
-#define KBD_VERSION_PATCH       0           /**< 修订号 */
-
-/** @} */ /* end of KBD_CMD_DeviceInfo */
-
-/*============================================================================*/
-/**
  * @defgroup KBD_CMD_API 命令处理接口
+ * @brief 设备信息常量已在 kbd_types.h 中定义
  * @{
  */
 
