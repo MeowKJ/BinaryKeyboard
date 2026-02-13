@@ -237,13 +237,6 @@ static gattCharCfg_t hidReportBootKeyInClientCharCfg[GATT_MAX_NUM_CONN];
 static uint8_t hidReportBootKeyOutProps = GATT_PROP_READ | GATT_PROP_WRITE | GATT_PROP_WRITE_NO_RSP;
 static uint8_t hidReportBootKeyOut;
 
-/* ===== 特性报告 ===== */
-static uint8_t hidReportFeatureProps = GATT_PROP_READ | GATT_PROP_WRITE;
-static uint8_t hidReportFeature;
-static uint8_t hidReportRefFeature[HID_REPORT_REF_LEN] = {
-    HID_RPT_ID_FEATURE, HID_REPORT_TYPE_FEATURE
-};
-
 /* ==================== 属性表 ==================== */
 
 static gattAttribute_t hidAttrTbl[] = {
@@ -307,10 +300,6 @@ static gattAttribute_t hidAttrTbl[] = {
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportBootKeyOutProps},
     {{ATT_BT_UUID_SIZE, hidBootKeyOutputUUID}, GATT_PERMIT_ENCRYPT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, &hidReportBootKeyOut},
     
-    /* ===== 特性报告 ===== */
-    {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportFeatureProps},
-    {{ATT_BT_UUID_SIZE, hidReportUUID}, GATT_PERMIT_ENCRYPT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, &hidReportFeature},
-    {{ATT_BT_UUID_SIZE, reportRefUUID}, GATT_PERMIT_READ, 0, hidReportRefFeature},
 };
 
 /* ==================== 属性索引枚举 ==================== */
@@ -360,10 +349,6 @@ enum {
     HID_BOOT_KEY_OUT_DECL_IDX,
     HID_BOOT_KEY_OUT_IDX,
     
-    // 特性报告
-    HID_FEATURE_DECL_IDX,
-    HID_FEATURE_IDX,
-    HID_REPORT_REF_FEATURE_IDX,
 };
 
 /* ==================== 服务回调 ==================== */
@@ -445,14 +430,6 @@ bStatus_t HidKbdMouse_AddService(void)
     hidRptMap[idx].mode = HID_PROTOCOL_MODE_BOOT;
     idx++;
     
-    // 特性报告
-    hidRptMap[idx].id = hidReportRefFeature[0];
-    hidRptMap[idx].type = hidReportRefFeature[1];
-    hidRptMap[idx].handle = hidAttrTbl[HID_FEATURE_IDX].handle;
-    hidRptMap[idx].cccdHandle = 0;
-    hidRptMap[idx].mode = HID_PROTOCOL_MODE_REPORT;
-    idx++;
-    
     // 电池报告
     Batt_GetParameter(BATT_PARAM_BATT_LEVEL_IN_REPORT, &(hidRptMap[idx]));
     idx++;
@@ -473,13 +450,6 @@ uint8_t HidKbdMouse_SetParameter(uint8_t id, uint8_t type, uint16_t uuid,
             if (type == HID_REPORT_TYPE_OUTPUT) {
                 if (len == 1) {
                     hidReportLedOut = *((uint8_t *)pValue);
-                } else {
-                    ret = ATT_ERR_INVALID_VALUE_SIZE;
-                }
-            }
-            else if (type == HID_REPORT_TYPE_FEATURE) {
-                if (len == 1) {
-                    hidReportFeature = *((uint8_t *)pValue);
                 } else {
                     ret = ATT_ERR_INVALID_VALUE_SIZE;
                 }
@@ -511,10 +481,6 @@ uint8_t HidKbdMouse_GetParameter(uint8_t id, uint8_t type, uint16_t uuid,
         case REPORT_UUID:
             if (type == HID_REPORT_TYPE_OUTPUT) {
                 *((uint8_t *)pValue) = hidReportLedOut;
-                *pLen = 1;
-            }
-            else if (type == HID_REPORT_TYPE_FEATURE) {
-                *((uint8_t *)pValue) = hidReportFeature;
                 *pLen = 1;
             }
             else {

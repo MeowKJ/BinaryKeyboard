@@ -87,3 +87,6 @@ coverage
 build/
 .claude/
 .cache/
+
+# Windows reserved name (accidental create)
+nul
