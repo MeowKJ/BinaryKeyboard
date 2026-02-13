@@ -17,7 +17,7 @@
 
       <div class="welcome-content">
         <div class="logo-section">
-          <div class="logo-icon">⌨️</div>
+          <div class="logo-icon">🐱</div>
           <h1 class="app-title">BinaryKeyboard</h1>
           <p class="app-subtitle">开源二进制键盘改键工具</p>
         </div>
@@ -69,7 +69,7 @@
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
-          <span class="header-logo">⌨️</span>
+          <span class="header-logo">🐱</span>
           <span class="header-title">BinaryKeyboard</span>
         </div>
 
@@ -336,11 +336,11 @@
             <div class="deco-star deco-star-1">✨</div>
             <div class="deco-star deco-star-2">✨</div>
             <!-- 键盘装饰 -->
-            <span class="deco-emoji deco-cat-1">💡</span>
-            <span class="deco-emoji deco-cat-2">⌨️</span>
-            <span class="deco-emoji deco-cat-3">🔧</span>
+            <span class="deco-emoji deco-cat-1">😺</span>
+            <span class="deco-emoji deco-cat-2">🐱</span>
+            <span class="deco-emoji deco-cat-3">😸</span>
             <!-- 小装饰 -->
-            <span class="deco-mini deco-yarn">⚡</span>
+            <span class="deco-mini deco-yarn">🧶</span>
             <span class="deco-mini deco-star-3">⭐</span>
           </div>
 
