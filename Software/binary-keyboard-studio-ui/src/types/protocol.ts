@@ -1,5 +1,5 @@
 /**
- * MeowKeyboard 无线版 HID 通讯协议定义
+ * BinaryKeyboard 无线版 HID 通讯协议定义
  * 与固件 kbd_types.h 对应
  */
 
