@@ -1,6 +1,6 @@
 /**
- * MeowKeyboard Studio 主题配置
- * 可爱猫咪配色风格
+ * BinaryKeyboard Studio 主题配置
+ * 开源键盘配色风格
  */
 
 export type ThemeMode = 'light' | 'dark';

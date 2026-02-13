@@ -76,13 +76,14 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
         return ret;
     }
 
-    /* 根据初始模式决定是否初始化 USB */
+    /* 总是初始化 USB（配置通道 EP4 用于日志输出，BLE 模式下也需要） */
+    ret = KBD_Mode_USB_Init();
+    if (ret != 0) {
+        LOG_E(TAG, "USB init failed %d", ret);
+        return ret;
+    }
+
     if (initial_mode == KBD_WORK_MODE_USB) {
-        ret = KBD_Mode_USB_Init();
-        if (ret != 0) {
-            LOG_E(TAG, "USB init failed %d", ret);
-            return ret;
-        }
         KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
     } else {
         /* 蓝牙模式，开始广播 */

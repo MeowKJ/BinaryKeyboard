@@ -1,5 +1,5 @@
 /**
- * MeowKeyboard 调试终端状态管理
+ * BinaryKeyboard 调试终端状态管理
  * 记录所有 HID 双向通讯数据 + 固件推送日志
  */
 

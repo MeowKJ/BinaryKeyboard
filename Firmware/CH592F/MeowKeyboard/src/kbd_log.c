@@ -104,6 +104,12 @@ void KBD_Log_Init(void)
 
 void KBD_Log_Flush(void)
 {
+    /* USB 未插入时清空队列，防止 EP4 阻塞主循环 */
+    if (!KBD_Mode_USB_IsPlugged()) {
+        s_head = s_tail;
+        return;
+    }
+
     log_entry_t entry;
 
     for (uint8_t i = 0; i < LOG_FLUSH_COUNT; i++) {

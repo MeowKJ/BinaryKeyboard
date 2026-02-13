@@ -1,5 +1,5 @@
 /**
- * MeowKeyboard 设备状态管理
+ * BinaryKeyboard 设备状态管理
  */
 
 import { defineStore } from 'pinia';

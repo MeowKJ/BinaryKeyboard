@@ -10,7 +10,7 @@
       <div class="glow-header-left">
         <div class="glow-title">
           <span class="glow-title-icon glow-paw">🐾</span>
-          <span>Meow Terminal</span>
+          <span>Debug Terminal</span>
           <span class="glow-cat-emoji">😺</span>
         </div>
 
@@ -210,7 +210,7 @@
   <div class="glow-statusbar">
     <button class="glow-statusbar-toggle" @click="terminalStore.toggle()" :class="{ active: terminalStore.isOpen }">
       <span class="glow-statusbar-icon">🐾</span>
-      <span>Meow Terminal</span>
+      <span>Debug Terminal</span>
       <span v-if="terminalStore.entries.length > 0" class="glow-statusbar-count">
         {{ terminalStore.entries.length }}
       </span>
@@ -467,7 +467,7 @@ function onResizeEnd() {
   50% { transform: rotate(10deg) scale(1.1); }
 }
 
-/* 猫咪表情 */
+/* 装饰图标 */
 .glow-cat-emoji {
   font-size: 0.9rem;
   margin-left: 6px;
