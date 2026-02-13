@@ -1,0 +1,22 @@
+name: "CodeQL Configuration"
+
+# CodeQL 查询配置
+queries:
+  # 使用安全性和质量查询集
+  - uses: security-and-quality
+
+# 排除路径（可选）
+paths-ignore:
+  - '**/*.test.c'
+  - '**/*.test.cpp'
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/node_modules/**'
+  - '**/dist/**'
+  - '**/build/**'
+  - '**/.vitepress/dist/**'
+
+# 包含路径
+paths:
+  - 'Firmware/**'
+  - 'Software/**'
