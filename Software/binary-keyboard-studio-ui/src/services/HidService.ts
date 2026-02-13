@@ -1,5 +1,5 @@
 /**
- * MeowKeyboard HID 通讯服务
+ * BinaryKeyboard HID 通讯服务
  * 封装与键盘的 WebHID 通讯
  */
 
