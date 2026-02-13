@@ -9,9 +9,9 @@
     <div class="glow-header">
       <div class="glow-header-left">
         <div class="glow-title">
-          <span class="glow-title-icon glow-paw">🐾</span>
-          <span>Meow Terminal</span>
-          <span class="glow-cat-emoji">😺</span>
+          <span class="glow-title-icon glow-paw">🔌</span>
+          <span>Debug Terminal</span>
+          <span class="glow-cat-emoji">📡</span>
         </div>
 
         <!-- 过滤器标签 -->
@@ -95,16 +95,16 @@
     <div class="glow-body" ref="terminalBodyRef">
       <!-- 背景猫爪装饰 -->
       <div class="glow-paw-decorations">
-        <span class="glow-deco-paw paw-1">🐾</span>
-        <span class="glow-deco-paw paw-2">🐾</span>
-        <span class="glow-deco-paw paw-3">🐾</span>
-        <span class="glow-deco-yarn">🧶</span>
+        <span class="glow-deco-paw paw-1">⚡</span>
+        <span class="glow-deco-paw paw-2">⚡</span>
+        <span class="glow-deco-paw paw-3">⚡</span>
+        <span class="glow-deco-yarn">🔧</span>
       </div>
 
       <div v-if="terminalStore.filteredEntries.length === 0" class="glow-empty">
-        <div class="glow-empty-cat">😺</div>
-        <div class="glow-empty-icon">🐾 🐾 🐾</div>
-        <span>Waiting for meow data...</span>
+        <div class="glow-empty-cat">📡</div>
+        <div class="glow-empty-icon">⚡ ⚡ ⚡</div>
+        <span>Waiting for data...</span>
         <span class="glow-empty-hint">Connect keyboard to start capturing packets</span>
       </div>
 
@@ -210,11 +210,11 @@
   <div class="glow-statusbar">
     <button class="glow-statusbar-toggle" @click="terminalStore.toggle()" :class="{ active: terminalStore.isOpen }">
       <span class="glow-statusbar-icon">🐾</span>
-      <span>Meow Terminal</span>
+      <span>Debug Terminal</span>
       <span v-if="terminalStore.entries.length > 0" class="glow-statusbar-count">
         {{ terminalStore.entries.length }}
       </span>
-      <span v-if="terminalStore.isOpen" class="glow-statusbar-meow">😺</span>
+      <span v-if="terminalStore.isOpen" class="glow-statusbar-meow">📡</span>
     </button>
 
     <div class="glow-statusbar-info">
@@ -467,7 +467,7 @@ function onResizeEnd() {
   50% { transform: rotate(10deg) scale(1.1); }
 }
 
-/* 猫咪表情 */
+/* 装饰图标 */
 .glow-cat-emoji {
   font-size: 0.9rem;
   margin-left: 6px;
