@@ -25,7 +25,7 @@ permissions:
   actions: read
 
 jobs:
-  # CodeQL 安全扫描
+  # CodeQL 安全扫描（仅 JavaScript；C/C++ 固件使用 MounRiver/WCH 工具链，无标准构建系统）
   codeql-analysis:
     name: CodeQL Security Analysis
     runs-on: ubuntu-latest
@@ -34,11 +34,6 @@ jobs:
       contents: read
       security-events: write
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ['cpp', 'javascript']
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -46,7 +41,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
+          languages: javascript
           queries: +security-and-quality
 
       - name: Autobuild
@@ -55,7 +50,7 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{matrix.language}}"
+          category: "/language:javascript"
 
   # JavaScript/TypeScript 代码质量检查
   js-ts-quality:
@@ -66,17 +61,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
           cache-dependency-path: Software/binary-keyboard-studio-ui/pnpm-lock.yaml
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
 
       - name: Install dependencies
         working-directory: Software/binary-keyboard-studio-ui
