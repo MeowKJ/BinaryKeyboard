@@ -18,7 +18,7 @@
       <div class="welcome-content">
         <div class="logo-section">
           <div class="logo-icon">🐱</div>
-          <h1 class="app-title">MeowKeyboard</h1>
+          <h1 class="app-title">BinaryKeyboard</h1>
           <p class="app-subtitle">可爱二进制键盘改键工具</p>
         </div>
 
@@ -70,7 +70,7 @@
       <header class="app-header">
         <div class="header-left">
           <span class="header-logo">🐱</span>
-          <span class="header-title">MeowKeyboard</span>
+          <span class="header-title">BinaryKeyboard</span>
         </div>
 
         <div class="header-center">
