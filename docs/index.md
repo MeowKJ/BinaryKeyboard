@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: ⚡ 经典版
-      link: /classic/
+      link: /wired/
     - theme: alt
       text: 📡 无线版
       link: /wireless/
