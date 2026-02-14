@@ -90,3 +90,6 @@ build/
 
 # Windows reserved name (accidental create)
 nul
+
+# Local temporary commit message files
+commit_msg*.txt
