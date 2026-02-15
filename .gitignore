@@ -90,3 +90,26 @@ build/
 
 # Windows reserved name (accidental create)
 nul
+
+# Local temporary commit message files
+commit_msg*.txt
+
+# pnpm 本地缓存
+.pnpm-store/
+
+# 3D 模型与设计文件（另行存放，不纳入本仓库）
+Models/
+models/
+model/
+*.shapr
+*.blend
+*.blend1
+*.stl
+*.obj
+*.step
+*.stp
+*.3ds
+*.fbx
+*.dae
+*.glb
+*.gltf

@@ -183,12 +183,17 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[0].clickAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
+                    <option :value="0x02">蓝牙广播</option>
+                    <option :value="0x03">蓝牙断开</option>
+                    <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x12">RGB 上一模式</option>
                     <option :value="0x13">亮度+</option>
                     <option :value="0x14">亮度-</option>
                     <option :value="0x20">下一层</option>
                     <option :value="0x21">上一层</option>
+                    <option :value="0x40">休眠</option>
                   </select>
                 </div>
                 <div class="fn-item">
@@ -201,6 +206,7 @@
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x12">RGB 上一模式</option>
                     <option :value="0x13">亮度+</option>
                     <option :value="0x14">亮度-</option>
                     <option :value="0x20">下一层</option>
@@ -217,12 +223,17 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[1].clickAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
+                    <option :value="0x02">蓝牙广播</option>
+                    <option :value="0x03">蓝牙断开</option>
+                    <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x12">RGB 上一模式</option>
                     <option :value="0x13">亮度+</option>
                     <option :value="0x14">亮度-</option>
                     <option :value="0x20">下一层</option>
                     <option :value="0x21">上一层</option>
+                    <option :value="0x40">休眠</option>
                   </select>
                 </div>
                 <div class="fn-item">
@@ -235,6 +246,7 @@
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
+                    <option :value="0x12">RGB 上一模式</option>
                     <option :value="0x13">亮度+</option>
                     <option :value="0x14">亮度-</option>
                     <option :value="0x20">下一层</option>

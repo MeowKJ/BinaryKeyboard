@@ -34,19 +34,23 @@
 
 # 概述
 
+**BinaryKeyboard** 为本项目名称（项目名），开源迷你键盘固件与改键工具。
+
 # 快速开始
 
 # 环境
 
 ## 有线款
 
-[有线款](./Firmware/CH552G/README.md)
+[有线款](./firmware/CH552G/README.md)
 
 ## 无线款
 
-[无线款](./Firmware/CH592F/README.md)
+[无线款](./firmware/CH592F/README.md)
 
 # 贡献
+
+**分支与流程**：日常开发在 **`dev`** 分支进行，完成后通过 **Pull Request** 合并到 **`main`**。
 
 [![Contributors](https://contrib.rocks/image?repo=MeowKJ/BinaryKeyboard)](https://github.com/MeowKJ/BinaryKeyboard/graphs/contributors)
 
@@ -62,7 +66,7 @@
 </p>
 
 - **代码（Code）**：遵循 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html)  
-  适用范围：`/Firmware/**`、`/Software/**`、脚本与示例代码等。
+  适用范围：`/firmware/**`、`/tools/studio/**`、脚本与示例代码等。
 
 - **文档与素材（Docs & Assets）**：遵循 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans)  
   适用范围：`/Hardware/**`、`/Models/**`

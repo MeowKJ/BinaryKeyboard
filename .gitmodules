@@ -1,0 +1,3 @@
+[submodule "examples/openwch-ch592"]
+	path = examples/openwch-ch592
+	url = https://github.com/openwch/ch592.git

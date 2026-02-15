@@ -337,7 +337,7 @@ export interface DeviceInfo {
 /** 系统状态 (SYS_STATUS 响应) */
 export interface DeviceStatus {
   workMode: number; // 0=USB, 1=BLE
-  connectionState: number; // 0=断开, 1=已连接
+  connectionState: number; // 0=断开, 1=广播中, 2=已连接, 3=挂起
   currentLayer: number;
   batteryLevel: number;
   isCharging: boolean;
