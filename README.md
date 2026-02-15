@@ -50,6 +50,8 @@
 
 # 贡献
 
+**分支与流程**：日常开发在 **`dev`** 分支进行，完成后通过 **Pull Request** 合并到 **`main`**。
+
 [![Contributors](https://contrib.rocks/image?repo=MeowKJ/BinaryKeyboard)](https://github.com/MeowKJ/BinaryKeyboard/graphs/contributors)
 
 # 许可
