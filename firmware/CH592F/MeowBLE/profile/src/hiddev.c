@@ -1,4 +1,4 @@
-/********************************** (C) COPYRIGHT *******************************
+﻿/********************************** (C) COPYRIGHT *******************************
  * File Name          : hiddev.c
  * Author             : WCH
  * Version            : V1.0
@@ -21,13 +21,6 @@
 #include "ble_hid.h"
 #include "hiddev.h"
 
-extern void KBD_Log_BleDiagEvent(uint8_t state, uint8_t opcode, uint8_t reason, uint16_t connHandle);
-
-/* 配对/密码回调内不打 BLE 诊断日志，降低配对完成后卡死风险（见 FAQ#6）；设为 1 可恢复调试用 */
-#ifndef BLE_PAIRING_DIAG_LOG
-#define BLE_PAIRING_DIAG_LOG 1
-#endif
-
 /*********************************************************************
  * MACROS
  */
@@ -36,7 +29,7 @@ extern void KBD_Log_BleDiagEvent(uint8_t state, uint8_t opcode, uint8_t reason, 
 #define DEFAULT_BATT_PERIOD               15000
 
 // TRUE to run scan parameters refresh notify test
-#define DEFAULT_SCAN_PARAM_NOTIFY_TEST    FALSE
+#define DEFAULT_SCAN_PARAM_NOTIFY_TEST    TRUE
 
 // Advertising intervals (units of 625us, 160=100ms)
 #define HID_INITIAL_ADV_INT_MIN           48
@@ -54,18 +47,6 @@ extern void KBD_Log_BleDiagEvent(uint8_t state, uint8_t opcode, uint8_t reason, 
 // Heart Rate Task Events
 #define START_DEVICE_EVT                  0x0001
 #define BATT_PERIODIC_EVT                 0x0002
-
-#define BLE_DIAG_OP_PAIR_STARTED          0xB0
-#define BLE_DIAG_OP_PAIR_COMPLETE         0xB1
-#define BLE_DIAG_OP_PAIR_BONDED           0xB2
-#define BLE_DIAG_OP_PAIR_BOND_SAVED       0xB3
-#define BLE_DIAG_OP_PASSCODE_REQ          0xB4
-#define BLE_DIAG_OP_PASSCODE_RSP          0xB5
-#define BLE_DIAG_OP_CCCD_WRITE            0xB6
-#define BLE_DIAG_OP_GAP_MSG_ENTER         0xBD
-#define BLE_DIAG_OP_GAP_MSG_EXIT          0xBE
-#define BLE_DIAG_OP_PAIR_CB_ENTER         0xB9
-#define BLE_DIAG_OP_PAIR_CB_EXIT          0xBA
 
 /*********************************************************************
  * CONSTANTS
@@ -142,7 +123,6 @@ static void    hidDevLowAdvertising(void);
 static void    hidDevInitialAdvertising(void);
 static uint8_t hidDevBondCount(void);
 static uint8_t HidDev_sendNoti(uint16_t handle, uint8_t len, uint8_t *pData);
-static uint8_t hidDevMapGapStateToLog(gapRole_States_t state);
 /*********************************************************************
  * PROFILE CALLBACKS
  */
@@ -602,11 +582,6 @@ bStatus_t HidDev_WriteAttrCB(uint16_t connHandle, gattAttribute_t *pAttr,
         if(status == SUCCESS)
         {
             uint16_t charCfg = BUILD_UINT16(pValue[0], pValue[1]);
-            if(BLE_HID_IsEnabled())
-            {
-                KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                                     BLE_DIAG_OP_CCCD_WRITE, (uint8_t)(charCfg & 0xFF), pAttr->handle);
-            }
 
             // find report ID in table
             if((pRpt = hidDevRptByCccdHandle(pAttr->handle)) != NULL)
@@ -696,32 +671,6 @@ static void hidDevProcessGattMsg(gattMsgEvent_t *pMsg)
  */
 static void hidDevProcessGAPMsg(gapRoleEvent_t *pEvent)
 {
-    uint16_t diagHandle = 0xFFFF;
-    uint8_t diagReason = pEvent->gap.hdr.status;
-
-    if(pEvent->gap.opcode == GAP_LINK_ESTABLISHED_EVENT)
-    {
-        diagHandle = pEvent->linkCmpl.connectionHandle;
-    }
-    else if(pEvent->gap.opcode == GAP_LINK_PARAM_UPDATE_EVENT)
-    {
-        diagHandle = pEvent->linkUpdate.connectionHandle;
-        diagReason = pEvent->linkUpdate.status;
-    }
-    else if(pEvent->gap.opcode == GAP_LINK_TERMINATED_EVENT)
-    {
-        diagHandle = pEvent->linkTerminate.connectionHandle;
-        diagReason = pEvent->linkTerminate.reason;
-    }
-
-    if(BLE_HID_IsEnabled())
-    {
-        KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                             BLE_DIAG_OP_GAP_MSG_ENTER,
-                             pEvent->gap.opcode,
-                             diagHandle);
-    }
-
     switch(pEvent->gap.opcode)
     {
         case GAP_SCAN_REQUEST_EVENT:
@@ -740,14 +689,6 @@ static void hidDevProcessGAPMsg(gapRoleEvent_t *pEvent)
         }
         default:
             break;
-    }
-
-    if(BLE_HID_IsEnabled())
-    {
-        KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                             BLE_DIAG_OP_GAP_MSG_EXIT,
-                             diagReason,
-                             diagHandle);
     }
 }
 
@@ -812,21 +753,6 @@ static void hidDevDisconnected(void)
        (pHidDevCfg->hidFlags & HID_FLAGS_NORMALLY_CONNECTABLE))
     {
         hidDevLowAdvertising();
-    }
-}
-
-static uint8_t hidDevMapGapStateToLog(gapRole_States_t state)
-{
-    switch(state & GAPROLE_STATE_ADV_MASK)
-    {
-    case GAPROLE_ADVERTISING:
-        return 1;
-    case GAPROLE_CONNECTED:
-    case GAPROLE_CONNECTED_ADV:
-        return 2;
-    case GAPROLE_WAITING:
-    default:
-        return 0;
     }
 }
 
@@ -913,31 +839,8 @@ static void hidDevParamUpdateCB(uint16_t connHandle, uint16_t connInterval,
  */
 static void hidDevPairStateCB(uint16_t connHandle, uint8_t state, uint8_t status)
 {
-    uint8_t logState = hidDevMapGapStateToLog(hidDevGapState);
-#if BLE_PAIRING_DIAG_LOG
-    if(BLE_HID_IsEnabled())
-    {
-        KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_CB_ENTER, state, connHandle);
-    }
-#endif
-
-    if(state == GAPBOND_PAIRING_STATE_STARTED)
-    {
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_STARTED, status, connHandle);
-        }
-#endif
-    }
     if(state == GAPBOND_PAIRING_STATE_COMPLETE)
     {
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_COMPLETE, status, connHandle);
-        }
-#endif
         if(status == SUCCESS)
         {
             hidDevConnSecure = TRUE;
@@ -947,12 +850,6 @@ static void hidDevPairStateCB(uint16_t connHandle, uint8_t state, uint8_t status
     }
     else if(state == GAPBOND_PAIRING_STATE_BONDED)
     {
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_BONDED, status, connHandle);
-        }
-#endif
         if(status == SUCCESS)
         {
             hidDevConnSecure = TRUE;
@@ -964,20 +861,7 @@ static void hidDevPairStateCB(uint16_t connHandle, uint8_t state, uint8_t status
     }
     else if(state == GAPBOND_PAIRING_STATE_BOND_SAVED)
     {
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_BOND_SAVED, status, connHandle);
-        }
-#endif
     }
-
-#if BLE_PAIRING_DIAG_LOG
-    if(BLE_HID_IsEnabled())
-    {
-        KBD_Log_BleDiagEvent(logState, BLE_DIAG_OP_PAIR_CB_EXIT, status, connHandle);
-    }
-#endif
 }
 
 /*********************************************************************
@@ -995,25 +879,10 @@ static void hidDevPairStateCB(uint16_t connHandle, uint8_t state, uint8_t status
 static void hidDevPasscodeCB(uint8_t *deviceAddr, uint16_t connectionHandle,
                              uint8_t uiInputs, uint8_t uiOutputs)
 {
-#if BLE_PAIRING_DIAG_LOG
-    if(BLE_HID_IsEnabled())
-    {
-        KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                             BLE_DIAG_OP_PASSCODE_REQ, uiInputs, connectionHandle);
-    }
-#endif
-
     if(pHidDevCB && pHidDevCB->passcodeCB)
     {
         // execute HID app passcode callback
         (*pHidDevCB->passcodeCB)(deviceAddr, connectionHandle, uiInputs, uiOutputs);
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                                 BLE_DIAG_OP_PASSCODE_RSP, 0xFE, connectionHandle);
-        }
-#endif
     }
     else
     {
@@ -1022,13 +891,6 @@ static void hidDevPasscodeCB(uint8_t *deviceAddr, uint16_t connectionHandle,
 
         // Send passcode response
         GAPBondMgr_PasscodeRsp(connectionHandle, SUCCESS, passkey);
-#if BLE_PAIRING_DIAG_LOG
-        if(BLE_HID_IsEnabled())
-        {
-            KBD_Log_BleDiagEvent(hidDevMapGapStateToLog(hidDevGapState),
-                                 BLE_DIAG_OP_PASSCODE_RSP, SUCCESS, connectionHandle);
-        }
-#endif
     }
 }
 

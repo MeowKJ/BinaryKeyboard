@@ -90,8 +90,6 @@ void KBD_Log_ModeEvent(uint8_t old_mode, uint8_t new_mode);
  */
 void KBD_Log_BleEvent(uint8_t state);
 
-void KBD_Log_BleDiagEvent(uint8_t state, uint8_t opcode, uint8_t reason, uint16_t connHandle);
-
 /**
  * @brief 记录 RGB 事件
  * @param mode       RGB 模式

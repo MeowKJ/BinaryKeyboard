@@ -9,18 +9,7 @@
 #include "ble_hid_service.h"
 #include "hiddev.h"
 #include "battservice.h"
-#include "kbd_mode_config.h"
 #include <string.h>
-
-#if KBD_BLE_REQUIRE_ENCRYPT
-#define HID_PERMIT_READ_VALUE      GATT_PERMIT_ENCRYPT_READ
-#define HID_PERMIT_WRITE_VALUE     GATT_PERMIT_ENCRYPT_WRITE
-#else
-#define HID_PERMIT_READ_VALUE      GATT_PERMIT_READ
-#define HID_PERMIT_WRITE_VALUE     GATT_PERMIT_WRITE
-#endif
-#define HID_PERMIT_READWRITE_VALUE (HID_PERMIT_READ_VALUE | HID_PERMIT_WRITE_VALUE)
-#define HID_PERMIT_CCCD_WRITE      (GATT_PERMIT_READ | HID_PERMIT_WRITE_VALUE)
 
 /* ==================== UUID 定义 ==================== */
 
@@ -76,11 +65,10 @@ static const uint8_t hidInfo[HID_INFORMATION_LEN] = {
 
 // 复合 HID 报告描述符：键盘 + 鼠标 + 多媒体
 static const uint8_t hidReportMap[] = {
-    /* ========== 键盘报告 (Report ID 1) ========== */
+    /* ========== 键盘报告 (Report ID 0) ========== */
     0x05, 0x01,         // Usage Page (Generic Desktop)
     0x09, 0x06,         // Usage (Keyboard)
     0xA1, 0x01,         // Collection (Application)
-    0x85, 0x01,         //   Report ID (1)
     
     // 修饰键 (8 bits)
     0x05, 0x07,         //   Usage Page (Key Codes)
@@ -122,11 +110,11 @@ static const uint8_t hidReportMap[] = {
     
     0xC0,               // End Collection
     
-    /* ========== 鼠标报告 (Report ID 2) ========== */
+    /* ========== 鼠标报告 (Report ID 1) ========== */
     0x05, 0x01,         // Usage Page (Generic Desktop)
     0x09, 0x02,         // Usage (Mouse)
     0xA1, 0x01,         // Collection (Application)
-    0x85, 0x02,         //   Report ID (2)
+    0x85, 0x01,         //   Report ID (1)
     0x09, 0x01,         //   Usage (Pointer)
     0xA1, 0x00,         //   Collection (Physical)
     
@@ -159,11 +147,11 @@ static const uint8_t hidReportMap[] = {
     0xC0,               //   End Collection (Physical)
     0xC0,               // End Collection (Application)
     
-    /* ========== 多媒体报告 (Report ID 3) ========== */
+    /* ========== 多媒体报告 (Report ID 2) ========== */
     0x05, 0x0C,         // Usage Page (Consumer)
     0x09, 0x01,         // Usage (Consumer Control)
     0xA1, 0x01,         // Collection (Application)
-    0x85, 0x03,         //   Report ID (3)
+    0x85, 0x02,         //   Report ID (2)
     
     0x15, 0x00,         //   Logical Minimum (0)
     0x26, 0xFF, 0x03,   //   Logical Maximum (1023)
@@ -261,56 +249,56 @@ static gattAttribute_t hidAttrTbl[] = {
     // HID 信息声明
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidInfoProps},
     // HID 信息值
-    {{ATT_BT_UUID_SIZE, hidInfoUUID}, HID_PERMIT_READ_VALUE, 0, (uint8_t *)hidInfo},
+    {{ATT_BT_UUID_SIZE, hidInfoUUID}, GATT_PERMIT_ENCRYPT_READ, 0, (uint8_t *)hidInfo},
     
     // HID 控制点声明
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidControlPointProps},
     // HID 控制点值
-    {{ATT_BT_UUID_SIZE, hidControlPointUUID}, HID_PERMIT_WRITE_VALUE, 0, &hidControlPoint},
+    {{ATT_BT_UUID_SIZE, hidControlPointUUID}, GATT_PERMIT_ENCRYPT_WRITE, 0, &hidControlPoint},
     
     // HID 协议模式声明
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidProtocolModeProps},
     // HID 协议模式值
-    {{ATT_BT_UUID_SIZE, hidProtocolModeUUID}, HID_PERMIT_READWRITE_VALUE, 0, &hidProtocolMode},
+    {{ATT_BT_UUID_SIZE, hidProtocolModeUUID}, GATT_PERMIT_ENCRYPT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, &hidProtocolMode},
     
     // HID 报告映射声明
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportMapProps},
     // HID 报告映射值
-    {{ATT_BT_UUID_SIZE, hidReportMapUUID}, HID_PERMIT_READ_VALUE, 0, (uint8_t *)hidReportMap},
+    {{ATT_BT_UUID_SIZE, hidReportMapUUID}, GATT_PERMIT_ENCRYPT_READ, 0, (uint8_t *)hidReportMap},
     // 外部报告引用描述符
     {{ATT_BT_UUID_SIZE, extReportRefUUID}, GATT_PERMIT_READ, 0, hidExtReportRefDesc},
     
     /* ===== 键盘输入报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportKeyInProps},
-    {{ATT_BT_UUID_SIZE, hidReportUUID}, HID_PERMIT_READ_VALUE, 0, &hidReportKeyIn},
-    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, HID_PERMIT_CCCD_WRITE, 0, (uint8_t *)&hidReportKeyInClientCharCfg},
+    {{ATT_BT_UUID_SIZE, hidReportUUID}, GATT_PERMIT_ENCRYPT_READ, 0, &hidReportKeyIn},
+    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, GATT_PERMIT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, (uint8_t *)&hidReportKeyInClientCharCfg},
     {{ATT_BT_UUID_SIZE, reportRefUUID}, GATT_PERMIT_READ, 0, hidReportRefKeyIn},
     
     /* ===== 键盘 LED 输出报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportLedOutProps},
-    {{ATT_BT_UUID_SIZE, hidReportUUID}, HID_PERMIT_READWRITE_VALUE, 0, &hidReportLedOut},
+    {{ATT_BT_UUID_SIZE, hidReportUUID}, GATT_PERMIT_ENCRYPT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, &hidReportLedOut},
     {{ATT_BT_UUID_SIZE, reportRefUUID}, GATT_PERMIT_READ, 0, hidReportRefLedOut},
     
     /* ===== 鼠标输入报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportMouseInProps},
-    {{ATT_BT_UUID_SIZE, hidReportUUID}, HID_PERMIT_READ_VALUE, 0, &hidReportMouseIn},
-    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, HID_PERMIT_CCCD_WRITE, 0, (uint8_t *)&hidReportMouseInClientCharCfg},
+    {{ATT_BT_UUID_SIZE, hidReportUUID}, GATT_PERMIT_ENCRYPT_READ, 0, &hidReportMouseIn},
+    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, GATT_PERMIT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, (uint8_t *)&hidReportMouseInClientCharCfg},
     {{ATT_BT_UUID_SIZE, reportRefUUID}, GATT_PERMIT_READ, 0, hidReportRefMouseIn},
     
     /* ===== 多媒体输入报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportConsumerInProps},
-    {{ATT_BT_UUID_SIZE, hidReportUUID}, HID_PERMIT_READ_VALUE, 0, &hidReportConsumerIn},
-    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, HID_PERMIT_CCCD_WRITE, 0, (uint8_t *)&hidReportConsumerInClientCharCfg},
+    {{ATT_BT_UUID_SIZE, hidReportUUID}, GATT_PERMIT_ENCRYPT_READ, 0, &hidReportConsumerIn},
+    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, GATT_PERMIT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, (uint8_t *)&hidReportConsumerInClientCharCfg},
     {{ATT_BT_UUID_SIZE, reportRefUUID}, GATT_PERMIT_READ, 0, hidReportRefConsumerIn},
     
     /* ===== Boot 键盘输入报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportBootKeyInProps},
-    {{ATT_BT_UUID_SIZE, hidBootKeyInputUUID}, HID_PERMIT_READ_VALUE, 0, &hidReportBootKeyIn},
-    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, HID_PERMIT_CCCD_WRITE, 0, (uint8_t *)&hidReportBootKeyInClientCharCfg},
+    {{ATT_BT_UUID_SIZE, hidBootKeyInputUUID}, GATT_PERMIT_ENCRYPT_READ, 0, &hidReportBootKeyIn},
+    {{ATT_BT_UUID_SIZE, clientCharCfgUUID}, GATT_PERMIT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, (uint8_t *)&hidReportBootKeyInClientCharCfg},
     
     /* ===== Boot 键盘输出报告 ===== */
     {{ATT_BT_UUID_SIZE, characterUUID}, GATT_PERMIT_READ, 0, &hidReportBootKeyOutProps},
-    {{ATT_BT_UUID_SIZE, hidBootKeyOutputUUID}, HID_PERMIT_READWRITE_VALUE, 0, &hidReportBootKeyOut},
+    {{ATT_BT_UUID_SIZE, hidBootKeyOutputUUID}, GATT_PERMIT_ENCRYPT_READ | GATT_PERMIT_ENCRYPT_WRITE, 0, &hidReportBootKeyOut},
     
 };
 

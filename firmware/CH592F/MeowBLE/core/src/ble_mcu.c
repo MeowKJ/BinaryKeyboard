@@ -13,7 +13,6 @@
 /******************************************************************************/
 /* 头文件包含 */
 #include "ble_hal.h"
-#include "kbd_log.h"
 
 tmosTaskID halTaskID;
 uint32_t g_LLE_IRQLibHandlerLocation;
@@ -32,41 +31,6 @@ void Lib_Calibration_LSI (void) {
 }
 
 #if (defined(BLE_SNV)) && (BLE_SNV == TRUE)
-/* SNV write trace opcodes for UI DevLog */
-#define BLE_DIAG_OP_SNV_WRITE_ENTER   0xA0
-#define BLE_DIAG_OP_SNV_READ_DONE     0xA1
-#define BLE_DIAG_OP_SNV_MERGE_DONE    0xA2
-#define BLE_DIAG_OP_SNV_ERASE_DONE    0xA3
-#define BLE_DIAG_OP_SNV_WRITE_DONE    0xA4
-#define BLE_DIAG_OP_SNV_WRITE_EXIT    0xA5
-#define BLE_DIAG_OP_SNV_WRITE_REJECT  0xA9
-#define BLE_SNV_LOG_VERBOSE           0
-/* 在 SNV 写回调内不打 BLE 诊断日志，减轻配对期负载，降低配对完成后卡死风险（见 FAQ#6） */
-#define BLE_SNV_LOG_IN_WRITE          1
-
-/* Avoid stack pressure in BLE callback context. */
-__attribute__ ((aligned (4))) static uint8_t s_snv_flash_buf[BLE_SNV_BLOCK * BLE_SNV_NUM];
-
-static inline void BLE_MCU_LogSnv (uint8_t opcode, uint8_t reason, uint16_t value) {
-#if BLE_SNV_LOG_IN_WRITE
-    KBD_Log_BleDiagEvent (2, opcode, reason, value);
-#else
-    (void)opcode;
-    (void)reason;
-    (void)value;
-#endif
-}
-
-static inline void BLE_MCU_LogSnvVerbose (uint8_t opcode, uint8_t reason, uint16_t value) {
-#if BLE_SNV_LOG_VERBOSE
-    KBD_Log_BleDiagEvent (2, opcode, reason, value);
-#else
-    (void)opcode;
-    (void)reason;
-    (void)value;
-#endif
-}
-
 /*******************************************************************************
  * @fn      Lib_Read_Flash
  *
@@ -94,41 +58,12 @@ uint32_t Lib_Read_Flash (uint32_t addr, uint32_t num, uint32_t *pBuf) {
  *
  * @return  None.
  */
-static uint32_t Lib_Write_Flash_RMW (uint32_t addr, uint32_t num, uint32_t *pBuf) {
-    uint32_t snv_base = BLE_SNV_ADDR;
-    uint32_t snv_size = BLE_SNV_BLOCK * BLE_SNV_NUM;
-    uint32_t write_len = num * 4;
-    uint32_t erase_base;
-    uint32_t erase_len;
-
-    BLE_MCU_LogSnv (BLE_DIAG_OP_SNV_WRITE_ENTER, (uint8_t)num, (uint16_t)(addr - snv_base));
-
-    if ((addr < snv_base) || (write_len > snv_size) ||
-        ((addr - snv_base) > (snv_size - write_len))) {
-        BLE_MCU_LogSnv (BLE_DIAG_OP_SNV_WRITE_REJECT, 1, (uint16_t)write_len);
-        return 1;
-    }
-
-    EEPROM_READ (snv_base, s_snv_flash_buf, snv_size);
-    BLE_MCU_LogSnvVerbose (BLE_DIAG_OP_SNV_READ_DONE, 0, (uint16_t)snv_size);
-
-    tmos_memcpy (&s_snv_flash_buf[addr - snv_base], (uint8_t *)pBuf, write_len);
-    BLE_MCU_LogSnvVerbose (BLE_DIAG_OP_SNV_MERGE_DONE, 0, (uint16_t)write_len);
-
-    erase_base = snv_base & (~(EEPROM_BLOCK_SIZE - 1));
-    erase_len = ((snv_size + (snv_base - erase_base) + EEPROM_BLOCK_SIZE - 1) / EEPROM_BLOCK_SIZE) * EEPROM_BLOCK_SIZE;
-    EEPROM_ERASE (erase_base, erase_len);
-    BLE_MCU_LogSnvVerbose (BLE_DIAG_OP_SNV_ERASE_DONE, 0, (uint16_t)erase_len);
-
-    EEPROM_WRITE (snv_base, s_snv_flash_buf, snv_size);
-    BLE_MCU_LogSnvVerbose (BLE_DIAG_OP_SNV_WRITE_DONE, 0, (uint16_t)snv_size);
-    BLE_MCU_LogSnv (BLE_DIAG_OP_SNV_WRITE_EXIT, 0, 0);
-
-    return 0;
-}
-
 void Lib_Write_Flash_592A (uint32_t addr, uint32_t num, uint32_t *pBuf) {
-    (void)Lib_Write_Flash_RMW (addr, num, pBuf);
+    __attribute__ ((aligned (4))) uint32_t FLASH_BUF[(BLE_SNV_BLOCK * BLE_SNV_NUM) / 4];
+    EEPROM_READ (addr & 0xFFFFF000, FLASH_BUF, BLE_SNV_BLOCK * BLE_SNV_NUM);
+    tmos_memcpy (&FLASH_BUF[addr & 0xFFF], pBuf, num * 4);
+    EEPROM_ERASE (addr & 0xFFFFF000, ((BLE_SNV_BLOCK * BLE_SNV_NUM + EEPROM_BLOCK_SIZE - 1) / EEPROM_BLOCK_SIZE) * EEPROM_BLOCK_SIZE);
+    EEPROM_WRITE (addr & 0xFFFFF000, FLASH_BUF, BLE_SNV_BLOCK * BLE_SNV_NUM);
 }
 
 /*******************************************************************************
@@ -144,10 +79,11 @@ void Lib_Write_Flash_592A (uint32_t addr, uint32_t num, uint32_t *pBuf) {
  */
 uint32_t Lib_Write_Flash (uint32_t addr, uint32_t num, uint32_t *pBuf) {
     if (((*(uint32_t *)ROM_CFG_VERISON) & 0xFF) == DEF_CHIP_ID_CH592A) {
-        return Lib_Write_Flash_RMW (addr, num, pBuf);
+        Lib_Write_Flash_592A (addr, num, pBuf);
+    } else {
+        EEPROM_ERASE (addr, num * 4);
+        EEPROM_WRITE (addr, pBuf, num * 4);
     }
-    EEPROM_ERASE (addr, num * 4);
-    EEPROM_WRITE (addr, pBuf, num * 4);
     return 0;
 }
 #endif
@@ -182,7 +118,6 @@ void CH59x_BLEInit (void) {
     cfg.TxNumEvent = (uint32_t)BLE_TX_NUM_EVENT;
     cfg.TxPower = (uint32_t)BLE_TX_POWER;
 #if (defined(BLE_SNV)) && (BLE_SNV == TRUE)
-#if (defined(BLE_SNV_PERSIST_ENABLE)) && (BLE_SNV_PERSIST_ENABLE == TRUE)
     if ((BLE_SNV_ADDR + BLE_SNV_BLOCK * BLE_SNV_NUM) > (0x78000 - FLASH_ROM_MAX_SIZE)) {
         PRINT ("SNV config error...\n");
         while (1);
@@ -192,14 +127,6 @@ void CH59x_BLEInit (void) {
     cfg.SNVNum = (uint32_t)BLE_SNV_NUM;
     cfg.readFlashCB = Lib_Read_Flash;
     cfg.writeFlashCB = Lib_Write_Flash;
-#else
-    /* Disable bond persistence to bypass deterministic freeze after bond save. */
-    cfg.SNVAddr = 0;
-    cfg.SNVBlock = 0;
-    cfg.SNVNum = 0;
-    cfg.readFlashCB = 0;
-    cfg.writeFlashCB = 0;
-#endif
 #endif
     cfg.ConnectNumber = (PERIPHERAL_MAX_CONNECTION & 3) | (CENTRAL_MAX_CONNECTION << 2);
     cfg.srandCB = SYS_GetSysTickCnt;

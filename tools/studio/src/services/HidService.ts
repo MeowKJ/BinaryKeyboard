@@ -31,14 +31,9 @@ import {
   createEmptyFnKeyConfig,
   createDefaultRgbConfig,
   createDefaultLogConfig,
-} from "@/types/protocol";
-import { useTerminalStore } from "@/stores/terminalStore";
-import {
-  parseSendFrame,
-  parseReceiveFrame,
-  parseLogFrame,
-  toHexDump,
-} from "@/utils/protocolParser";
+} from '@/types/protocol';
+import { useTerminalStore } from '@/stores/terminalStore';
+import { parseSendFrame, parseReceiveFrame, parseLogFrame, toHexDump } from '@/utils/protocolParser';
 
 // ============================================================================
 // HID 过滤器
@@ -49,8 +44,8 @@ import {
 export const KEYBOARD_FILTER: HIDDeviceFilter = {
   vendorId: VENDOR_ID,
   productId: PRODUCT_ID,
-  usagePage: 0xff00, // Vendor Defined
-  usage: 0x01, // Vendor Usage 1
+  usagePage: 0xFF00,  // Vendor Defined
+  usage: 0x01,        // Vendor Usage 1
 };
 
 // 响应帧头大小 [CMD:1][SUB:1][LEN:1]
@@ -62,13 +57,8 @@ const RESP_HEADER_SIZE = 3;
 
 export class HidService {
   private device: HIDDevice | null = null;
-  private responsePromise: {
-    resolve: (data: DataView) => void;
-    reject: (err: Error) => void;
-  } | null = null;
+  private responsePromise: { resolve: (data: DataView) => void; reject: (err: Error) => void } | null = null;
   private responseTimeout: number | null = null;
-  private readonly inputReportHandler = (event: HIDInputReportEvent) =>
-    this.handleInputReport(event);
 
   // ----------------------------------------
   // 设备管理
@@ -77,13 +67,11 @@ export class HidService {
   /** 请求并选择设备 */
   async requestDevice(): Promise<HIDDevice | null> {
     try {
-      const devices = await navigator.hid.requestDevice({
-        filters: [KEYBOARD_FILTER],
-      });
+      const devices = await navigator.hid.requestDevice({ filters: [KEYBOARD_FILTER] });
       if (devices.length === 0) return null;
       return devices[0];
     } catch (error) {
-      console.error("请求 HID 设备失败:", error);
+      console.error('请求 HID 设备失败:', error);
       return null;
     }
   }
@@ -91,29 +79,20 @@ export class HidService {
   /** 获取已授权的设备 */
   async getAuthorizedDevice(): Promise<HIDDevice | null> {
     const devices = await navigator.hid.getDevices();
-    return (
-      devices.find(
-        (d) => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID,
-      ) || null
-    );
+    return devices.find(d => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID) || null;
   }
 
   /** 连接设备 */
   async connect(device: HIDDevice): Promise<boolean> {
     try {
-      if (this.device && this.device !== device) {
-        this.device.removeEventListener("inputreport", this.inputReportHandler);
-      }
-
       if (!device.opened) {
         await device.open();
       }
       this.device = device;
-      device.removeEventListener("inputreport", this.inputReportHandler);
-      device.addEventListener("inputreport", this.inputReportHandler);
+      device.addEventListener('inputreport', this.handleInputReport.bind(this));
       return true;
     } catch (error) {
-      console.error("打开 HID 设备失败:", error);
+      console.error('打开 HID 设备失败:', error);
       return false;
     }
   }
@@ -122,11 +101,8 @@ export class HidService {
   async disconnect(): Promise<void> {
     if (this.device) {
       try {
-        this.device.removeEventListener("inputreport", this.inputReportHandler);
         await this.device.close();
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
       this.device = null;
     }
   }
@@ -146,14 +122,9 @@ export class HidService {
   // ----------------------------------------
 
   /** 发送命令帧并等待响应 */
-  private async sendCommand(
-    cmd: Command,
-    sub = 0,
-    data: Uint8Array = new Uint8Array(0),
-    timeout = 3000,
-  ): Promise<DataView> {
+  private async sendCommand(cmd: Command, sub = 0, data: Uint8Array = new Uint8Array(0), timeout = 3000): Promise<DataView> {
     if (!this.device || !this.device.opened) {
-      throw new Error("设备未连接");
+      throw new Error('设备未连接');
     }
 
     // 构造帧
@@ -168,8 +139,8 @@ export class HidService {
       const terminalStore = useTerminalStore();
       const parsed = parseSendFrame(frame);
       terminalStore.addEntry({
-        direction: "send",
-        level: "info",
+        direction: 'send',
+        level: 'info',
         command: parsed.command,
         cmdHex: parsed.cmdHex,
         sub: parsed.sub,
@@ -177,15 +148,13 @@ export class HidService {
         rawHex: parsed.rawHex,
         parsed: parsed.parsed,
       });
-    } catch {
-      /* terminal store may not be ready */
-    }
+    } catch { /* terminal store may not be ready */ }
 
     // 发送
     try {
       await this.device.sendReport(REPORT_ID_COMMAND, frame);
     } catch (e) {
-      console.error("sendReport 失败:", e);
+      console.error('sendReport 失败:', e);
       throw e;
     }
 
@@ -194,7 +163,7 @@ export class HidService {
       this.responsePromise = { resolve, reject };
       this.responseTimeout = window.setTimeout(() => {
         this.responsePromise = null;
-        reject(new Error("命令响应超时"));
+        reject(new Error('命令响应超时'));
       }, timeout);
     });
   }
@@ -203,8 +172,7 @@ export class HidService {
   private handleInputReport(event: HIDInputReportEvent): void {
     // 无 Report ID 模式：reportId 为 0
     // 有 Report ID 模式：检查 reportId 是否匹配
-    if (REPORT_ID_RESPONSE !== 0 && event.reportId !== REPORT_ID_RESPONSE)
-      return;
+    if (REPORT_ID_RESPONSE !== 0 && event.reportId !== REPORT_ID_RESPONSE) return;
 
     const frameBytes = new Uint8Array(event.data.buffer);
     const cmd = frameBytes[0];
@@ -215,8 +183,8 @@ export class HidService {
         const terminalStore = useTerminalStore();
         const parsed = parseLogFrame(frameBytes);
         terminalStore.addEntry({
-          direction: "device",
-          level: "info",
+          direction: 'device',
+          level: 'info',
           command: parsed.command,
           cmdHex: parsed.cmdHex,
           sub: parsed.sub,
@@ -225,9 +193,7 @@ export class HidService {
           parsed: parsed.parsed,
           category: parsed.category,
         });
-      } catch {
-        /* terminal store may not be ready */
-      }
+      } catch { /* terminal store may not be ready */ }
       return;
     }
 
@@ -236,8 +202,8 @@ export class HidService {
       const terminalStore = useTerminalStore();
       const parsed = parseReceiveFrame(frameBytes);
       terminalStore.addEntry({
-        direction: "receive",
-        level: parsed.isError ? "error" : "success",
+        direction: 'receive',
+        level: parsed.isError ? 'error' : 'success',
         command: parsed.command,
         cmdHex: parsed.cmdHex,
         sub: parsed.sub,
@@ -246,9 +212,7 @@ export class HidService {
         parsed: parsed.parsed,
         statusCode: parsed.statusCode,
       });
-    } catch {
-      /* terminal store may not be ready */
-    }
+    } catch { /* terminal store may not be ready */ }
 
     if (this.responsePromise) {
       if (this.responseTimeout) {
@@ -270,7 +234,7 @@ export class HidService {
 
     // 响应帧格式: [CMD:1][SUB:1][LEN:1][DATA...]
     // DATA[0] = status, DATA[1..] = 实际数据
-    const d = RESP_HEADER_SIZE; // data offset
+    const d = RESP_HEADER_SIZE;  // data offset
     const status = resp.getUint8(d + 0);
     if (status !== ResponseCode.OK) {
       throw new Error(`SYS_INFO 失败: 0x${status.toString(16)}`);
@@ -311,14 +275,7 @@ export class HidService {
   }
 
   /** 获取指定层的按键映射 */
-  async getKeymap(
-    layerIndex: number,
-  ): Promise<{
-    numLayers: number;
-    currentLayer: number;
-    defaultLayer: number;
-    layer: LayerConfig;
-  }> {
+  async getKeymap(layerIndex: number): Promise<{ numLayers: number; currentLayer: number; defaultLayer: number; layer: LayerConfig }> {
     const resp = await this.sendCommand(Command.KEYMAP_GET, layerIndex);
 
     const d = RESP_HEADER_SIZE;
@@ -366,12 +323,7 @@ export class HidService {
   }
 
   /** 设置指定层的按键映射 */
-  async setKeymap(
-    layerIndex: number,
-    numLayers: number,
-    defaultLayer: number,
-    layer: LayerConfig,
-  ): Promise<void> {
+  async setKeymap(layerIndex: number, numLayers: number, defaultLayer: number, layer: LayerConfig): Promise<void> {
     const data = new Uint8Array(35); // 3 + 32
     data[0] = numLayers;
     data[1] = 0; // reserved
@@ -397,12 +349,7 @@ export class HidService {
   /** 设置完整按键映射 */
   async setFullKeymap(config: KeymapConfig): Promise<void> {
     for (let i = 0; i < config.numLayers; i++) {
-      await this.setKeymap(
-        i,
-        config.numLayers,
-        config.defaultLayer,
-        config.layers[i],
-      );
+      await this.setKeymap(i, config.numLayers, config.defaultLayer, config.layers[i]);
     }
   }
 
@@ -426,8 +373,7 @@ export class HidService {
       colorG: resp.getUint8(d + 6),
       colorB: resp.getUint8(d + 7),
       indicatorEnabled: resp.getUint8(d + 8) !== 0,
-      indicatorBrightness:
-        resp.byteLength >= d + 10 ? resp.getUint8(d + 9) : resp.getUint8(d + 3), // 兼容旧固件
+      indicatorBrightness: resp.byteLength >= d + 10 ? resp.getUint8(d + 9) : resp.getUint8(d + 3), // 兼容旧固件
     };
   }
 
@@ -527,11 +473,7 @@ export class HidService {
   }
 
   /** 获取电池信息 */
-  async getBattery(): Promise<{
-    level: number;
-    voltage: number;
-    isCharging: boolean;
-  }> {
+  async getBattery(): Promise<{ level: number; voltage: number; isCharging: boolean }> {
     const resp = await this.sendCommand(Command.BATTERY);
 
     const d = RESP_HEADER_SIZE;

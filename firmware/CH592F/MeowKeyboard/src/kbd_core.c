@@ -215,6 +215,7 @@ static void OnModeChange(kbd_work_mode_t new_mode)
 static void OnConnStateChange(kbd_conn_state_t state)
 {
     LOG_I(TAG, "conn state: %d", state);
+    KBD_Log_BleEvent((uint8_t)state);
 
     /* RGB 状态指示 */
     if (KBD_Mode_Get() == KBD_WORK_MODE_USB) {

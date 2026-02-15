@@ -111,12 +111,6 @@
 #ifndef BLE_SNV
 #define BLE_SNV TRUE
 #endif
-#ifndef BLE_SNV_PERSIST_ENABLE
-/* Temporary safety switch:
- * disable SNV bond persistence to avoid deterministic freeze after PAIRING_BOND_SAVED.
- * Set to TRUE after SNV path is fully validated. */
-#define BLE_SNV_PERSIST_ENABLE FALSE
-#endif
 #ifndef BLE_SNV_ADDR
 #define BLE_SNV_ADDR 0x77000 - FLASH_ROM_MAX_SIZE
 #endif

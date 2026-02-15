@@ -37,7 +37,7 @@
 
 **可尝试**：
 
-- **0x08 / 超时**：在 `Firmware/CH592F/MeowBLE/hid/include/kbd_mode_config.h` 中把 `KBD_BLE_CONN_TIMEOUT` 从 `500`（5 秒）改为 `600` 或 `800`，重新编译烧录。
+- **0x08 / 超时**：在 `firmware/CH592F/MeowBLE/hid/include/kbd_mode_config.h` 中把 `KBD_BLE_CONN_TIMEOUT` 从 `500`（5 秒）改为 `600` 或 `800`，重新编译烧录。
 - **0x3B / 参数不被接受**：同一文件里可适当放大 `KBD_BLE_CONN_INT_MIN/MAX`（如改为 16～32，即 20ms～40ms），或联系维护者调整连接参数更新时机。
 - **0x16 / 本机断开**：多为系统/驱动或省电策略断开，可尝试关闭该设备的「允许关闭此设备以节约电源」、更新蓝牙驱动或换一台设备对比。
 
@@ -50,7 +50,7 @@
 **可尝试**：
 
 1. **固件已做缓解**：① **状态回调延后**：BLE 状态变化不再在栈上下文中直接调用应用（`onStateChange`），而是写入待处理队列，由主循环 `KBD_Mode_Process` 中取出并执行，从而避免在 BLE 栈里执行 RGB/连接状态等逻辑导致卡死。② 以下路径内默认不再打 BLE 诊断日志：SNV 写、配对/密码回调、安全请求事件、状态回调内日志（宏 `BLE_SNV_LOG_IN_WRITE`、`BLE_PAIRING_DIAG_LOG`、`BLE_SECURITY_REQ_DIAG_LOG`、`BLE_STATE_CB_DIAG_LOG` 均为 0）。需要调试时可把对应宏设为 1 再编译。
-2. **关键验证：关闭绑定保存**：在 `Firmware/CH592F/MeowBLE/core/include/ble_config.h` 中把 `BLE_SNV` 设为 `FALSE` 后重新编译烧录，再测试“连接但不保存绑定”（每次重连需重新配对）：**若此时不再卡死，则问题在 SNV 写入或栈在写完成后的流程**；若仍卡死，则更可能是栈在配对完成回调返回后的其它路径有问题。
+2. **关键验证：关闭绑定保存**：在 `firmware/CH592F/MeowBLE/core/include/ble_config.h` 中把 `BLE_SNV` 设为 `FALSE` 后重新编译烧录，再测试“连接但不保存绑定”（每次重连需重新配对）：**若此时不再卡死，则问题在 SNV 写入或栈在写完成后的流程**；若仍卡死，则更可能是栈在配对完成回调返回后的其它路径有问题。
 3. **更新 BLE 库 / 芯片固件**：查看 WCH 官方是否有 CH592 BLE ROM/SDK 更新或勘误说明，针对配对后死机有无修复或建议。
 4. **缩短配对期负载**：确保在配对阶段不要同时做大量配置保存或其它 Flash 写（例如改键工具里暂不点“保存配置”），减少与 SNV 写争用或阻塞主循环的可能。
 

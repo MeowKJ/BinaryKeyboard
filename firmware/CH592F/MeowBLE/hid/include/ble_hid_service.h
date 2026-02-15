@@ -18,15 +18,15 @@ extern "C" {
 /* ==================== 报告数量定义 ==================== */
 
 // HID 报告数量（键盘输入、键盘LED输出、鼠标输入、多媒体输入、Boot键盘输入/输出、特性报告、电池）
-#define HID_NUM_REPORTS             7
+#define HID_NUM_REPORTS             9
 
 /* ==================== 报告 ID 定义 ==================== */
 
-#define HID_RPT_ID_KEY_IN           1       // Keyboard input report
-#define HID_RPT_ID_MOUSE_IN         2       // Mouse input report
-#define HID_RPT_ID_CONSUMER_IN      3       // Consumer input report
-#define HID_RPT_ID_LED_OUT          1       // Keyboard LED output report
-#define HID_RPT_ID_FEATURE          1       // Feature report
+#define HID_RPT_ID_KEY_IN           0       // 键盘输入报告
+#define HID_RPT_ID_MOUSE_IN         1       // 鼠标输入报告
+#define HID_RPT_ID_CONSUMER_IN      2       // 多媒体输入报告
+#define HID_RPT_ID_LED_OUT          0       // LED 输出报告
+#define HID_RPT_ID_FEATURE          0       // 特性报告
 
 /* ==================== HID 特性标志 ==================== */
 

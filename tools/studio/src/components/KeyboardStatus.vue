@@ -75,31 +75,20 @@ const batColor = computed(() => {
 
 const batteryIcon = computed(() => {
   if (isCharging.value) return 'pi-bolt';
-  return 'pi-power-off';
+  if (batteryLevel.value > 75) return 'pi-battery';
+  if (batteryLevel.value > 25) return 'pi-battery';
+  return 'pi-battery';
 });
 
 // 连接模式
-const bleConnText = computed(() => {
-  const state = deviceStore.deviceStatus?.connectionState ?? 0;
-  if (state === 2) return '已连接';
-  if (state === 1) return '广播中';
-  if (state === 3) return '挂起';
-  return '未连接';
-});
-
 const connectionMode = computed(() => {
   const mode = deviceStore.deviceStatus?.workMode ?? 0;
-  return mode === 1 ? `BLE · ${bleConnText.value}` : 'USB · 已连接';
+  return mode === 1 ? 'BLE' : 'USB';
 });
 
 const connectionIcon = computed(() => {
   const mode = deviceStore.deviceStatus?.workMode ?? 0;
-  if (mode !== 1) return 'pi-link';
-
-  const state = deviceStore.deviceStatus?.connectionState ?? 0;
-  if (state === 2) return 'pi-wifi';
-  if (state === 1) return 'pi-sync';
-  return 'pi-times-circle';
+  return mode === 1 ? 'pi-wifi' : 'pi-link';
 });
 
 // RGB 状态

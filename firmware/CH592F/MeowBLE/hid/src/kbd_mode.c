@@ -10,8 +10,6 @@
 #include "ble_hid.h"
 #include "usb_device.h"
 #include "usb_hid.h"
-#include "kbd_storage.h"
-#include "kbd_log.h"
 #include "debug.h"
 #include <string.h>
 
@@ -31,11 +29,6 @@ static bool g_is_sleeping = false;
 static uint8_t g_kbd_report[KBD_HID_KEYBOARD_REPORT_LEN];
 static uint8_t g_mouse_report[KBD_HID_MOUSE_REPORT_LEN];
 static uint16_t g_consumer_report;
-static uint8_t g_last_ble_send_err[3] = {0xFF, 0xFF, 0xFF};
-
-#define BLE_DIAG_OP_KEYBOARD_REPORT     0xE1
-#define BLE_DIAG_OP_MOUSE_REPORT        0xE2
-#define BLE_DIAG_OP_CONSUMER_REPORT     0xE3
 
 /*============================================================================*/
 /* 私有函数声明 */
@@ -46,8 +39,6 @@ static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState);
 static void KBD_Mode_BLE_LedCallback(uint8_t leds);
 static int KBD_Mode_USB_Init(void);
 static int KBD_Mode_BLE_InitInternal(void);
-static void KBD_Mode_PersistDefaultMode(kbd_work_mode_t mode);
-static void KBD_Mode_LogBleSendStatus(uint8_t slot, uint8_t opcode, int ret);
 
 /*============================================================================*/
 /* BLE 回调 */
@@ -93,10 +84,8 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
     }
 
     if (initial_mode == KBD_WORK_MODE_USB) {
-        BLE_HID_Disable();
         KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
     } else {
-        BLE_HID_Enable();
         /* 蓝牙模式，开始广播 */
 #if KBD_AUTO_START_ADVERTISING
         BLE_HID_StartAdvertising();
@@ -108,15 +97,6 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
 
 void KBD_Mode_Process(void)
 {
-    /* 在主循环中执行 BLE 状态回调，避免在 BLE 栈上下文中调用应用层导致卡死（见 FAQ#6） */
-    gapRole_States_t state;
-    while (BLE_HID_PollStateChange(&state)) {
-        KBD_Mode_BLE_StateCallback(state);
-    }
-
-    /* Process USB EP4 config commands in main loop context (non-ISR). */
-    USB_Config_PollProcess();
-
 #if KBD_AUTO_SWITCH_TO_USB_ON_PLUG
     /* 检测 USB 插入状态变化 */
     static bool last_usb_plugged = false;
@@ -150,7 +130,11 @@ int KBD_Mode_Switch(kbd_work_mode_t mode)
 
     if (mode == KBD_WORK_MODE_USB) {
         /* 切换到 USB 模式 */
-        BLE_HID_Disable();
+        if (BLE_HID_IsConnected()) {
+            BLE_HID_Disconnect();
+        } else {
+            BLE_HID_StopAdvertising();
+        }
 
         KBD_Mode_USB_Init();
         g_current_mode = KBD_WORK_MODE_USB;
@@ -158,7 +142,6 @@ int KBD_Mode_Switch(kbd_work_mode_t mode)
 
     } else {
         /* 切换到蓝牙模式 */
-        BLE_HID_Enable();
         g_current_mode = KBD_WORK_MODE_BLE;
 
 #if KBD_AUTO_START_ADVERTISING
@@ -168,8 +151,6 @@ int KBD_Mode_Switch(kbd_work_mode_t mode)
         KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
 #endif
     }
-
-    KBD_Mode_PersistDefaultMode(mode);
 
     /* 调用模式切换回调 */
     if (g_pCallbacks && g_pCallbacks->onModeChange) {
@@ -277,9 +258,6 @@ int KBD_Mode_USB_Wakeup(void)
 int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_count)
 {
     if (!KBD_Mode_IsConnected()) {
-        if (g_current_mode == KBD_WORK_MODE_BLE) {
-            KBD_Mode_LogBleSendStatus(0, BLE_DIAG_OP_KEYBOARD_REPORT, -1);
-        }
         return -1;
     }
 
@@ -297,9 +275,7 @@ int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_cou
         USB_Keyboard_Press(modifier, keys, key_count);
         return 0;
     } else {
-        int ret = BLE_HID_SendKeyboardReport(modifier, keys, key_count);
-        KBD_Mode_LogBleSendStatus(0, BLE_DIAG_OP_KEYBOARD_REPORT, ret);
-        return ret;
+        return BLE_HID_SendKeyboardReport(modifier, keys, key_count);
     }
 }
 
@@ -329,9 +305,6 @@ int KBD_Mode_ReleaseAllKeys(void)
 int KBD_Mode_SendMouseReport(uint8_t buttons, int8_t x, int8_t y, int8_t wheel)
 {
     if (!KBD_Mode_IsConnected()) {
-        if (g_current_mode == KBD_WORK_MODE_BLE) {
-            KBD_Mode_LogBleSendStatus(1, BLE_DIAG_OP_MOUSE_REPORT, -1);
-        }
         return -1;
     }
 
@@ -345,9 +318,7 @@ int KBD_Mode_SendMouseReport(uint8_t buttons, int8_t x, int8_t y, int8_t wheel)
         g_mouse_report[0] = buttons;
         return 0;
     } else {
-        int ret = BLE_HID_SendMouseReport(buttons, x, y, wheel);
-        KBD_Mode_LogBleSendStatus(1, BLE_DIAG_OP_MOUSE_REPORT, ret);
-        return ret;
+        return BLE_HID_SendMouseReport(buttons, x, y, wheel);
     }
 }
 
@@ -366,9 +337,6 @@ int KBD_Mode_SendMouseClick(uint8_t buttons)
 int KBD_Mode_SendConsumerReport(uint16_t key)
 {
     if (!KBD_Mode_IsConnected()) {
-        if (g_current_mode == KBD_WORK_MODE_BLE) {
-            KBD_Mode_LogBleSendStatus(2, BLE_DIAG_OP_CONSUMER_REPORT, -1);
-        }
         return -1;
     }
 
@@ -380,9 +348,7 @@ int KBD_Mode_SendConsumerReport(uint16_t key)
         }
         return 0;
     } else {
-        int ret = BLE_HID_SendConsumerReport(key);
-        KBD_Mode_LogBleSendStatus(2, BLE_DIAG_OP_CONSUMER_REPORT, ret);
-        return ret;
+        return BLE_HID_SendConsumerReport(key);
     }
 }
 
@@ -472,7 +438,6 @@ static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState)
             break;
 
         case GAPROLE_CONNECTED:
-        case GAPROLE_CONNECTED_ADV:
             LOG_I(TAG, "BLE connected");
             KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
             break;
@@ -485,44 +450,6 @@ static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState)
         default:
             break;
     }
-}
-
-static void KBD_Mode_PersistDefaultMode(kbd_work_mode_t mode)
-{
-    kbd_system_config_t *sys = KBD_GetSystemConfig();
-    uint8_t mode_u8 = (uint8_t)mode;
-    int ret = 0;
-
-    if (sys->default_mode == mode_u8) {
-        return;
-    }
-
-    sys->default_mode = mode_u8;
-    ret = KBD_Config_Save();
-    if (ret != 0) {
-        LOG_W(TAG, "save default mode failed: %d", ret);
-    }
-}
-
-static void KBD_Mode_LogBleSendStatus(uint8_t slot, uint8_t opcode, int ret)
-{
-    uint8_t code = (ret < 0) ? 0xFF : (uint8_t)ret;
-
-    if (slot >= 3) {
-        return;
-    }
-
-    if (ret == 0) {
-        g_last_ble_send_err[slot] = 0;
-        return;
-    }
-
-    if (g_last_ble_send_err[slot] == code) {
-        return;
-    }
-
-    g_last_ble_send_err[slot] = code;
-    KBD_Log_BleDiagEvent((uint8_t)g_conn_state, opcode, code, 0xFFFF);
 }
 
 static void KBD_Mode_BLE_LedCallback(uint8_t leds)

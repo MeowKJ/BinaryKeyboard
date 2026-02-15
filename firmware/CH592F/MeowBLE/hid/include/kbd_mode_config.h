@@ -44,7 +44,7 @@ typedef enum {
 #define KBD_MODE_SWITCH_HOLD_MS         800
 
 /** 切换到蓝牙后自动开始广播 */
-#define KBD_AUTO_START_ADVERTISING      0
+#define KBD_AUTO_START_ADVERTISING      1
 
 /** USB 插入时自动切换到 USB 模式（默认启用，开机即为 USB 模式） */
 #define KBD_AUTO_SWITCH_TO_USB_ON_PLUG  1
@@ -54,28 +54,25 @@ typedef enum {
 /*============================================================================*/
 
 /** 设备名称 */
-#define KBD_BLE_DEVICE_NAME             "BinaryKeyboard BT"
-#define KBD_BLE_DEVICE_NAME_LEN         17
+#define KBD_BLE_DEVICE_NAME             "MeowKeyboard"
+#define KBD_BLE_DEVICE_NAME_LEN         12
 
 /** 广播参数（单位：0.625ms） */
 #define KBD_BLE_ADV_INT_MIN             48      /**< 30ms */
 #define KBD_BLE_ADV_INT_MAX             80      /**< 50ms */
 #define KBD_BLE_ADV_TIMEOUT             60      /**< 60秒超时 */
 
-/** 连接参数（单位：1.25ms）；超时单位 10ms */
-#define KBD_BLE_CONN_INT_MIN            12      /**< 15ms */
-#define KBD_BLE_CONN_INT_MAX            24      /**< 30ms */
-#define KBD_BLE_SLAVE_LATENCY           0       /**< 从机延迟 */
-#define KBD_BLE_CONN_TIMEOUT            600     /**< 监督超时 6s；若连接后易断开可试 800(8s)，见 docs/faq.md */
+/** 连接参数（单位：1.25ms） */
+#define KBD_BLE_CONN_INT_MIN            8       /**< 10ms */
+#define KBD_BLE_CONN_INT_MAX            8       /**< 10ms */
+#define KBD_BLE_SLAVE_LATENCY           20      /**< 从机延迟 */
+#define KBD_BLE_CONN_TIMEOUT            500     /**< 5秒超时 */
 
 /** 配对模式 */
 #define KBD_BLE_PAIRING_MODE            GAPBOND_PAIRING_MODE_WAIT_FOR_REQ
 #define KBD_BLE_MITM_MODE               FALSE
 #define KBD_BLE_BONDING_MODE            TRUE
 #define KBD_BLE_IO_CAPABILITIES         GAPBOND_IO_CAP_NO_INPUT_NO_OUTPUT
-
-/** BLE HID 属性是否要求加密（调试阶段可关闭以绕过主机配对失败） */
-#define KBD_BLE_REQUIRE_ENCRYPT         1
 
 /** HID 空闲超时（毫秒），0 表示不超时 */
 #define KBD_BLE_HID_IDLE_TIMEOUT        60000
@@ -90,17 +87,17 @@ typedef enum {
 
 /** USB 设备字符串 */
 #define KBD_USB_MANUFACTURER_STRING     "MeowKJ"
-#define KBD_USB_PRODUCT_STRING          "BinaryKeyboard USB"
+#define KBD_USB_PRODUCT_STRING          "MeowKeyboard HID"
 
 /*============================================================================*/
 /* HID 报告配置 */
 /*============================================================================*/
 
 /** HID 报告 ID */
-#define KBD_HID_RPT_ID_KEYBOARD         1       /**< 键盘报告 ID */
-#define KBD_HID_RPT_ID_MOUSE            2       /**< 鼠标报告 ID */
-#define KBD_HID_RPT_ID_CONSUMER         3       /**< 多媒体报告 ID */
-#define KBD_HID_RPT_ID_LED_OUT          1       /**< LED 输出报告 ID */
+#define KBD_HID_RPT_ID_KEYBOARD         0       /**< 键盘报告 ID */
+#define KBD_HID_RPT_ID_MOUSE            1       /**< 鼠标报告 ID */
+#define KBD_HID_RPT_ID_CONSUMER         2       /**< 多媒体报告 ID */
+#define KBD_HID_RPT_ID_LED_OUT          0       /**< LED 输出报告 ID */
 
 /** 报告长度 */
 #define KBD_HID_KEYBOARD_REPORT_LEN     8       /**< 键盘报告长度 */

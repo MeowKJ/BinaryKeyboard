@@ -151,12 +151,13 @@
 
           <!-- 状态码 -->
           <span
+            v-if="entry.statusCode"
             class="glow-status"
-            :class="{ error: entry.level === 'error', muted: !entry.statusCode }"
-          >{{ entry.statusCode || '--' }}</span>
+            :class="{ error: entry.level === 'error' }"
+          >{{ entry.statusCode }}</span>
 
           <!-- 耗时 -->
-          <span class="glow-duration">{{ entry.duration !== undefined ? `${entry.duration}ms` : '--' }}</span>
+          <span v-if="entry.duration !== undefined" class="glow-duration">{{ entry.duration }}ms</span>
 
           <!-- 解析摘要 -->
           <span class="glow-parsed-brief">{{ entry.parsed }}</span>
@@ -598,8 +599,8 @@ function onResizeEnd() {
 .glow-body {
   flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
-  padding: 6px 0;
+  overflow-x: hidden;
+  padding: 2px 0;
   position: relative;
   z-index: 1;
 }
@@ -741,7 +742,7 @@ function onResizeEnd() {
   display: flex;
   flex-direction: column;
   padding: 0;
-  margin: 0 6px 5px 6px;
+  margin: 0 4px 1px 4px;
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, box-shadow 0.25s;
@@ -762,7 +763,7 @@ function onResizeEnd() {
     0 0 16px var(--entry-glow-soft, transparent),
     inset 0 0 30px var(--entry-glow-soft, transparent);
   border: 1px solid var(--entry-glow-med, transparent);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 /* Left glow bar */
@@ -809,19 +810,19 @@ function onResizeEnd() {
 
 /* Main content line */
 .glow-entry-main {
-  display: grid;
-  grid-template-columns: 96px 44px 84px 96px 52px 48px 72px minmax(260px, 1fr);
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px 6px 14px;
-  min-height: 28px;
-  min-width: 860px;
+  padding: 4px 10px 4px 14px;
+  min-height: 26px;
+  flex-wrap: wrap;
 }
 
 .glow-time {
   font-size: 0.65rem;
   color: var(--glow-text-muted);
-  width: 96px;
+  min-width: 85px;
+  flex-shrink: 0;
 }
 
 .glow-direction {
@@ -830,8 +831,9 @@ function onResizeEnd() {
   padding: 1px 6px;
   border-radius: 3px;
   letter-spacing: 0.05em;
-  width: 44px;
+  min-width: 32px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .glow-direction.send {
@@ -856,40 +858,32 @@ function onResizeEnd() {
   font-size: 0.73rem;
   font-weight: 700;
   letter-spacing: 0.02em;
-  width: 84px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .glow-hex-brief {
   font-size: 0.62rem;
   color: var(--glow-text-muted);
   letter-spacing: 0.08em;
-  width: 96px;
-  text-align: center;
+  flex-shrink: 0;
 }
 
 .glow-len {
   font-size: 0.62rem;
   color: var(--glow-text-muted);
   opacity: 0.6;
-  width: 52px;
-  text-align: center;
+  flex-shrink: 0;
 }
 
 .glow-status {
   font-size: 0.62rem;
   font-weight: 700;
   color: #4ade80;
-  padding: 0 4px;
+  padding: 0 5px;
   background: rgba(74, 222, 128, 0.08);
   border-radius: 3px;
   text-shadow: 0 0 6px rgba(74, 222, 128, 0.3);
-  width: 48px;
-  min-width: 48px;
-  text-align: center;
-  justify-self: center;
+  flex-shrink: 0;
 }
 
 .glow-status.error {
@@ -898,18 +892,11 @@ function onResizeEnd() {
   text-shadow: 0 0 6px rgba(251, 113, 133, 0.3);
 }
 
-.glow-status.muted {
-  color: var(--glow-text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  text-shadow: none;
-}
-
 .glow-duration {
   font-size: 0.6rem;
   color: var(--glow-text-muted);
   opacity: 0.5;
-  width: 72px;
-  text-align: center;
+  flex-shrink: 0;
 }
 
 .glow-parsed-brief {
@@ -920,17 +907,6 @@ function onResizeEnd() {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
-}
-
-@media (max-width: 900px) {
-  .glow-entry-main {
-    grid-template-columns: 88px 40px 76px 84px 48px 44px 64px minmax(180px, 1fr);
-    min-width: 720px;
-    gap: 6px;
-  }
-  .glow-command {
-    width: 76px;
-  }
 }
 
 /* Error entry highlight */

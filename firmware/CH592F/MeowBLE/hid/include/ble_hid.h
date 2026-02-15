@@ -89,13 +89,6 @@ bool BLE_HID_IsConnected(void);
 gapRole_States_t BLE_HID_GetState(void);
 
 /**
- * @brief 从主循环取出待处理的状态变化（避免在 BLE 栈上下文中执行应用回调，降低卡死风险）
- * @param out_state 输出状态值
- * @return true 有待处理状态并已写入 out_state，false 无
- */
-bool BLE_HID_PollStateChange(gapRole_States_t *out_state);
-
-/**
  * @brief 清除所有绑定
  * @return 0 成功，其他失败
  */
@@ -152,7 +145,6 @@ void BLE_HID_Enable(void);
  * @brief 禁用 BLE（进入低功耗前）
  */
 void BLE_HID_Disable(void);
-bool BLE_HID_IsEnabled(void);
 
 /* ==================== 内部使用 ==================== */
 
@@ -163,8 +155,6 @@ extern uint8_t bleHidTaskId;
 #define BLE_HID_START_DEVICE_EVT        0x0001
 #define BLE_HID_PARAM_UPDATE_EVT        0x0002
 #define BLE_HID_PHY_UPDATE_EVT          0x0004
-#define BLE_HID_HID_READY_CHECK_EVT     0x0008
-#define BLE_HID_SECURITY_REQ_EVT        0x0010
 
 #ifdef __cplusplus
 }

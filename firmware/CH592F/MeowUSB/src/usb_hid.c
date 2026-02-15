@@ -20,10 +20,6 @@ USB_KeyboardReport_t g_KeyboardReport = {0};
 USB_MouseReport_t    g_MouseReport = {0};
 USB_ConsumerReport_t g_ConsumerReport = {0};
 USB_ConfigReport_t   g_ConfigReport = {0};
-static USB_ConfigReport_t s_PendingConfigReport = {0};
-static volatile uint8_t s_PendingConfigValid = 0;
-static USB_ConfigReport_t s_PendingOutReport = {0};
-static volatile uint8_t s_PendingOutValid = 0;
 
 uint8_t g_KeyboardLEDs = 0;
 
@@ -83,9 +79,7 @@ void USB_Keyboard_Type(uint8_t modifier, uint8_t key)
 void USB_Keyboard_SendReport(void)
 {
     // 等待上一次传输完成
-    if(!EP1_GetINSta()) {
-        return;
-    }
+    while(!EP1_GetINSta());
     
     memcpy(pEP1_IN_DataBuf, &g_KeyboardReport, sizeof(USB_KeyboardReport_t));
     DevEP1_IN_Deal(sizeof(USB_KeyboardReport_t));
@@ -120,9 +114,7 @@ void USB_Mouse_Init(void)
 void USB_Mouse_Move(int8_t x, int8_t y, int8_t wheel)
 {
     // 等待上一次传输完成
-    if(!EP2_GetINSta()) {
-        return;
-    }
+    while(!EP2_GetINSta());
     
     g_MouseReport.x = x;
     g_MouseReport.y = y;
@@ -151,9 +143,7 @@ void USB_Mouse_Click(uint8_t buttons)
 void USB_Mouse_Press(uint8_t buttons)
 {
     // 等待上一次传输完成
-    if(!EP2_GetINSta()) {
-        return;
-    }
+    while(!EP2_GetINSta());
     
     g_MouseReport.buttons = buttons;
     USB_Mouse_SendReport();
@@ -165,9 +155,7 @@ void USB_Mouse_Press(uint8_t buttons)
 void USB_Mouse_Release(void)
 {
     // 等待上一次传输完成
-    if(!EP2_GetINSta()) {
-        return;
-    }
+    while(!EP2_GetINSta());
     
     g_MouseReport.buttons = 0;
     USB_Mouse_SendReport();
@@ -198,9 +186,7 @@ void USB_Consumer_Init(void)
 void USB_Consumer_Press(uint16_t key)
 {
     // 等待上一次传输完成
-    if(!EP3_GetINSta()) {
-        return;
-    }
+    while(!EP3_GetINSta());
     
     g_ConsumerReport.key = key;
     USB_Consumer_SendReport();
@@ -212,9 +198,7 @@ void USB_Consumer_Press(uint16_t key)
 void USB_Consumer_Release(void)
 {
     // 等待上一次传输完成
-    if(!EP3_GetINSta()) {
-        return;
-    }
+    while(!EP3_GetINSta());
     
     g_ConsumerReport.key = 0;
     USB_Consumer_SendReport();
@@ -237,10 +221,6 @@ void USB_Consumer_SendReport(void)
 void USB_Config_Init(void)
 {
     memset(&g_ConfigReport, 0, sizeof(USB_ConfigReport_t));
-    memset(&s_PendingConfigReport, 0, sizeof(USB_ConfigReport_t));
-    s_PendingConfigValid = 0;
-    memset(&s_PendingOutReport, 0, sizeof(USB_ConfigReport_t));
-    s_PendingOutValid = 0;
 }
 
 /**
@@ -248,32 +228,19 @@ void USB_Config_Init(void)
  */
 void USB_Config_SendResponse(uint8_t cmd, uint8_t *data, uint8_t len)
 {
-    USB_ConfigReport_t report;
-    report.cmd = cmd;
-    memset(report.data, 0, sizeof(report.data));
-
-    if (data && len > 0) {
+    // 等待上一次传输完成
+    while(!EP4_GetINSta());
+    
+    g_ConfigReport.cmd = cmd;
+    memset(g_ConfigReport.data, 0, sizeof(g_ConfigReport.data));
+    
+    if(data && len > 0) {
         uint8_t copy_len = (len > 63) ? 63 : len;
-        memcpy(report.data, data, copy_len);
+        memcpy(g_ConfigReport.data, data, copy_len);
     }
-
-    // Non-blocking path:
-    // - if EP4 is ready and no pending packet, send immediately.
-    // - otherwise queue one pending packet and return immediately.
-    if (EP4_GetINSta() && !s_PendingConfigValid) {
-        g_ConfigReport = report;
-        memcpy(pEP4_IN_DataBuf, &g_ConfigReport, sizeof(USB_ConfigReport_t));
-        DevEP4_IN_Deal(sizeof(USB_ConfigReport_t));
-        return;
-    }
-
-    // If endpoint is busy, keep only the latest non-log response.
-    if (cmd == KBD_CMD_LOG && s_PendingConfigValid) {
-        return;
-    }
-
-    s_PendingConfigReport = report;
-    s_PendingConfigValid = 1;
+    
+    memcpy(pEP4_IN_DataBuf, &g_ConfigReport, sizeof(USB_ConfigReport_t));
+    DevEP4_IN_Deal(sizeof(USB_ConfigReport_t));
 }
 
 /**
@@ -295,21 +262,6 @@ void USB_Config_ProcessCommand(USB_ConfigReport_t *report)
     memcpy(frame.data, &report->data[2], 59);  /* 跳过 SUB 和 LEN，从实际 DATA 开始 */
 
     KBD_Command_Process(&frame);
-}
-
-/**
- * @brief 在主循环中处理 EP4 OUT 命令（避免在 USB 中断中执行复杂逻辑）
- */
-void USB_Config_PollProcess(void)
-{
-    USB_ConfigReport_t report;
-    if (!s_PendingOutValid) {
-        return;
-    }
-
-    report = s_PendingOutReport;
-    s_PendingOutValid = 0;
-    USB_Config_ProcessCommand(&report);
 }
 
 /* ==================== USB Device Callbacks ==================== */
@@ -343,13 +295,7 @@ void USB_DevEP3_IN_Callback(void)
  */
 void USB_DevEP4_IN_Callback(void)
 {
-    // Send pending response without blocking.
-    if (s_PendingConfigValid && EP4_GetINSta()) {
-        g_ConfigReport = s_PendingConfigReport;
-        s_PendingConfigValid = 0;
-        memcpy(pEP4_IN_DataBuf, &g_ConfigReport, sizeof(USB_ConfigReport_t));
-        DevEP4_IN_Deal(sizeof(USB_ConfigReport_t));
-    }
+    // 配置数据发送完成
 }
 
 /**
@@ -358,8 +304,8 @@ void USB_DevEP4_IN_Callback(void)
 void DevEP4_OUT_Deal(uint8_t len)
 {
     if(len >= sizeof(USB_ConfigReport_t)) {
-        memcpy(&s_PendingOutReport, pEP4_OUT_DataBuf, sizeof(USB_ConfigReport_t));
-        s_PendingOutValid = 1;
+        USB_ConfigReport_t *report = (USB_ConfigReport_t *)pEP4_OUT_DataBuf;
+        USB_Config_ProcessCommand(report);
     }
 }
 

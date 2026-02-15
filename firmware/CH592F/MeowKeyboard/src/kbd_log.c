@@ -15,8 +15,6 @@
 
 #include "kbd_log.h"
 #include "kbd_storage.h"
-#include "kbd_mode.h"
-#include "CH59x_usbdev.h"
 #include <string.h>
 
 /*============================================================================*/
@@ -115,9 +113,6 @@ void KBD_Log_Flush(void)
     log_entry_t entry;
 
     for (uint8_t i = 0; i < LOG_FLUSH_COUNT; i++) {
-        /* EP4 忙时不阻塞主循环，留待下次 flush */
-        if (!EP4_GetINSta()) break;
-
         if (queue_pop(&entry) != 0) break;
 
         /* 构造 [SUB=category][LEN=n][DATA...] 放入 buf */
@@ -185,19 +180,6 @@ void KBD_Log_BleEvent(uint8_t state)
     if (!s_enabled) return;
     uint8_t data[1] = { state };
     queue_push(KBD_LOG_BLE_EVENT, data, 1);
-}
-
-void KBD_Log_BleDiagEvent(uint8_t state, uint8_t opcode, uint8_t reason, uint16_t connHandle)
-{
-    if (!s_enabled) return;
-
-    uint8_t data[5];
-    data[0] = state;
-    data[1] = opcode;
-    data[2] = reason;
-    data[3] = (uint8_t)(connHandle & 0xFF);
-    data[4] = (uint8_t)((connHandle >> 8) & 0xFF);
-    queue_push(KBD_LOG_BLE_EVENT, data, 5);
 }
 
 void KBD_Log_RgbEvent(uint8_t mode, uint8_t brightness)
