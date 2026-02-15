@@ -19,7 +19,7 @@ const uint8_t USB_DeviceDescriptor[] = {
     DevEP0SIZE,                     // bMaxPacketSize0
     (USB_VID & 0xFF), (USB_VID >> 8),  // idVendor
     (USB_PID & 0xFF), (USB_PID >> 8),  // idProduct
-    0x00, 0x01,                     // bcdDevice (1.00)
+    0x00, 0x03,                     // bcdDevice (3.00)
     0x01,                           // iManufacturer
     0x02,                           // iProduct
     0x00,                           // iSerialNumber
