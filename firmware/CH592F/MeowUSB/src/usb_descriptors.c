@@ -7,6 +7,7 @@
  *******************************************************************************/
 
 #include "usb_descriptors.h"
+#include "kbd_types.h"
 
 /* USB 设备描述符 */
 const uint8_t USB_DeviceDescriptor[] = {
@@ -19,7 +20,7 @@ const uint8_t USB_DeviceDescriptor[] = {
     DevEP0SIZE,                     // bMaxPacketSize0
     (USB_VID & 0xFF), (USB_VID >> 8),  // idVendor
     (USB_PID & 0xFF), (USB_PID >> 8),  // idProduct
-    0x00, 0x01,                     // bcdDevice (1.00)
+    (KBD_VERSION_BCD16 & 0xFF), (KBD_VERSION_BCD16 >> 8),  // bcdDevice (与 kbd_types.h 同步)
     0x01,                           // iManufacturer
     0x02,                           // iProduct
     0x00,                           // iSerialNumber

@@ -15,6 +15,7 @@
 
 #include "kbd_log.h"
 #include "kbd_storage.h"
+#include "kbd_mode.h"
 #include <string.h>
 
 /*============================================================================*/

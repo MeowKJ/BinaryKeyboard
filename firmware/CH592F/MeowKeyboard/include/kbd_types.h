@@ -52,9 +52,11 @@ extern "C" {
  */
 #define KBD_VENDOR_ID 0x413D  /**< USB Vendor ID */
 #define KBD_PRODUCT_ID 0x2107 /**< USB Product ID */
-#define KBD_VERSION_MAJOR 2   /**< 固件主版本 */
+#define KBD_VERSION_MAJOR 3   /**< 固件主版本 */
 #define KBD_VERSION_MINOR 0   /**< 固件次版本 */
 #define KBD_VERSION_PATCH 0   /**< 固件补丁版本 */
+/** 主.次 版本 BCD 16 位，供 USB bcdDevice、BLE PnP 等使用，改主/次版本后自动同步 */
+#define KBD_VERSION_BCD16 ((KBD_VERSION_MAJOR << 8) | KBD_VERSION_MINOR)
 
 /** @} */ /* end of KBD_Constants */
 

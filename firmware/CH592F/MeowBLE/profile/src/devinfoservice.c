@@ -1,4 +1,4 @@
-﻿/********************************** (C) COPYRIGHT *******************************
+/********************************** (C) COPYRIGHT *******************************
  * File Name          : devinfoservice.c
  * Author             : WCH
  * Version            : V1.0
@@ -15,6 +15,7 @@
  */
 #include "ble_config.h"
 #include "devinfoservice.h"
+#include "kbd_types.h"
 
 /*********************************************************************
  * MACROS
@@ -132,7 +133,7 @@ static uint8_t devInfoPnpId[DEVINFO_PNP_ID_LEN] = {
     1,                                    // Vendor ID source (1=Bluetooth SIG)
     LO_UINT16(0x07D7), HI_UINT16(0x07D7), // Vendor ID (WCH)
     LO_UINT16(0x0000), HI_UINT16(0x0000), // Product ID (vendor-specific)
-    LO_UINT16(0x0110), HI_UINT16(0x0110)  // Product version (JJ.M.N)
+    LO_UINT16(KBD_VERSION_BCD16), HI_UINT16(KBD_VERSION_BCD16)  // Product version (与 kbd_types.h 同步)
 };
 
 /*********************************************************************

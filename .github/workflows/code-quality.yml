@@ -5,15 +5,15 @@ on:
     branches:
       - main
     paths:
-      - 'Firmware/**'
-      - 'Software/**'
+      - 'firmware/**'
+      - 'tools/**'
       - '.github/workflows/code-quality.yml'
   push:
     branches:
       - main
     paths:
-      - 'Firmware/**'
-      - 'Software/**'
+      - 'firmware/**'
+      - 'tools/**'
   schedule:
     # 每天凌晨 2 点运行一次完整扫描
     - cron: '0 2 * * *'
@@ -71,22 +71,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
-          cache-dependency-path: Software/binary-keyboard-studio-ui/pnpm-lock.yaml
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
 
       - name: Install dependencies
-        working-directory: Software/binary-keyboard-studio-ui
+        working-directory: tools/studio
         run: pnpm install
 
       - name: Run ESLint
-        working-directory: Software/binary-keyboard-studio-ui
+        working-directory: tools/studio
         run: pnpm run lint || echo "ESLint check completed with warnings"
 
       - name: Run TypeScript type check
-        working-directory: Software/binary-keyboard-studio-ui
+        working-directory: tools/studio
         run: pnpm run type-check
 
       - name: Build check
-        working-directory: Software/binary-keyboard-studio-ui
+        working-directory: tools/studio
         run: pnpm run build-only
 
   # C/C++ 代码质量检查
@@ -103,15 +103,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cppcheck
 
-      - name: Run cppcheck on Firmware
+      - name: Run cppcheck on firmware
         continue-on-error: true
         run: |
           cppcheck --enable=all --suppress=missingIncludeSystem \
             --xml --xml-version=2 \
-            Firmware/CH592F/ 2> cppcheck-result.xml || true
+            firmware/CH592F/ 2> cppcheck-result.xml || true
           cppcheck --enable=all --suppress=missingIncludeSystem \
             --xml --xml-version=2 \
-            Firmware/CH552G/ 2> cppcheck-result2.xml || true
+            firmware/CH552G/ 2> cppcheck-result2.xml || true
 
       - name: Upload cppcheck results
         uses: actions/upload-artifact@v4
@@ -142,7 +142,7 @@ jobs:
       - name: Check code duplication (JavaScript/TypeScript)
         continue-on-error: true
         run: |
-          jscpd Software/ --min-lines 5 --min-tokens 50 --format markdown > duplication-report.md || true
+          jscpd tools/studio/ --min-lines 5 --min-tokens 50 --format markdown > duplication-report.md || true
 
       - name: Upload complexity report
         uses: actions/upload-artifact@v4
