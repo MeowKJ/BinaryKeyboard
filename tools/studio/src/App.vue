@@ -267,8 +267,16 @@
             </h3>
             <div class="rgb-config">
               <div class="rgb-item">
+                <span class="rgb-label">RGB 开关（仅按键灯）</span>
+                <label class="rgb-switch">
+                  <input type="checkbox" v-model="deviceStore.rgbConfig.enabled" />
+                  <span>{{ deviceStore.rgbConfig.enabled ? '开启' : '关闭' }}</span>
+                </label>
+              </div>
+              <div class="rgb-item">
                 <span class="rgb-label">模式</span>
                 <select v-model="deviceStore.rgbConfig.mode" class="rgb-select">
+                  <option :value="0">关闭</option>
                   <option :value="1">静态</option>
                   <option :value="2">呼吸</option>
                   <option :value="3">闪烁</option>
@@ -295,7 +303,7 @@
                 </div>
               </div>
               <div class="rgb-item">
-                <span class="rgb-label">RGB 亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
+                <span class="rgb-label">按键灯亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
                 <input type="range" v-model.number="deviceStore.rgbConfig.brightness" min="0" max="255" class="rgb-slider" />
               </div>
               <div class="rgb-item">
@@ -1614,6 +1622,20 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--c-text-muted);
+}
+
+.rgb-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--c-text-primary);
+}
+
+.rgb-switch input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--c-accent);
 }
 
 .rgb-select {

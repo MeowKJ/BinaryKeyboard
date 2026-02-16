@@ -389,13 +389,12 @@ void KBD_RGB_Process(void)
         }
     }
 
-    /* RGB 已关闭 */
+    /* RGB 开关关闭时，仅关闭按键灯；指示灯仍由状态指示逻辑控制 */
     if (!cfg->enabled) {
-        WS2812_FillKeys(0, 0, 0);
-        /* 多 LED 时，确保指示灯显示系统状态 */
         if (WS2812_LED_NUM > 1) {
-            ProcessIndicatorMode();
+            WS2812_FillKeys(0, 0, 0);
         }
+        ProcessIndicatorMode();
         WS2812_Update();
         return;
     }
@@ -403,11 +402,7 @@ void KBD_RGB_Process(void)
     /* 根据模式处理 */
     switch (cfg->mode) {
         case KBD_RGB_OFF:
-            WS2812_FillKeys(0, 0, 0);
-            /* 多 LED 时，确保指示灯显示系统状态 */
-            if (WS2812_LED_NUM > 1) {
-                ProcessIndicatorMode();
-            }
+            WS2812_Fill(0, 0, 0);
             break;
 
         case KBD_RGB_STATIC:
@@ -427,6 +422,10 @@ void KBD_RGB_Process(void)
             break;
 
         case KBD_RGB_INDICATOR:
+            /* 仅指示灯模式：按键灯全部熄灭 */
+            if (WS2812_LED_NUM > 1) {
+                WS2812_FillKeys(0, 0, 0);
+            }
             ProcessIndicatorMode();
             break;
 
@@ -479,11 +478,10 @@ void KBD_RGB_Toggle(void)
     LOG_D(TAG, "toggle=%d", cfg->enabled);
 
     if (!cfg->enabled) {
-        WS2812_FillKeys(0, 0, 0);
-        /* 多 LED 时，确保指示灯显示系统状态 */
         if (WS2812_LED_NUM > 1) {
-            ProcessIndicatorMode();
+            WS2812_FillKeys(0, 0, 0);
         }
+        ProcessIndicatorMode();
         WS2812_Update();
     }
 }
