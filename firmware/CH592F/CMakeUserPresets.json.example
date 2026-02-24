@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "local-debug",
+      "displayName": "Debug (local toolchain)",
+      "inherits": "debug",
+      "cacheVariables": {
+        "MRS_TOOLCHAIN_ROOT": "/path/to/MRS_Toolchain_MAC_V230/Toolchain"
+      }
+    },
+    {
+      "name": "local-release",
+      "displayName": "Release (local toolchain)",
+      "inherits": "release",
+      "cacheVariables": {
+        "MRS_TOOLCHAIN_ROOT": "/path/to/MRS_Toolchain_MAC_V230/Toolchain"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "local-debug",   "configurePreset": "local-debug" },
+    { "name": "local-release", "configurePreset": "local-release" }
+  ]
+}
