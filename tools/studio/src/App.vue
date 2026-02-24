@@ -61,6 +61,13 @@
             <span>USB / 蓝牙</span>
           </div>
         </div>
+
+        <p class="legacy-link-hint">
+          使用旧版固件？
+          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank" rel="noopener" class="legacy-link">
+            前往旧版改键工具 <i class="pi pi-external-link"></i>
+          </a>
+        </p>
       </div>
     </div>
 
@@ -967,6 +974,29 @@ body {
 .feature-item i {
   font-size: 1.5rem;
   color: var(--c-accent);
+}
+
+.legacy-link-hint {
+  margin: 2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--c-text-muted);
+}
+
+.legacy-link {
+  color: var(--c-accent);
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity var(--transition-fast);
+}
+
+.legacy-link:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+.legacy-link i {
+  font-size: 0.75rem;
+  vertical-align: middle;
 }
 
 /* ==========================================
