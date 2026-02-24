@@ -74,7 +74,12 @@ coverage
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# .idea/*
+# !.idea/runConfigurations/
+
 *.suo
 *.ntvs*
 *.njsproj
@@ -87,6 +92,11 @@ coverage
 build/
 .claude/
 .cache/
+
+# Downloaded wchisp binaries (run setup.py to fetch)
+tools/scripts/wchisp
+tools/scripts/wchisp.exe
+eeprom_dump.bin
 
 # Windows reserved name (accidental create)
 nul
@@ -113,3 +123,6 @@ model/
 *.dae
 *.glb
 *.gltf
+
+# Python虚拟环境
+.venv/

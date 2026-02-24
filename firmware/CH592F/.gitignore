@@ -1,5 +1,23 @@
 # Build outputs
 obj/
+build/
+
+# CMake – user-local presets (machine-specific toolchain path, never committed)
+# Copy CMakeUserPresets.json.example → CMakeUserPresets.json and set your path
+CMakeUserPresets.json
+
+# CMake cache / generated files (always inside build/ but just in case)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Firmware artifacts built outside build/ (e.g. in-source builds)
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
 
 # MounRiver Studio workspace
 .mrs/
