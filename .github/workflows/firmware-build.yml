@@ -1,0 +1,46 @@
+name: Firmware Build Check
+
+on:
+  push:
+    paths:
+      - "firmware/CH592F/**"
+      - "examples/**"
+      - ".github/workflows/firmware-build.yml"
+  pull_request:
+    paths:
+      - "firmware/CH592F/**"
+      - "examples/**"
+      - ".github/workflows/firmware-build.yml"
+
+jobs:
+  build:
+    name: Build CH592F (release)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/binarykeyboard-builder:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake --preset release
+        working-directory: firmware/CH592F
+
+      - name: Build
+        run: cmake --build --preset release
+        working-directory: firmware/CH592F
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CH592F-firmware-${{ github.sha }}
+          path: |
+            firmware/CH592F/build/release/CH592F.bin
+            firmware/CH592F/build/release/CH592F.hex
+          retention-days: 7

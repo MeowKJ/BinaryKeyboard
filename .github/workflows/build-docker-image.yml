@@ -1,0 +1,52 @@
+name: Build & Push Builder Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docker/builder/**"
+      - ".github/workflows/build-docker-image.yml"
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/binarykeyboard-builder
+
+jobs:
+  build-and-push:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download WCH Linux toolchain
+        # The toolchain is stored as a GitHub Release asset in this repo.
+        # Tag: toolchain-linux  Asset: MRS_Toolchain_Linux_x64_V230.tar.xz
+        run: |
+          gh release download toolchain-linux \
+            --repo ${{ github.repository }} \
+            --pattern "MRS_Toolchain_Linux_x64_V230.tar.xz" \
+            --dir docker/builder/
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/builder
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

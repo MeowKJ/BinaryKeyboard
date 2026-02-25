@@ -1,0 +1,59 @@
+name: Release Firmware
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  TOOLCHAIN_VERSION: MRS_Toolchain_Linux_x64_V230
+
+jobs:
+  release:
+    name: Build & Release CH592F
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/binarykeyboard-builder:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure
+        run: cmake --preset release
+        working-directory: firmware/CH592F
+
+      - name: Build
+        run: cmake --build --preset release
+        working-directory: firmware/CH592F
+
+      - name: Generate version tag
+        id: version
+        run: |
+          DATE=$(date +%Y%m%d)
+          SHA=$(git rev-parse --short HEAD)
+          GCC_VER=$(riscv-wch-elf-gcc --version 2>/dev/null | head -1 || echo "unknown")
+          echo "tag=v${DATE}-${SHA}" >> $GITHUB_OUTPUT
+          echo "name=Firmware ${DATE} (${SHA})" >> $GITHUB_OUTPUT
+          echo "gcc_ver=${GCC_VER}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          generate_release_notes: true
+          body: |
+            **Toolchain:** ${{ env.TOOLCHAIN_VERSION }}
+            **Compiler:** ${{ steps.version.outputs.gcc_ver }}
+          files: |
+            firmware/CH592F/build/release/CH592F.bin
+            firmware/CH592F/build/release/CH592F.hex
