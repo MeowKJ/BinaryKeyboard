@@ -8,15 +8,20 @@
 
 ### 推荐工具链
 
-| 工具                | 说明                |
-| :------------------ | :------------------ |
-| MounRiver Studio II | WCH 官方 RISC-V IDE |
-| WCHISPStudio        | 固件烧录工具        |
+| 工具 | 说明 |
+| :--- | :--- |
+| CMake ≥ 3.16 + Ninja | 构建系统 |
+| MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
+| Python 3 | 烧录脚本 (`flash.py`) |
+| wchisp | 底层烧录工具（`setup.py` 自动下载） |
+
+> VSCode 用户可直接使用状态栏按钮（Build / Flash）触发构建与烧录，无需手动执行命令。
 
 ### 配置开发环境
 
-1. 下载安装 [MounRiver Studio II](http://www.mounriver.com/)
-2. 打开项目文件 `Firmware/CH592F/CH592F.wvproj`
+1. 安装 [MounRiver Studio](http://www.mounriver.com/)（获取 RISC-V 工具链）
+2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`，填写工具链路径
+3. 下载烧录工具：`python setup.py`
 
 ## 代码架构
 
@@ -189,17 +194,33 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 4 / 5 / 4
 
 ## 编译与烧录
 
-### 使用 MounRiver Studio
+### 一键脚本（推荐）
 
-1. 打开 `CH592F.wvproj`
-2. 按 `F7` 编译
-3. 编译产物在 `obj/CH592F.bin`
+```bash
+# 首次使用：下载 wchisp 烧录工具
+python setup.py
 
-### 烧录固件
+# 仅构建
+python flash.py build --preset release
+
+# 构建并烧录
+python flash.py flash --preset release
+```
+
+### 手动 CMake 构建
+
+```bash
+cd firmware/CH592F
+cmake --preset release          # 首次配置
+cmake --build --preset release  # 编译
+# 产物：build/release/CH592F.bin
+```
+
+### 进入 Bootloader 模式
 
 1. 断开键盘与电脑连接
 2. 按住 **BOOT** 按钮的同时连接 USB
-3. 打开 WCHISPStudio，选择 `CH592F.bin` 烧录
+3. 运行 `python flash.py flash` 自动烧录
 
 ## 按键映射系统
 
