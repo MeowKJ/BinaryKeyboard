@@ -7,11 +7,14 @@ Supports: flash, build, verify, erase, reset, info, probe, eeprom, config
 
 import argparse
 import ctypes
+import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -45,6 +48,50 @@ def sep():        print(_c("2",  "─" * 44))
 def die(msg):
     print(_c("31", "[ERR ]"), msg, file=sys.stderr)
     sys.exit(1)
+
+
+# ── Build report helpers ───────────────────────────────────────────────────────
+
+def _strip_ansi(s: str) -> str:
+    return re.sub(r'\033\[[^m]*m', '', s)
+
+def _vlen(s: str) -> int:
+    return len(_strip_ansi(s))
+
+def _rpad(s: str, w: int) -> str:
+    """Right-pad to visual width w (ANSI-aware)."""
+    return s + ' ' * max(0, w - _vlen(s))
+
+def _usage_bar(pct: float, width: int = 15) -> str:
+    filled = round(pct / 100 * width)
+    bar = '█' * filled + '░' * (width - filled)
+    code = '31' if pct >= 90 else '33' if pct >= 70 else '32'
+    return _c(code, bar)
+
+def _pct_clr(pct: float) -> str:
+    return '31' if pct >= 90 else '33' if pct >= 70 else '32'
+
+def _fmt_b(n: int) -> str:
+    return f'{n / 1024:.1f} KB' if n >= 1024 else f'{n} B'
+
+
+def _resolve_preset(preset: str) -> str:
+    """Prefer local-{preset} when CMakeUserPresets.json defines it.
+
+    On CI (no user presets file) the plain preset name is used unchanged,
+    so existing CI workflows are unaffected.
+    """
+    user = FIRMWARE_DIR / "CMakeUserPresets.json"
+    if user.is_file():
+        try:
+            data = json.loads(user.read_text())
+            names = {p["name"] for p in data.get("buildPresets", [])}
+            local = f"local-{preset}"
+            if local in names:
+                return local
+        except Exception:
+            pass
+    return preset
 
 
 # ── Locate wchisp ──────────────────────────────────────────────────────────────
@@ -105,6 +152,24 @@ def run(cmd: list, check=True, cwd=None) -> subprocess.CompletedProcess:
     return subprocess.run([str(c) for c in cmd], check=check, cwd=cwd)
 
 
+def run_and_capture(cmd: list, cwd=None):
+    """Run a command, stream stdout+stderr to terminal, return (lines, elapsed_s)."""
+    t0 = time.time()
+    lines = []
+    proc = subprocess.Popen(
+        [str(c) for c in cmd],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        cwd=cwd, text=True, bufsize=1,
+    )
+    for line in proc.stdout:
+        print(line, end='')
+        lines.append(line)
+    proc.wait()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
+    return lines, time.time() - t0
+
+
 def check_device(wchisp: Path, extra: list):
     info("Checking for ISP device...")
     result = subprocess.run(
@@ -122,16 +187,100 @@ def check_device(wchisp: Path, extra: list):
             print(f"  {_c('2', line.strip())}")
 
 
+# ── Build report ───────────────────────────────────────────────────────────────
+
+def _build_report(lines: list, preset: str, build_dir: Path, elapsed: float) -> None:
+    """Parse cmake/linker output and print a colored memory-usage table."""
+    # e.g.  "           FLASH:      179944 B       448 KB     39.22%"
+    mem_re = re.compile(
+        r'(\w+):\s+(\d+)\s+B\s+([\d.]+)\s+(KB|B)\s+([\d.]+)%'
+    )
+    # e.g.  " 178204    1740   13232  193176   2f298 /path/CH592F.elf"
+    size_re = re.compile(
+        r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+[0-9a-f]+\s+\S+\.elf\s*$'
+    )
+
+    regions = []
+    size_row = None
+    for line in lines:
+        m = mem_re.search(line)
+        if m:
+            name, used_b, tot_v, tot_u, pct = m.groups()
+            used  = int(used_b)
+            total = int(float(tot_v) * 1024) if tot_u == 'KB' else int(float(tot_v))
+            regions.append((name, used, total, total - used, float(pct)))
+        m2 = size_re.match(line)
+        if m2:
+            size_row = (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
+
+    if not regions and size_row is None:
+        return
+
+    bin_file = build_dir / 'CH592F.bin'
+    bin_sz   = bin_file.stat().st_size if bin_file.is_file() else None
+
+    W  = 68   # inner visual width
+    BC = '1;36'
+
+    def hline(l, r, fill='─'):
+        return _c(BC, l + fill * W + r) if _USE_COLOR else l + fill * W + r
+
+    def brow(cells: str) -> str:
+        inner = _rpad(cells, W)
+        if _USE_COLOR:
+            return _c(BC, '│') + inner + _c(BC, '│')
+        return '│' + inner + '│'
+
+    print()
+    print(hline('┌', '┐'))
+    print(brow('  ' + _c('1', 'CH592F Memory Report') +
+               _c('2', f'  ·  preset: {preset}  ·  built in {elapsed:.1f}s')))
+    print(hline('├', '┤'))
+
+    hdr  = '  ' + _rpad(_c('2', 'Region'), 9)
+    hdr += _rpad(_c('2', 'Used / Total'), 22)
+    hdr += _rpad(_c('2', 'Free'), 12)
+    hdr += _c('2', 'Usage')
+    print(brow(hdr))
+    print(hline('├', '┤'))
+
+    for name, used, total, free, pct in regions:
+        cc = _pct_clr(pct)
+        c1 = '  ' + _rpad(_c('1', name), 8) + ' '
+        c2 = _rpad(f'{_fmt_b(used)} / {_fmt_b(total)}', 22)
+        c3 = _rpad(_c(cc, _fmt_b(free)), 12)
+        c4 = _usage_bar(pct) + '  ' + _c(cc, f'{pct:5.1f}%')
+        print(brow(c1 + c2 + c3 + c4))
+
+    if size_row is not None or bin_sz is not None:
+        print(hline('├', '┤'))
+        det = '  '
+        if size_row:
+            text, data, bss = size_row
+            det += f'.text {_c("36", str(text))}   '
+            det += f'.data {_c("33", str(data))}   '
+            det += f'.bss  {_c("35", str(bss))}'
+        if bin_sz is not None:
+            det += f'   .bin {_c("32;1", _fmt_b(bin_sz))}'
+        print(brow(det))
+
+    print(hline('└', '┘'))
+
+
 # ── Build helper ───────────────────────────────────────────────────────────────
 def build_firmware(preset: str) -> Path:
+    actual = _resolve_preset(preset)
     sep()
-    info(f"Building preset: {_c('1', preset)}")
-    build_dir = FIRMWARE_DIR / "build" / preset
+    info(f"Building preset: {_c('1', actual)}")
+    build_dir = FIRMWARE_DIR / "build" / actual
     if not build_dir.is_dir():
         info("Configuring (first build)...")
-        run(["cmake", "--preset", preset], cwd=str(FIRMWARE_DIR))
-    run(["cmake", "--build", "--preset", preset], cwd=str(FIRMWARE_DIR))
-    bin_file = FIRMWARE_DIR / "build" / preset / "CH592F.bin"
+        run(["cmake", "--preset", actual], cwd=str(FIRMWARE_DIR))
+    lines, elapsed = run_and_capture(
+        ["cmake", "--build", "--preset", actual], cwd=str(FIRMWARE_DIR)
+    )
+    _build_report(lines, actual, build_dir, elapsed)
+    bin_file = FIRMWARE_DIR / "build" / actual / "CH592F.bin"
     if not bin_file.is_file():
         die(f"Expected .bin not found after build: {bin_file}")
     ok(f"Build done → {bin_file}")
@@ -144,7 +293,7 @@ def resolve_bin(file_arg, preset: str) -> Path:
         if not p.is_file():
             die(f"File not found: {p}")
         return p
-    return FIRMWARE_DIR / "build" / preset / "CH592F.bin"
+    return FIRMWARE_DIR / "build" / _resolve_preset(preset) / "CH592F.bin"
 
 
 # ── Confirmation prompt ────────────────────────────────────────────────────────
