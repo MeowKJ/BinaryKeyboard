@@ -17,7 +17,7 @@ jobs:
     name: Build CH592F (release)
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/binarykeyboard-builder:latest
+      image: ghcr.io/meowkj/binarykeyboard-builder:latest
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
