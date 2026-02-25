@@ -8,6 +8,40 @@ outline: [2, 3]
 本页内容由 GitHub Actions 自动从 [Releases](https://github.com/MeowKJ/BinaryKeyboard/releases) 同步生成。
 :::
 
+## 🧪 toolchain-linux <Badge type="warning" text="Pre-release" />
+
+📅 **发布时间**：2026 年 2 月 25 日
+
+🔗 [在 GitHub 上查看](https://github.com/MeowKJ/BinaryKeyboard/releases/tag/toolchain-linux)
+
+> **WCH RISC-V Toolchain — MRS Linux x64 V230**
+
+MRS_Toolchain_Linux_x64_V230，供 CI Docker 镜像构建使用。请勿删除此 Release。
+
+---
+
+## 🧪 v20260225-841869d <Badge type="warning" text="Pre-release" />
+
+📅 **发布时间**：2026 年 2 月 25 日
+
+🔗 [在 GitHub 上查看](https://github.com/MeowKJ/BinaryKeyboard/releases/tag/v20260225-841869d)
+
+> **Firmware 20260225 (841869d)**
+
+**Toolchain:** MRS_Toolchain_Linux_x64_V230
+**Compiler:** riscv-wch-elf-gcc (xPack GNU RISC-V Embedded GCC x86_64) 12.2.0
+
+
+## What's Changed
+* Dev by @MeowKJ in https://github.com/MeowKJ/BinaryKeyboard/pull/32
+* ci: 引入固件编译检查与自动 Release 工作流 by @MeowKJ in https://github.com/MeowKJ/BinaryKeyboard/pull/33
+* fix(ci): 修复容器内 git safe.directory 报错 by @MeowKJ in https://github.com/MeowKJ/BinaryKeyboard/pull/34
+
+
+**Full Changelog**: https://github.com/MeowKJ/BinaryKeyboard/compare/toolchain-linux...v20260225-841869d
+
+---
+
 ## 🧪 v3.0.0-alpha.1 <Badge type="warning" text="Pre-release" />
 
 📅 **发布时间**：2026 年 2 月 16 日
@@ -119,6 +153,8 @@ outline: [2, 3]
 🔗 [在 GitHub 上查看](https://github.com/MeowKJ/BinaryKeyboard/releases/tag/v1.1)
 
 - 修复Knob一个键卡口缺失的问题
+
+---
 
 ## 🎉 v1
 
