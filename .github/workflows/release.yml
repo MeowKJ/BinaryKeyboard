@@ -54,6 +54,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
           generate_release_notes: true
+          prerelease: true
           body: |
             **Toolchain:** ${{ env.TOOLCHAIN_VERSION }}
             **Compiler:** ${{ steps.version.outputs.gcc_ver }}
