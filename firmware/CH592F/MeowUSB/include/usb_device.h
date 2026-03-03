@@ -48,6 +48,14 @@ extern uint8_t g_ProtocolValue[INTF_COUNT];
 void USB_Device_Init(void);
 
 /**
+ * @brief USB 设备去初始化：关闭 PHY、禁用中断、状态归位
+ *
+ * 在蓝牙模式下调用，彻底关闭 USB 控制器以消除中断冲突。
+ * 切回 USB 模式时调用 USB_Device_Init() 重新初始化。
+ */
+void USB_Device_Deinit(void);
+
+/**
  * @brief USB 设备传输处理 (在中断中调用)
  */
 void USB_Device_TransferProcess(void);

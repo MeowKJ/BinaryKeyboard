@@ -128,7 +128,8 @@ int KBD_Mode_BLE_StopAdvertising(void);
 int KBD_Mode_BLE_Disconnect(void);
 
 /**
- * @brief 清除所有蓝牙配对信息
+ * @brief 清除所有蓝牙配对信息，并自动进入可重新配对广播状态
+ * @note  仅在 BLE 模式下执行；非 BLE 模式下不执行任何操作
  * @return 0 成功，其他失败
  */
 int KBD_Mode_BLE_ClearBonds(void);

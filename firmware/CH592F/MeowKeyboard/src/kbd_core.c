@@ -201,11 +201,19 @@ static void OnModeChange(kbd_work_mode_t new_mode)
     /* 切换模式时释放所有按键 */
     KBD_Core_ReleaseAll();
 
-    /* RGB 状态指示 */
+    /* RGB 状态指示 + 切换确认闪烁（200ms） */
     if (new_mode == KBD_WORK_MODE_USB) {
+        KBD_RGB_Flash(255, 255, 255, 200);   /* 白色短闪 = 进入 USB 模式 */
         KBD_RGB_SetState(KBD_STATE_USB_CONNECTED);
     } else {
-        KBD_RGB_SetState(KBD_STATE_BLE_DISCONNECTED);
+        KBD_RGB_Flash(0, 80, 255, 200);      /* 蓝色短闪 = 进入 BLE 模式 */
+        /* 根据实际连接状态设置指示灯，避免覆盖已进入广播的蓝色状态 */
+        kbd_conn_state_t conn = KBD_Mode_GetConnState();
+        if (conn == KBD_CONN_ADVERTISING) {
+            KBD_RGB_SetState(KBD_STATE_BLE_ADVERTISING);
+        } else {
+            KBD_RGB_SetState(KBD_STATE_BLE_DISCONNECTED);
+        }
     }
 }
 
@@ -356,6 +364,8 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
  */
 static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
 {
+    int ret;
+
     switch (action)
     {
     case KBD_FN_NONE:
@@ -364,24 +374,45 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
     /* 模式控制 */
     case KBD_FN_MODE_TOGGLE:
         LOG_I(TAG, "FN: mode toggle");
-        KBD_Mode_Toggle();
+        ret = KBD_Mode_Toggle();
+        if (ret != 0) {
+            LOG_W(TAG, "mode toggle failed: %d", ret);
+            KBD_RGB_Flash(255, 0, 0, 200);
+        }
         break;
 
     case KBD_FN_BLE_ADV:
         if (KBD_Mode_Get() == KBD_WORK_MODE_BLE && !KBD_Mode_IsConnected()) {
             LOG_I(TAG, "FN: start adv");
-            KBD_Mode_BLE_StartAdvertising();
+            ret = KBD_Mode_BLE_StartAdvertising();
+            if (ret != 0) {
+                LOG_W(TAG, "start adv failed: %d", ret);
+                KBD_RGB_Flash(255, 0, 0, 200);
+            }
         }
         break;
 
     case KBD_FN_BLE_DISCONNECT:
         LOG_I(TAG, "FN: disconnect");
-        KBD_Mode_BLE_Disconnect();
+        ret = KBD_Mode_BLE_Disconnect();
+        if (ret != 0) {
+            LOG_W(TAG, "disconnect failed: %d", ret);
+        }
         break;
 
     case KBD_FN_BLE_CLEAR_BONDS:
+        if (KBD_Mode_Get() != KBD_WORK_MODE_BLE) {
+            /* 非 BLE 模式：按用户要求静默忽略 */
+            break;
+        }
         LOG_I(TAG, "FN: clear bonds");
-        KBD_Mode_BLE_ClearBonds();
+        ret = KBD_Mode_BLE_ClearBonds();
+        if (ret == 0) {
+            KBD_RGB_Flash(0, 120, 255, 300);
+        } else {
+            LOG_W(TAG, "clear bonds failed: %d", ret);
+            KBD_RGB_Flash(255, 0, 0, 300);
+        }
         break;
 
     /* RGB 控制 */

@@ -63,8 +63,10 @@ extern const uint8_t USB_DeviceDescriptor[];
 extern const uint8_t USB_ConfigDescriptor[];
 extern const uint8_t USB_StringLangID[];
 extern const uint8_t USB_StringVendor[];
-extern const uint8_t USB_StringProduct[];
+extern uint8_t USB_StringProduct[];
 extern const uint8_t USB_QualifierDescriptor[];
+
+void USB_Descriptors_Init(void);
 
 /* HID 报告描述符 */
 extern const uint8_t HID_KeyboardReportDescriptor[];

@@ -53,9 +53,9 @@ extern "C" {
 #define KBD_IND_USB_CONN_G      255
 #define KBD_IND_USB_CONN_B      255
 
-/** @name 低电量 - 红色 */
+/** @name 低电量 - 琥珀橙 (区别于 BLE 断连红色) */
 #define KBD_IND_LOW_BATT_R      255
-#define KBD_IND_LOW_BATT_G      0
+#define KBD_IND_LOW_BATT_G      80
 #define KBD_IND_LOW_BATT_B      0
 
 /** @} */ /* end of KBD_RGB_Colors */
@@ -188,12 +188,8 @@ void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms);
 /**
  * @brief 层切换指示闪烁
  *
- * 切换层时闪烁对应颜色:
- * - 层1: 蓝色 (闪1次)
- * - 层2: 绿色 (闪2次)
- * - 层3: 黄色 (闪3次)
- * - 层4: 紫色 (闪4次)
- * - 层5: 红色 (闪5次)
+ * 切换层时，对应按键 LED 与指示灯同步闪烁 3 次（颜色为该层颜色）。
+ * 闪烁结束后，按键灯恢复正常灯效，指示灯恢复状态显示。
  *
  * @param[in] layer 层号 (0-4)
  */

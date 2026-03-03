@@ -75,6 +75,151 @@ def _fmt_b(n: int) -> str:
     return f'{n / 1024:.1f} KB' if n >= 1024 else f'{n} B'
 
 
+def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
+    if not cache_file.is_file():
+        return None
+    prefix = f"{key}:"
+    try:
+        for line in cache_file.read_text(errors="ignore").splitlines():
+            if line.startswith(prefix):
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    return parts[1].strip()
+    except Exception:
+        return None
+    return None
+
+
+def _parse_size_row_from_output(text: str) -> Optional[tuple[int, int, int]]:
+    # e.g. " 178204    1740   13232  193176   2f298 /path/CH592F.elf"
+    m = re.search(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+[0-9a-fA-F]+\s+\S+\.elf\s*$',
+                  text, re.MULTILINE)
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)))
+
+
+def _read_memory_regions_from_linker(linker_script: Path) -> dict[str, tuple[int, int]]:
+    """Parse MEMORY regions from GNU ld script: NAME -> (origin, length)."""
+    out: dict[str, tuple[int, int]] = {}
+    if not linker_script.is_file():
+        return out
+
+    unit_mul = {"B": 1, "K": 1024, "M": 1024 * 1024}
+    mem_re = re.compile(
+        r'^\s*(\w+)\s*\([^)]*\)\s*:\s*ORIGIN\s*=\s*(0x[0-9A-Fa-f]+|\d+)\s*,\s*LENGTH\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*([BbKkMm]?)'
+    )
+    try:
+        for line in linker_script.read_text(errors="ignore").splitlines():
+            m = mem_re.match(line)
+            if not m:
+                continue
+            name, origin_s, num, unit = m.groups()
+            unit = (unit or "B").upper()
+            origin = int(origin_s, 0)
+            length = int(float(num) * unit_mul.get(unit, 1))
+            out[name.upper()] = (origin, length)
+    except Exception:
+        return {}
+    return out
+
+
+def _read_memory_lengths_from_linker(linker_script: Path) -> dict[str, int]:
+    return {name: length for name, (_, length) in _read_memory_regions_from_linker(linker_script).items()}
+
+
+def _size_row_from_artifact(build_dir: Path) -> Optional[tuple[int, int, int]]:
+    """Run CROSS_SIZE on existing ELF when incremental build skips relinking."""
+    elf_file = build_dir / "CH592F.elf"
+    cache_file = build_dir / "CMakeCache.txt"
+    if not elf_file.is_file() or not cache_file.is_file():
+        return None
+
+    cross_size = _parse_cmake_cache_var(cache_file, "CROSS_SIZE")
+    if not cross_size:
+        return None
+
+    try:
+        res = subprocess.run(
+            [cross_size, "--format=berkeley", str(elf_file)],
+            capture_output=True, text=True, check=True
+        )
+    except Exception:
+        return None
+
+    return _parse_size_row_from_output(res.stdout)
+
+
+def _artifact_region_usage_from_objdump(build_dir: Path) -> Optional[dict[str, int]]:
+    """Compute region usage from existing ELF section headers (no-op build fallback).
+
+    FLASH usage is summed by section LMA in FLASH range.
+    RAM usage is summed by section VMA in RAM range.
+    """
+    elf_file = build_dir / "CH592F.elf"
+    cache_file = build_dir / "CMakeCache.txt"
+    if not elf_file.is_file() or not cache_file.is_file():
+        return None
+
+    cross_objdump = _parse_cmake_cache_var(cache_file, "CROSS_OBJDUMP")
+    if not cross_objdump:
+        return None
+
+    regions = _read_memory_regions_from_linker(FIRMWARE_DIR / "Ld" / "Link.ld")
+    if "FLASH" not in regions or "RAM" not in regions:
+        return None
+    flash_origin, flash_len = regions["FLASH"]
+    ram_origin, ram_len = regions["RAM"]
+    flash_end = flash_origin + flash_len
+    ram_end = ram_origin + ram_len
+
+    try:
+        res = subprocess.run(
+            [cross_objdump, "-h", str(elf_file)],
+            capture_output=True, text=True, check=True
+        )
+    except Exception:
+        return None
+
+    flash_used = 0
+    ram_used = 0
+    pending: Optional[tuple[int, int, int]] = None  # (size, vma, lma)
+
+    for line in res.stdout.splitlines():
+        parts = line.split()
+        # Section header row: Idx Name Size VMA LMA FileOff Algn
+        if len(parts) >= 7 and parts[0].isdigit():
+            try:
+                size = int(parts[2], 16)
+                vma = int(parts[3], 16)
+                lma = int(parts[4], 16)
+                pending = (size, vma, lma)
+            except ValueError:
+                pending = None
+            continue
+
+        if pending is None:
+            continue
+
+        # Flags row follows the section header row; ALLOC marks memory occupancy.
+        if "ALLOC" in line:
+            size, vma, lma = pending
+            if size > 0:
+                # FLASH usage should only include sections that occupy bytes in the
+                # image (e.g. exclude NOBITS like .bss/.stack even if they have an
+                # LMA due to linker script AT>FLASH).
+                if (("LOAD" in line) or ("CONTENTS" in line)) and (flash_origin <= lma < flash_end):
+                    flash_used += size
+                if ram_origin <= vma < ram_end:
+                    ram_used += size
+            pending = None
+        elif line.strip():
+            # Some unexpected line; stop tracking the pending section.
+            pending = None
+
+    return {"FLASH": flash_used, "RAM": ram_used}
+
+
 def _resolve_preset(preset: str) -> str:
     """Prefer local-{preset} when CMakeUserPresets.json defines it.
 
@@ -103,7 +248,7 @@ def find_wchisp() -> Optional[Path]:
         if p.is_file():
             return p
 
-    # 2. Project-local binary (downloaded by setup.py)
+    # 2. Project-local binary (downloaded by tools/scripts/setup.py)
     local = SCRIPT_DIR / BIN_NAME
     if local.is_file():
         return local
@@ -202,6 +347,7 @@ def _build_report(lines: list, preset: str, build_dir: Path, elapsed: float) -> 
 
     regions = []
     size_row = None
+    report_source = "linker"
     for line in lines:
         m = mem_re.search(line)
         if m:
@@ -212,6 +358,30 @@ def _build_report(lines: list, preset: str, build_dir: Path, elapsed: float) -> 
         m2 = size_re.match(line)
         if m2:
             size_row = (int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
+
+    # Incremental no-op builds won't run the linker, so no memory-usage lines are
+    # printed by ld. Fall back to the existing ELF + CMakeCache to keep the
+    # report visible on every task build.
+    if size_row is None:
+        size_row = _size_row_from_artifact(build_dir)
+        report_source = "cached-elf"
+
+    if not regions and size_row is not None:
+        mem = _read_memory_lengths_from_linker(FIRMWARE_DIR / "Ld" / "Link.ld")
+        flash_total = mem.get("FLASH")
+        ram_total = mem.get("RAM")
+        text, data, bss = size_row
+        usage = _artifact_region_usage_from_objdump(build_dir)
+        if usage:
+            report_source = "cached-elf+objdump"
+        flash_used = usage.get("FLASH") if usage else (text + data)
+        ram_used = usage.get("RAM") if usage else (data + bss)
+        if flash_total and flash_used is not None:
+            flash_pct = (flash_used / flash_total * 100) if flash_total else 0.0
+            regions.append(("FLASH", flash_used, flash_total, flash_total - flash_used, flash_pct))
+        if ram_total and ram_used is not None:
+            ram_pct = (ram_used / ram_total * 100) if ram_total else 0.0
+            regions.append(("RAM", ram_used, ram_total, ram_total - ram_used, ram_pct))
 
     if not regions and size_row is None:
         return
@@ -234,7 +404,7 @@ def _build_report(lines: list, preset: str, build_dir: Path, elapsed: float) -> 
     print()
     print(hline('┌', '┐'))
     print(brow('  ' + _c('1', 'CH592F Memory Report') +
-               _c('2', f'  ·  preset: {preset}  ·  built in {elapsed:.1f}s')))
+               _c('2', f'  ·  preset: {preset}  ·  built in {elapsed:.1f}s  ·  source: {report_source}')))
     print(hline('├', '┤'))
 
     hdr  = '  ' + _rpad(_c('2', 'Region'), 9)
@@ -422,17 +592,17 @@ def cmd_config(args, wchisp: Path, extra: list):
 # ── Argument parser ────────────────────────────────────────────────────────────
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="flash.py",
+        prog="tools/scripts/flash.py",
         description="WCH CH592F ISP tool — cross-platform wrapper for wchisp",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
-  python flash.py flash                        build release + flash
-  python flash.py flash --preset debug         build debug + flash
-  python flash.py flash --file build/app.bin   flash specific file
-  python flash.py flash --skip-verify          flash without verification
-  python flash.py eeprom dump --out data.bin   dump EEPROM
-  python flash.py info                         show chip info
+  python tools/scripts/flash.py flash                        build release + flash
+  python tools/scripts/flash.py flash --preset debug         build debug + flash
+  python tools/scripts/flash.py flash --file build/app.bin   flash specific file
+  python tools/scripts/flash.py flash --skip-verify          flash without verification
+  python tools/scripts/flash.py eeprom dump --out data.bin   dump EEPROM
+  python tools/scripts/flash.py info                         show chip info
         """,
     )
 
@@ -509,7 +679,7 @@ def main():
     if not wchisp:
         die(
             "wchisp not found.\n\n"
-            "  Run:  python setup.py          (auto-download)\n"
+            "  Run:  python tools/scripts/setup.py          (auto-download)\n"
             "  Or:   set WCHISP_PATH=/path/to/wchisp"
         )
 

@@ -34,6 +34,7 @@ import {
 } from '@/types/protocol';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { parseSendFrame, parseReceiveFrame, parseLogFrame, toHexDump } from '@/utils/protocolParser';
+import { showToast } from '@/services/toastService';
 
 // ============================================================================
 // HID 过滤器
@@ -56,9 +57,15 @@ const RESP_HEADER_SIZE = 3;
 // ============================================================================
 
 export class HidService {
+  /** 检查当前浏览器是否支持 WebHID */
+  static isSupported(): boolean {
+    return typeof navigator !== 'undefined' && 'hid' in navigator;
+  }
+
   private device: HIDDevice | null = null;
   private responsePromise: { resolve: (data: DataView) => void; reject: (err: Error) => void } | null = null;
   private responseTimeout: number | null = null;
+  private readonly inputReportHandler = this.handleInputReport.bind(this);
 
   // ----------------------------------------
   // 设备管理
@@ -66,18 +73,23 @@ export class HidService {
 
   /** 请求并选择设备 */
   async requestDevice(): Promise<HIDDevice | null> {
+    if (!HidService.isSupported()) {
+      showToast('error', '不支持 WebHID', '请使用 Chrome / Edge 等支持 WebHID 的浏览器');
+      return null;
+    }
     try {
       const devices = await navigator.hid.requestDevice({ filters: [KEYBOARD_FILTER] });
       if (devices.length === 0) return null;
       return devices[0];
     } catch (error) {
-      console.error('请求 HID 设备失败:', error);
+      showToast('error', '连接失败', error instanceof Error ? error.message : '请求设备时发生未知错误');
       return null;
     }
   }
 
   /** 获取已授权的设备 */
   async getAuthorizedDevice(): Promise<HIDDevice | null> {
+    if (!HidService.isSupported()) return null;
     const devices = await navigator.hid.getDevices();
     return devices.find(d => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID) || null;
   }
@@ -85,14 +97,18 @@ export class HidService {
   /** 连接设备 */
   async connect(device: HIDDevice): Promise<boolean> {
     try {
+      if (this.device && this.device !== device) {
+        this.device.removeEventListener('inputreport', this.inputReportHandler);
+      }
       if (!device.opened) {
         await device.open();
       }
       this.device = device;
-      device.addEventListener('inputreport', this.handleInputReport.bind(this));
+      device.removeEventListener('inputreport', this.inputReportHandler);
+      device.addEventListener('inputreport', this.inputReportHandler);
       return true;
     } catch (error) {
-      console.error('打开 HID 设备失败:', error);
+      showToast('error', '打开设备失败', error instanceof Error ? error.message : '无法打开 HID 设备');
       return false;
     }
   }
@@ -101,6 +117,7 @@ export class HidService {
   async disconnect(): Promise<void> {
     if (this.device) {
       try {
+        this.device.removeEventListener('inputreport', this.inputReportHandler);
         await this.device.close();
       } catch { /* ignore */ }
       this.device = null;
@@ -125,6 +142,9 @@ export class HidService {
   private async sendCommand(cmd: Command, sub = 0, data: Uint8Array = new Uint8Array(0), timeout = 3000): Promise<DataView> {
     if (!this.device || !this.device.opened) {
       throw new Error('设备未连接');
+    }
+    if (data.length > FRAME_SIZE - 3) {
+      throw new Error(`命令数据过长: ${data.length} > ${FRAME_SIZE - 3}`);
     }
 
     // 构造帧
@@ -174,7 +194,7 @@ export class HidService {
     // 有 Report ID 模式：检查 reportId 是否匹配
     if (REPORT_ID_RESPONSE !== 0 && event.reportId !== REPORT_ID_RESPONSE) return;
 
-    const frameBytes = new Uint8Array(event.data.buffer);
+    const frameBytes = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength);
     const cmd = frameBytes[0];
 
     // CMD=0x70: 设备主动推送日志 → 路由到终端, 不走 responsePromise
@@ -219,7 +239,9 @@ export class HidService {
         clearTimeout(this.responseTimeout);
         this.responseTimeout = null;
       }
-      this.responsePromise.resolve(new DataView(event.data.buffer));
+      this.responsePromise.resolve(
+        new DataView(event.data.buffer, event.data.byteOffset, event.data.byteLength),
+      );
       this.responsePromise = null;
     }
   }

@@ -1,33 +1,47 @@
-# binary-keyboard-studio-ui
+# BinaryKeyboard Studio
 
-This template should help get you started developing with Vue 3 in Vite.
+BinaryKeyboard 的 Web 改键工具前端（Vue 3 + Vite + PrimeVue），通过 WebHID 与键盘通信。
 
-## Recommended IDE Setup
+## 本次大更新（前端）
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- 新增 PWA 支持（Manifest + Service Worker 缓存）。
+- 新增新版本提示条，检测到更新后可一键刷新。
+- 开发服务器固定为 `0.0.0.0:5173`，并启用 `strictPort`（端口被占用会直接报错）。
+- 新增 PWA 客户端类型声明（`env.d.ts`）。
 
-## Type Support for `.vue` Imports in TS
+## 开发环境
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+- Node.js（建议 LTS）
+- `pnpm`
 
-## Customize configuration
+推荐 IDE：VS Code + Volar（禁用 Vetur）。
 
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## 快速开始
 
 ```sh
 pnpm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 pnpm dev
 ```
 
-### Type-Check, Compile and Minify for Production
+默认地址：`http://localhost:5173`
+
+## 常用命令
 
 ```sh
-pnpm build
+pnpm dev        # 本地开发（可局域网访问）
+pnpm type-check # 类型检查
+pnpm build      # 生产构建
+pnpm preview    # 本地预览构建结果
 ```
+
+## PWA 说明
+
+- 构建后支持安装为应用（桌面/移动端，取决于浏览器）。
+- 检测到新版本时，页面顶部会显示更新提示。
+- WebHID 仍需 Chromium 内核浏览器（如 Chrome / Edge）。
+- 线上环境建议使用 HTTPS（`localhost` 本地开发可直接使用）。
+
+## 发布前检查
+
+- 确认 `tools/studio/public/icon-192.png` 与 `tools/studio/public/icon-512.png` 已存在（PWA Manifest 依赖）。
+- 确认静态资源可被缓存（VitePWA 已配置 Workbox 缓存规则）。

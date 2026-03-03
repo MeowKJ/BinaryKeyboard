@@ -10,18 +10,25 @@
 
 | 工具 | 说明 |
 | :--- | :--- |
-| CMake ≥ 3.16 + Ninja | 构建系统 |
+| CMake ≥ 3.21 + Ninja | 构建系统（使用 Presets） |
 | MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
-| Python 3 | 烧录脚本 (`flash.py`) |
-| wchisp | 底层烧录工具（`setup.py` 自动下载） |
+| Python 3 | 烧录脚本（`tools/scripts/flash.py`） |
+| wchisp | 底层烧录工具（`tools/scripts/setup.py` 自动下载） |
 
 > VSCode 用户可直接使用状态栏按钮（Build / Flash）触发构建与烧录，无需手动执行命令。
+> 工具链路径推荐写入 `CMakeUserPresets.json`，也支持环境变量或系统 `PATH` 自动探测。
+> 若使用 VS Code CMake Tools 自带“生成/配置”，请优先选择 `local-release` / `local-debug` 预设。
 
 ### 配置开发环境
 
 1. 安装 [MounRiver Studio](http://www.mounriver.com/)（获取 RISC-V 工具链）
 2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`，填写工具链路径
-3. 下载烧录工具：`python setup.py`
+3. 下载烧录工具：`python tools/scripts/setup.py`
+
+可选工具链配置方式（`cmake/toolchain-ch59x.cmake` 已支持）：
+- `MRS_TOOLCHAIN_ROOT`（推荐，填 MounRiver Toolchain 根目录）
+- `RISCV_TOOLCHAIN_DIR` / `TOOLCHAIN_DIR`（直接指定 `bin` 目录）
+- 将 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 加入系统 `PATH`
 
 ## 代码架构
 
@@ -198,13 +205,13 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 4 / 5 / 4
 
 ```bash
 # 首次使用：下载 wchisp 烧录工具
-python setup.py
+python tools/scripts/setup.py
 
 # 仅构建
-python flash.py build --preset release
+python tools/scripts/flash.py build --preset release
 
 # 构建并烧录
-python flash.py flash --preset release
+python tools/scripts/flash.py flash --preset release
 ```
 
 ### 手动 CMake 构建
@@ -216,11 +223,37 @@ cmake --build --preset release  # 编译
 # 产物：build/release/CH592F.bin
 ```
 
+常用预设：
+- `release`：体积优先（`MinSizeRel`）
+- `debug`：调试优先（`-Og -g3`）
+- `local-release` / `local-debug`：本机预设（在 `CMakeUserPresets.json` 中定义，推荐 VS Code 使用）
+
+推荐（本机开发）：
+
+```bash
+cd firmware/CH592F
+cmake --preset local-release
+cmake --build --preset local-release
+```
+
+### CMake 常见问题
+
+**1. VS Code CMake Tools 报 `RISC-V cross-compiler not found`**
+
+- 优先检查当前 Configure Preset 是否为 `local-release` / `local-debug`
+- 执行 `CMake: Delete Cache and Reconfigure`
+- 检查 `CMakeUserPresets.json` 中 `MRS_TOOLCHAIN_ROOT` 路径
+- 或使用 `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
+
+说明：
+- 状态栏 Task 按钮走 `tools/scripts/flash.py` 工作流，通常会优先使用本机 `local-*` 预设
+- VS Code CMake Tools 自带“生成/配置”直接使用当前选中的 preset，不会自动替换为 `local-*`
+
 ### 进入 Bootloader 模式
 
 1. 断开键盘与电脑连接
 2. 按住 **BOOT** 按钮的同时连接 USB
-3. 运行 `python flash.py flash` 自动烧录
+3. 运行 `python tools/scripts/flash.py flash` 自动烧录
 
 ## 按键映射系统
 
@@ -408,6 +441,8 @@ KBD_RGB_Flash(0, 255, 0, 200);  // 绿色闪烁 200ms
 ```
 
 ## HID 通讯协议
+
+> 当前准确协议定义（含 Studio/WebHID 逐字节格式、宏分包、日志异步帧）以 `docs/wireless/hid.md` 为准。本节保留为开发概览。
 
 ### Report ID 分配
 
@@ -738,16 +773,24 @@ KBD_Mode_SendConsumerReport(0xCD);  // Play/Pause
 
 ### DataFlash 布局
 
-CH592F 内置 32KB DataFlash：
+CH592F 内置 32KB DataFlash，当前策略为“宏大擦写、配置小擦写”：
 
 | 地址范围        | 大小 | 用途      |
 | :-------------- | :--- | :-------- |
-| 0x00000-0x000FF | 256B | 配置头    |
-| 0x00100-0x001FF | 256B | 系统配置  |
-| 0x00200-0x002FF | 256B | 按键映射  |
-| 0x00300-0x0033F | 64B  | FN 键配置 |
-| 0x00340-0x003FF | 192B | RGB 配置  |
-| 0x04000-0x07FFF | 16KB | 宏数据区  |
+| 0x0000-0x0BFF | 3KB  | 配置槽轮转区（3 槽 × 1KB，按 256B 页差异擦写） |
+| 0x0C00-0x0FFF | 1KB  | runtime 热数据区（4 页 × 256B，保存高频层号） |
+| 0x1000-0x4FFF | 16KB | 宏数据区（按 4KB 块擦写） |
+| 0x7E00-0x7EFF | 256B | BLE SNV（配对信息） |
+
+说明：
+- `current_layer` 高频变化仅写 runtime 热数据页，不重写整份配置
+- 配置保存使用槽位轮转 + CRC 校验，降低磨损并提升掉电恢复能力
+- 宏区保持块级擦写，简化大数据写入逻辑
+- 高频状态建议通过 TMOS 延时事件合并写入，避免在按键路径直接擦写 Flash
+
+详细布局与字段定义见 `docs/wireless/dataflash.md`。
+如需进一步拆分为 `base/keymap/runtime` 分区日志页，可参考 `docs/wireless/dataflash.md` 末尾“推荐优化方案（规划）”。
+TMOS 事件/定时/消息使用方式见 `docs/wireless/tmos.md`。
 
 ### API 使用
 

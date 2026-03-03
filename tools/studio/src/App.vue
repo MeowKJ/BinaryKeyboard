@@ -2,6 +2,12 @@
   <div class="app-root" :data-theme="currentTheme">
     <Toast position="top-center" />
 
+    <!-- PWA 新版本提示 -->
+    <div v-if="pwaNeedRefresh" class="pwa-update-banner">
+      <span>发现新版本，点击更新</span>
+      <button class="pwa-update-btn" @click="onPwaUpdate">更新</button>
+    </div>
+
     <!-- 加载遮罩 -->
     <div v-if="deviceStore.isLoading" class="loading-overlay">
       <ProgressSpinner strokeWidth="4" />
@@ -11,7 +17,7 @@
     <!-- 未连接状态 - 欢迎页 -->
     <div v-if="!deviceStore.isConnected" class="welcome-screen">
       <!-- 主题切换按钮 -->
-      <button class="theme-toggle welcome-theme-toggle" @click="toggleTheme">
+      <button class="theme-toggle" @click="toggleTheme">
         <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
       </button>
 
@@ -190,8 +196,6 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[0].clickAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
@@ -208,8 +212,6 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[0].longAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
@@ -230,8 +232,6 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[1].clickAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
@@ -248,8 +248,6 @@
                   <select v-model="deviceStore.fnKeyConfig.fnKeys[1].longAction" class="fn-select">
                     <option :value="0x00">无动作</option>
                     <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
                     <option :value="0x04">清除配对</option>
                     <option :value="0x10">RGB 开关</option>
                     <option :value="0x11">RGB 下一模式</option>
@@ -411,7 +409,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { hidService } from '@/services/HidService';
+import { useRegisterSW } from 'virtual:pwa-register/vue';
+import { HidService, hidService } from '@/services/HidService';
+import { initToastService, showToast } from '@/services/toastService';
 import type { KeyAction } from '@/types/protocol';
 import {
   createEmptyAction,
@@ -430,9 +430,21 @@ import KeyboardStatus from '@/components/KeyboardStatus.vue';
 import { useTerminalStore } from '@/stores/terminalStore';
 
 const toast = useToast();
+initToastService(toast);   // 注入全局 toast，供 Service 层使用
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
 const terminalStore = useTerminalStore();
+
+// PWA 更新（Service Worker 检测到新版本时 needRefresh 为 true，用户点击后静默刷新）
+const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
+  onRegistered(r: ServiceWorkerRegistration | undefined) {
+    if (r) r.update();
+  },
+});
+async function onPwaUpdate() {
+  await updateServiceWorker(true);
+  window.location.reload();
+}
 
 // 主题
 const currentTheme = ref<ThemeMode>('dark');
@@ -724,9 +736,7 @@ function onActionSave(action: KeyAction) {
 // 工具函数
 // ----------------------------------------
 
-function showToast(severity: 'success' | 'info' | 'warn' | 'error', summary: string, detail: string) {
-  toast.add({ severity, summary, detail, life: 2500 });
-}
+// showToast 由 @/services/toastService 提供，已在上方导入
 
 // ----------------------------------------
 // 生命周期
@@ -741,13 +751,19 @@ function onDeviceDisconnected(event: HIDConnectionEvent) {
 
 onMounted(async () => {
   initTheme();
-  navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
-  await autoConnect();
+  if (HidService.isSupported()) {
+    navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
+    await autoConnect();
+  } else {
+    showToast('warn', '浏览器不支持', '请使用 Chrome / Edge 等支持 WebHID 的浏览器');
+  }
 });
 
 onUnmounted(() => {
   deviceStore.stopStatusPolling();
-  navigator.hid.removeEventListener('disconnect', onDeviceDisconnected);
+  if (HidService.isSupported()) {
+    navigator.hid.removeEventListener('disconnect', onDeviceDisconnected);
+  }
 });
 </script>
 
@@ -786,6 +802,38 @@ body {
   display: flex;
   flex-direction: column;
   padding-bottom: 32px; /* 底部状态栏高度 */
+}
+
+/* ==========================================
+   PWA 新版本提示条
+========================================== */
+.pwa-update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--c-accent);
+  color: #fff;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.pwa-update-btn {
+  padding: 0.35rem 0.85rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pwa-update-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* ==========================================
@@ -837,7 +885,7 @@ body {
   font-size: 1.1rem;
 }
 
-.welcome-theme-toggle {
+.welcome-screen .theme-toggle {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;

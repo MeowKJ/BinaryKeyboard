@@ -22,6 +22,7 @@
 
 // PHY 更新延迟
 #define PHY_UPDATE_DELAY 1600
+#define BLE_SCAN_RSP_MAX_LEN 31
 
 /* ==================== 全局变量 ==================== */
 
@@ -48,7 +49,7 @@ static uint8_t g_advertData[] = {
     // Flags
     0x02,
     GAP_ADTYPE_FLAGS,
-    GAP_ADTYPE_FLAGS_LIMITED | GAP_ADTYPE_FLAGS_BREDR_NOT_SUPPORTED,
+    GAP_ADTYPE_FLAGS_GENERAL | GAP_ADTYPE_FLAGS_BREDR_NOT_SUPPORTED,
 
     // Appearance (键盘)
     0x03,
@@ -57,30 +58,12 @@ static uint8_t g_advertData[] = {
     HI_UINT16 (GAP_APPEARE_HID_KEYBOARD),
 };
 
-// 扫描响应数据
-static uint8_t g_scanRspData[] = {
-    // 设备名称
-    BLE_DEVICE_NAME_LEN + 1, GAP_ADTYPE_LOCAL_NAME_COMPLETE,
-    'D', 'u', 'a', 'l', 'M', 'o', 'd', 'e', ' ',
-    'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd',
+// 扫描响应数据（运行时按设备名拼接）
+static uint8_t g_scanRspData[BLE_SCAN_RSP_MAX_LEN];
+static uint8_t g_scanRspDataLen = 0;
 
-    // 连接间隔范围
-    0x05, GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE,
-    LO_UINT16 (BLE_CONN_INT_MIN),
-    HI_UINT16 (BLE_CONN_INT_MIN),
-    LO_UINT16 (BLE_CONN_INT_MAX),
-    HI_UINT16 (BLE_CONN_INT_MAX),
-
-    // 服务 UUID
-    0x05, GAP_ADTYPE_16BIT_MORE,
-    LO_UINT16 (HID_SERV_UUID),
-    HI_UINT16 (HID_SERV_UUID),
-    LO_UINT16 (BATT_SERV_UUID),
-    HI_UINT16 (BATT_SERV_UUID),
-};
-
-// 设备名称
-static const uint8_t g_attDeviceName[GAP_DEVICE_NAME_LEN] = BLE_DEVICE_NAME;
+// 设备名称（GATT Device Name，固定 21 字节，超长截断）
+static uint8_t g_attDeviceName[GAP_DEVICE_NAME_LEN];
 
 /* ==================== 私有函数声明 ==================== */
 
@@ -91,6 +74,7 @@ static void BLE_HID_EvtCallback (uint8_t evt);
 static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pEvent);
 static void BLE_HID_BattCallback (uint8_t event);
 static void BLE_HID_ScanParamCallback (uint8_t event);
+static void BLE_HID_BuildDeviceNameData (void);
 
 // HID 设备回调
 static hidDevCB_t g_hidDevCallbacks = {
@@ -100,10 +84,60 @@ static hidDevCB_t g_hidDevCallbacks = {
     BLE_HID_StateCallback  // 状态回调
 };
 
+static void BLE_HID_BuildDeviceNameData (void) {
+    const char *name = BLE_DEVICE_NAME;
+    uint8_t nameLen = (uint8_t)strlen (name);
+    uint8_t scanNameLen = nameLen;
+    uint8_t nameAdType = GAP_ADTYPE_LOCAL_NAME_COMPLETE;
+    uint8_t cursor = 0;
+
+    if (nameLen > GAP_DEVICE_NAME_LEN) {
+        nameLen = GAP_DEVICE_NAME_LEN;
+    }
+
+    memset (g_attDeviceName, 0, sizeof (g_attDeviceName));
+    memcpy (g_attDeviceName, name, nameLen);
+
+    if (scanNameLen > (BLE_SCAN_RSP_MAX_LEN - 2)) {
+        scanNameLen = BLE_SCAN_RSP_MAX_LEN - 2;
+        nameAdType = GAP_ADTYPE_LOCAL_NAME_SHORT;
+    }
+
+    memset (g_scanRspData, 0, sizeof (g_scanRspData));
+
+    g_scanRspData[cursor++] = scanNameLen + 1;
+    g_scanRspData[cursor++] = nameAdType;
+    memcpy (&g_scanRspData[cursor], name, scanNameLen);
+    cursor += scanNameLen;
+
+    // 先尽量放服务 UUID（便于扫描端快速识别 HID 设备）
+    if ((BLE_SCAN_RSP_MAX_LEN - cursor) >= 6) {
+        g_scanRspData[cursor++] = 0x05;
+        g_scanRspData[cursor++] = GAP_ADTYPE_16BIT_MORE;
+        g_scanRspData[cursor++] = LO_UINT16 (HID_SERV_UUID);
+        g_scanRspData[cursor++] = HI_UINT16 (HID_SERV_UUID);
+        g_scanRspData[cursor++] = LO_UINT16 (BATT_SERV_UUID);
+        g_scanRspData[cursor++] = HI_UINT16 (BATT_SERV_UUID);
+    }
+
+    // 剩余空间允许时再放连接参数范围
+    if ((BLE_SCAN_RSP_MAX_LEN - cursor) >= 6) {
+        g_scanRspData[cursor++] = 0x05;
+        g_scanRspData[cursor++] = GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE;
+        g_scanRspData[cursor++] = LO_UINT16 (BLE_CONN_INT_MIN);
+        g_scanRspData[cursor++] = HI_UINT16 (BLE_CONN_INT_MIN);
+        g_scanRspData[cursor++] = LO_UINT16 (BLE_CONN_INT_MAX);
+        g_scanRspData[cursor++] = HI_UINT16 (BLE_CONN_INT_MAX);
+    }
+
+    g_scanRspDataLen = cursor;
+}
+
 /* ==================== 初始化实现 ==================== */
 
 int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     g_pCallbacks = pCBs;
+    BLE_HID_BuildDeviceNameData();
 
     // 注册 TMOS 任务
     bleHidTaskId = TMOS_ProcessEventRegister (BLE_HID_ProcessEvent);
@@ -113,19 +147,19 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
         uint8_t enable = FALSE;  // 初始不广播
         GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
         GAPRole_SetParameter (GAPROLE_ADVERT_DATA, sizeof (g_advertData), g_advertData);
-        GAPRole_SetParameter (GAPROLE_SCAN_RSP_DATA, sizeof (g_scanRspData), g_scanRspData);
+        GAPRole_SetParameter (GAPROLE_SCAN_RSP_DATA, g_scanRspDataLen, g_scanRspData);
     }
 
     // 设置 GAP 特性
     GGS_SetParameter (GGS_DEVICE_NAME_ATT, GAP_DEVICE_NAME_LEN, (void *)g_attDeviceName);
 
-    // 设置连接参数
+    // 设置连接参数（对齐官方示例：intervalMin=6, intervalMax=9, latency=20, timeout=300）
     {
         gapPeriConnectParams_t connParams;
-        connParams.intervalMin = BLE_CONN_INT_MIN;
-        connParams.intervalMax = BLE_CONN_INT_MAX;
-        connParams.latency = BLE_SLAVE_LATENCY;
-        connParams.timeout = BLE_CONN_TIMEOUT;
+        connParams.intervalMin = 6;
+        connParams.intervalMax = 9;
+        connParams.latency = 20;
+        connParams.timeout = 300;
         GGS_SetParameter (GGS_PERI_CONN_PARAM_ATT, sizeof (gapPeriConnectParams_t), &connParams);
     }
 
@@ -150,19 +184,15 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
         Batt_SetParameter (BATT_PARAM_CRITICAL_LEVEL, sizeof (uint8_t), &critical);
     }
 
-    // 添加 HID 服务
-    HidKbdMouse_AddService();
-
     // 注册 HID 设备回调
     HidDev_Register (&g_hidDevCfg, &g_hidDevCallbacks);
 
+    // 初始化 HID 设备：依次添加 GAP/GATT/DevInfo/Battery/ScanParam 服务
+    // 必须在 HidKbdMouse_AddService() 之前调用，因为后者需要 Batt_AddService() 已完成
     HidDev_Init();
 
-    // 注册电池服务回调
-    Batt_Register (BLE_HID_BattCallback);
-
-    // 注册扫描参数服务回调
-    ScanParam_Register (BLE_HID_ScanParamCallback);
+    // 添加 HID 服务（必须在 HidDev_Init 之后，因为需要电池服务句柄）
+    HidKbdMouse_AddService();
 
     // 启动设备
     tmos_set_event (bleHidTaskId, BLE_HID_START_DEVICE_EVT);
@@ -190,11 +220,11 @@ uint16_t BLE_HID_ProcessEvent (uint8_t task_id, uint16_t events) {
     }
 
     if (events & BLE_HID_PARAM_UPDATE_EVT) {
-        // 请求连接参数更新
+        // 请求连接参数更新（latency=0 对齐官方示例，避免主机拒绝更新请求）
         GAPRole_PeripheralConnParamUpdateReq (g_conn_handle,
                                               BLE_CONN_INT_MIN,
                                               BLE_CONN_INT_MAX,
-                                              BLE_SLAVE_LATENCY,
+                                              0,
                                               BLE_CONN_TIMEOUT,
                                               bleHidTaskId);
         return (events ^ BLE_HID_PARAM_UPDATE_EVT);
@@ -231,7 +261,12 @@ int BLE_HID_StartAdvertising (void) {
 
     // 开始广播
     uint8_t enable = TRUE;
-    GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
+    bStatus_t status = GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
+
+    if (status != SUCCESS) {
+        LOG_W (TAG, "Start advertising failed: %02X", status);
+        return -1;
+    }
 
     LOG_I (TAG, "Start advertising");
     return 0;
@@ -254,7 +289,8 @@ int BLE_HID_Disconnect (void) {
 }
 
 bool BLE_HID_IsConnected (void) {
-    return ((g_ble_state & GAPROLE_STATE_ADV_MASK) == GAPROLE_CONNECTED);
+    uint8_t state = (g_ble_state & GAPROLE_STATE_ADV_MASK);
+    return (state == GAPROLE_CONNECTED || state == GAPROLE_CONNECTED_ADV);
 }
 
 gapRole_States_t BLE_HID_GetState (void) {
@@ -414,6 +450,7 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         break;
 
     case GAPROLE_CONNECTED:
+    case GAPROLE_CONNECTED_ADV:
         if (pEvent->gap.opcode == GAP_LINK_ESTABLISHED_EVENT) {
             gapEstLinkReqEvent_t *event = (gapEstLinkReqEvent_t *)pEvent;
             g_conn_handle = event->connectionHandle;
@@ -422,11 +459,8 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
             tmos_start_task (bleHidTaskId, BLE_HID_PARAM_UPDATE_EVT, PARAM_UPDATE_DELAY);
 
             LOG_I (TAG, "Connected, handle=%d", g_conn_handle);
-        }
-        break;
-
-    case GAPROLE_CONNECTED_ADV:
-        if (pEvent->gap.opcode == GAP_MAKE_DISCOVERABLE_DONE_EVENT) {
+        } else if ((newState & GAPROLE_STATE_ADV_MASK) == GAPROLE_CONNECTED_ADV &&
+                   pEvent->gap.opcode == GAP_MAKE_DISCOVERABLE_DONE_EVENT) {
             LOG_I (TAG, "Connected advertising");
         }
         break;
@@ -441,8 +475,8 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
                    pEvent->linkTerminate.reason);
         }
 
-        // 重新开始广播
-        {
+        // 仅在 BLE 启用时自动恢复广播
+        if (g_ble_enabled) {
             uint8_t enable = TRUE;
             GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
         }

@@ -123,6 +123,7 @@ static void    hidDevLowAdvertising(void);
 static void    hidDevInitialAdvertising(void);
 static uint8_t hidDevBondCount(void);
 static uint8_t HidDev_sendNoti(uint16_t handle, uint8_t len, uint8_t *pData);
+static uint8_t hidDevIsConnectedState(gapRole_States_t state);
 /*********************************************************************
  * PROFILE CALLBACKS
  */
@@ -289,7 +290,7 @@ void HidDev_RegisterReports(uint8_t numReports, hidRptMap_t *pRpt)
 uint8_t HidDev_Report(uint8_t id, uint8_t type, uint8_t len, uint8_t *pData)
 {
     // if connected
-    if(hidDevGapState == GAPROLE_CONNECTED)
+    if(hidDevIsConnectedState(hidDevGapState))
     {
         // if connection is secure
         if(hidDevConnSecure)
@@ -329,7 +330,7 @@ void HidDev_Close(void)
     uint8_t param;
 
     // if connected then disconnect
-    if(hidDevGapState == GAPROLE_CONNECTED)
+    if(hidDevIsConnectedState(hidDevGapState))
     {
         GAPRole_TerminateLink(gapConnHandle);
     }
@@ -365,7 +366,7 @@ bStatus_t HidDev_SetParameter(uint8_t param, uint8_t len, void *pValue)
             if(len == 0)
             {
                 // Drop connection
-                if(hidDevGapState == GAPROLE_CONNECTED)
+                if(hidDevIsConnectedState(hidDevGapState))
                 {
                     GAPRole_TerminateLink(gapConnHandle);
                 }
@@ -768,13 +769,19 @@ static void hidDevDisconnected(void)
 static void hidDevGapStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
 {
     uint8_t param;
-    // if connected
-    if(newState == GAPROLE_CONNECTED)
-    {
-        gapEstLinkReqEvent_t *event = (gapEstLinkReqEvent_t *)pEvent;
+    uint8_t wasConnected = hidDevIsConnectedState(hidDevGapState);
+    uint8_t isConnected = hidDevIsConnectedState(newState);
 
-        // get connection handle
-        gapConnHandle = event->connectionHandle;
+    // if newly connected (including CONNECTED_ADV)
+    if(!wasConnected && isConnected)
+    {
+        if(pEvent && (pEvent->gap.opcode == GAP_LINK_ESTABLISHED_EVENT))
+        {
+            gapEstLinkReqEvent_t *event = (gapEstLinkReqEvent_t *)pEvent;
+
+            // get connection handle
+            gapConnHandle = event->connectionHandle;
+        }
 
         // connection not secure yet
         hidDevConnSecure = FALSE;
@@ -784,8 +791,7 @@ static void hidDevGapStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
         GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &param);
     }
     // if disconnected
-    else if(hidDevGapState == GAPROLE_CONNECTED &&
-            newState != GAPROLE_CONNECTED)
+    else if(wasConnected && !isConnected)
     {
         hidDevDisconnected();
 
@@ -810,6 +816,12 @@ static void hidDevGapStateCB(gapRole_States_t newState, gapRoleEvent_t *pEvent)
     }
 
     hidDevGapState = newState;
+}
+
+static uint8_t hidDevIsConnectedState(gapRole_States_t state)
+{
+    uint8_t roleState = (state & GAPROLE_STATE_ADV_MASK);
+    return ((roleState == GAPROLE_CONNECTED) || (roleState == GAPROLE_CONNECTED_ADV));
 }
 
 /*********************************************************************

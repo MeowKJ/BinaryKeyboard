@@ -44,22 +44,37 @@ if(NOT DEFINED TOOLCHAIN_DIR AND DEFINED MRS_TOOLCHAIN_ROOT)
 endif()
 
 # --- Find the compiler ------------------------------------------------------
-if(DEFINED TOOLCHAIN_DIR)
-    set(_find_args HINTS "${TOOLCHAIN_DIR}" NO_DEFAULT_PATH)
-else()
-    set(_find_args "")
-endif()
+# Search order:
+#   1) TOOLCHAIN_DIR hint (if provided)
+#   2) system PATH fallback (prevents stale cache paths from hard-failing)
+unset(TOOLCHAIN_PREFIX CACHE)
 
-foreach(_prefix IN ITEMS "riscv-none-embed-" "riscv-wch-elf-" "riscv-none-elf-")
-    find_program(_probe_gcc "${_prefix}gcc" ${_find_args})
-    if(_probe_gcc)
-        get_filename_component(_bin_dir "${_probe_gcc}" DIRECTORY)
-        set(TOOLCHAIN_DIR    "${_bin_dir}" CACHE PATH   "RISC-V toolchain bin directory" FORCE)
-        set(TOOLCHAIN_PREFIX "${_prefix}"  CACHE STRING "RISC-V toolchain prefix"        FORCE)
-        unset(_probe_gcc CACHE)
+foreach(_pass IN ITEMS "hint" "path")
+    if(DEFINED TOOLCHAIN_PREFIX)
         break()
     endif()
-    unset(_probe_gcc CACHE)
+
+    if(_pass STREQUAL "hint")
+        if(DEFINED TOOLCHAIN_DIR)
+            set(_find_args HINTS "${TOOLCHAIN_DIR}" NO_DEFAULT_PATH)
+        else()
+            continue()
+        endif()
+    else()
+        set(_find_args "")
+    endif()
+
+    foreach(_prefix IN ITEMS "riscv-none-embed-" "riscv-wch-elf-" "riscv-none-elf-")
+        find_program(_probe_gcc "${_prefix}gcc" ${_find_args})
+        if(_probe_gcc)
+            get_filename_component(_bin_dir "${_probe_gcc}" DIRECTORY)
+            set(TOOLCHAIN_DIR    "${_bin_dir}" CACHE PATH   "RISC-V toolchain bin directory" FORCE)
+            set(TOOLCHAIN_PREFIX "${_prefix}"  CACHE STRING "RISC-V toolchain prefix"        FORCE)
+            unset(_probe_gcc CACHE)
+            break()
+        endif()
+        unset(_probe_gcc CACHE)
+    endforeach()
 endforeach()
 
 if(NOT DEFINED TOOLCHAIN_PREFIX)
@@ -71,6 +86,10 @@ if(NOT DEFINED TOOLCHAIN_PREFIX)
         "\n"
         "Or via cmake variable:\n"
         "  cmake -DMRS_TOOLCHAIN_ROOT=/path/to/Toolchain ..\n"
+        "  cmake -DTOOLCHAIN_DIR=/path/to/bin ..\n"
+        "\n"
+        "Or select the local preset in VS Code CMake Tools:\n"
+        "  local-release / local-debug\n"
         "\n"
         "Expected: riscv-none-embed-gcc / riscv-wch-elf-gcc / riscv-none-elf-gcc")
 endif()
@@ -89,12 +108,17 @@ set(CROSS_SIZE         "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}size"    CACHE FILEP
 
 # Forward toolchain variables into try_compile subprojects so the
 # find_program search above succeeds even during ABI-detection builds.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES TOOLCHAIN_DIR TOOLCHAIN_PREFIX)
+list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES
+    TOOLCHAIN_DIR
+    TOOLCHAIN_PREFIX
+    MRS_TOOLCHAIN_ROOT
+)
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
 # ---------------------------------------------------------------------------
 # CPU / architecture flags

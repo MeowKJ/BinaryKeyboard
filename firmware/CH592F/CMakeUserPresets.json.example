@@ -16,10 +16,28 @@
       "cacheVariables": {
         "MRS_TOOLCHAIN_ROOT": "/path/to/MRS_Toolchain_MAC_V230/Toolchain"
       }
+    },
+    {
+      "name": "local-debug-5key",
+      "displayName": "Debug (local toolchain, 5KEY)",
+      "inherits": "local-debug",
+      "cacheVariables": {
+        "KBD_MODEL": "5KEY"
+      }
+    },
+    {
+      "name": "local-release-5key",
+      "displayName": "Release (local toolchain, 5KEY)",
+      "inherits": "local-release",
+      "cacheVariables": {
+        "KBD_MODEL": "5KEY"
+      }
     }
   ],
   "buildPresets": [
     { "name": "local-debug",   "configurePreset": "local-debug" },
-    { "name": "local-release", "configurePreset": "local-release" }
+    { "name": "local-release", "configurePreset": "local-release" },
+    { "name": "local-debug-5key",   "configurePreset": "local-debug-5key" },
+    { "name": "local-release-5key", "configurePreset": "local-release-5key" }
   ]
 }

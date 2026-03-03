@@ -9,7 +9,6 @@
 /* BLE 相关头文件（包含 CH59x_common.h） */
 #include "ble_config.h"
 #include "ble_hal.h"
-#include "hiddev.h"
 
 /* 键盘核心模块 */
 #include "kbd_mode.h"
@@ -71,9 +70,6 @@ int main(void)
     /* GAP 角色初始化（外设模式） */
     GAPRole_PeripheralInit();
     
-    /* HID 设备初始化 */
-    HidDev_Init();
-    
     /* 按键驱动初始化 */
     Key_Init();
     
@@ -95,8 +91,9 @@ int main(void)
     /* 键盘核心模块初始化 */
     KBD_Core_Init();
     
-    /* 模式管理器初始化（默认USB模式） */
-    kbd_work_mode_t initial_mode = KBD_WORK_MODE_USB;
+    /* 模式管理器初始化（恢复上次持久化的工作模式） */
+    uint8_t last_mode = KBD_GetLastMode();
+    kbd_work_mode_t initial_mode = (last_mode == 1) ? KBD_WORK_MODE_BLE : KBD_WORK_MODE_USB;
     KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks());
 
     /* 记录启动事件 */

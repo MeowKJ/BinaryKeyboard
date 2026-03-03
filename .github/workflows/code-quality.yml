@@ -75,7 +75,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: tools/studio
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Run ESLint
         working-directory: tools/studio

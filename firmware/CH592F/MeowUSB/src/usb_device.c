@@ -321,6 +321,8 @@ static void USB_HandleSetupPacket(void)
  */
 void USB_Device_Init(void)
 {
+    USB_Descriptors_Init();
+
     // 设置端点缓冲区地址
     pEP0_RAM_Addr = EP0_Databuf;
     pEP1_RAM_Addr = EP1_Databuf;
@@ -339,6 +341,13 @@ void USB_Device_Init(void)
     g_USB_DeviceState = USB_STATE_ATTACHED;
 
     PFIC_EnableIRQ(USB_IRQn);
+}
+
+void USB_Device_Deinit(void)
+{
+    PFIC_DisableIRQ(USB_IRQn);
+    R8_USB_CTRL = 0;   /* 清零控制寄存器：关闭 PHY、移除 D+ 上拉，主机侧感知断连 */
+    g_USB_DeviceState = USB_STATE_DETACHED;
 }
 
 /**

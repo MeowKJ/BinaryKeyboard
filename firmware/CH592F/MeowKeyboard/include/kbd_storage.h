@@ -12,7 +12,7 @@
  * - 宏数据的分块读写
  * - CRC32 校验确保数据完整性
  *
- * @note    DataFlash 总容量 32KB，擦除粒度为 4KB
+ * @note    DataFlash 总容量 32KB；CH592F 支持 256B/4KB 擦除（配置区使用 256B 页级更新）
  *
  * @copyright Copyright (c) 2024 MeowKJ. All rights reserved.
  */
@@ -43,6 +43,45 @@ extern "C" {
  */
 int KBD_Storage_Init(void);
 
+/**
+ * @brief 刷新 runtime 热数据（如当前层）到 DataFlash
+ *
+ * @note 用于睡眠前/模式切换前强制落盘。若无待保存变更则直接返回成功。
+ *
+ * @return 0 成功（含无变更）
+ * @return 负数 擦写失败
+ */
+int KBD_Storage_FlushRuntime(void);
+
+/**
+ * @brief 推迟 runtime 热数据写入（避免在 BLE 连接/配对窗口写 Flash）
+ *
+ * 取消当前待执行的 runtime save 定时器，重新调度到指定延迟后执行。
+ * 仅在有待保存数据时生效，否则直接返回。
+ *
+ * @param[in] delay_ms 推迟时间（毫秒）
+ */
+void KBD_Storage_DeferRuntimeSave(uint32_t delay_ms);
+
+/**
+ * @brief 存储系统状态快照（调试/状态展示）
+ */
+typedef struct {
+    uint8_t config_active_slot;
+    uint8_t runtime_active_page;
+    uint8_t runtime_dirty;
+    uint8_t reserved;
+    uint32_t config_save_count;
+    uint32_t runtime_seq;
+} kbd_storage_status_t;
+
+/**
+ * @brief 获取存储系统当前状态（非阻塞）
+ *
+ * @param[out] status 输出状态结构（可为 NULL）
+ */
+void KBD_Storage_PollStatus(kbd_storage_status_t *status);
+
 /** @} */ /* end of KBD_Storage_Init */
 
 /*============================================================================*/
@@ -63,7 +102,7 @@ int KBD_Config_Load(void);
 /**
  * @brief 保存配置到 DataFlash
  *
- * @note 此操作会擦除并重写 Flash 块，耗时约 50ms
+ * @note CH592F 下采用冷热分离：配置槽位轮转 + runtime 热数据页环（256B）
  *
  * @return 0 成功
  * @return -1 擦除失败
@@ -120,6 +159,27 @@ kbd_rgb_config_t* KBD_GetRgbConfig(void);
  * @defgroup KBD_Storage_Layer 层操作函数
  * @{
  */
+
+/**
+ * @brief 获取上次持久化的工作模式
+ *
+ * 返回 runtime 热数据中保存的模式值，用于开机恢复。
+ *
+ * @return 0 USB 模式
+ * @return 1 BLE 模式
+ * @return 0xFF 未知（首次启动或 Flash 无效）
+ */
+uint8_t KBD_GetLastMode(void);
+
+/**
+ * @brief 设置工作模式并异步持久化到 runtime 热数据
+ *
+ * 通过 TMOS 200ms 防抖延迟写入，与 current_layer 共享同一页写操作。
+ *
+ * @param[in] mode 0=USB, 1=BLE
+ * @return 0 成功
+ */
+int KBD_SetLastMode(uint8_t mode);
 
 /**
  * @brief 获取当前激活层号

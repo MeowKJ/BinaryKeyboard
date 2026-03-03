@@ -11,9 +11,11 @@
 #include "kbd_command.h"
 #include "kbd_types.h"
 #include "debug.h"
+#include <stdbool.h>
 #include <string.h>
 
 #define TAG "USB"
+#define USB_EP_READY_TIMEOUT 60000U
 
 /* ==================== Global Variables ==================== */
 USB_KeyboardReport_t g_KeyboardReport = {0};
@@ -22,6 +24,33 @@ USB_ConsumerReport_t g_ConsumerReport = {0};
 USB_ConfigReport_t   g_ConfigReport = {0};
 
 uint8_t g_KeyboardLEDs = 0;
+
+static bool USB_WaitEPInReady(uint8_t ep)
+{
+    uint32_t timeout = USB_EP_READY_TIMEOUT;
+
+    while (timeout--) {
+        switch (ep) {
+        case 1:
+            if (EP1_GetINSta()) return true;
+            break;
+        case 2:
+            if (EP2_GetINSta()) return true;
+            break;
+        case 3:
+            if (EP3_GetINSta()) return true;
+            break;
+        case 4:
+            if (EP4_GetINSta()) return true;
+            break;
+        default:
+            return false;
+        }
+    }
+
+    LOG_W(TAG, "EP%d IN busy timeout", ep);
+    return false;
+}
 
 /* ==================== Keyboard Functions ==================== */
 
@@ -78,8 +107,10 @@ void USB_Keyboard_Type(uint8_t modifier, uint8_t key)
  */
 void USB_Keyboard_SendReport(void)
 {
-    // 等待上一次传输完成
-    while(!EP1_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(1)) {
+        return;
+    }
     
     memcpy(pEP1_IN_DataBuf, &g_KeyboardReport, sizeof(USB_KeyboardReport_t));
     DevEP1_IN_Deal(sizeof(USB_KeyboardReport_t));
@@ -113,8 +144,10 @@ void USB_Mouse_Init(void)
  */
 void USB_Mouse_Move(int8_t x, int8_t y, int8_t wheel)
 {
-    // 等待上一次传输完成
-    while(!EP2_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(2)) {
+        return;
+    }
     
     g_MouseReport.x = x;
     g_MouseReport.y = y;
@@ -142,8 +175,10 @@ void USB_Mouse_Click(uint8_t buttons)
  */
 void USB_Mouse_Press(uint8_t buttons)
 {
-    // 等待上一次传输完成
-    while(!EP2_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(2)) {
+        return;
+    }
     
     g_MouseReport.buttons = buttons;
     USB_Mouse_SendReport();
@@ -154,8 +189,10 @@ void USB_Mouse_Press(uint8_t buttons)
  */
 void USB_Mouse_Release(void)
 {
-    // 等待上一次传输完成
-    while(!EP2_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(2)) {
+        return;
+    }
     
     g_MouseReport.buttons = 0;
     USB_Mouse_SendReport();
@@ -185,8 +222,10 @@ void USB_Consumer_Init(void)
  */
 void USB_Consumer_Press(uint16_t key)
 {
-    // 等待上一次传输完成
-    while(!EP3_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(3)) {
+        return;
+    }
     
     g_ConsumerReport.key = key;
     USB_Consumer_SendReport();
@@ -197,8 +236,10 @@ void USB_Consumer_Press(uint16_t key)
  */
 void USB_Consumer_Release(void)
 {
-    // 等待上一次传输完成
-    while(!EP3_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(3)) {
+        return;
+    }
     
     g_ConsumerReport.key = 0;
     USB_Consumer_SendReport();
@@ -228,8 +269,10 @@ void USB_Config_Init(void)
  */
 void USB_Config_SendResponse(uint8_t cmd, uint8_t *data, uint8_t len)
 {
-    // 等待上一次传输完成
-    while(!EP4_GetINSta());
+    // 等待上一次传输完成（带超时，避免异常状态卡死）
+    if (!USB_WaitEPInReady(4)) {
+        return;
+    }
     
     g_ConfigReport.cmd = cmd;
     memset(g_ConfigReport.data, 0, sizeof(g_ConfigReport.data));

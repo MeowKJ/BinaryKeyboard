@@ -62,6 +62,9 @@ static uint8_t s_layer_flash_wait_ticks = 0;
 static uint8_t s_layer_flash_r = 0, s_layer_flash_g = 0, s_layer_flash_b = 0;
 static uint8_t s_layer_flash_led_index = 0;
 
+/** @brief 层颜色表 */
+static const uint8_t s_layer_colors[5][3] = KBD_LAYER_COLORS;
+
 /** @brief TMOS 任务 ID */
 static tmosTaskID s_rgb_task_id = TASK_NO_TASK;
 
@@ -365,9 +368,10 @@ void KBD_RGB_Process(void)
             s_layer_flash_wait_ticks--;
         } else {
             if (s_layer_flash_is_on) {
-                /* 亮 -> 灭 */
+                /* 亮 -> 灭（按键灯与指示灯同步熄灭） */
                 s_layer_flash_is_on = false;
                 WS2812_Set(s_layer_flash_led_index, 0, 0, 0);
+                WS2812_Set_Indicator(0, 0, 0);
                 s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
             } else {
                 /* 灭 -> 一次闪烁完成 */
@@ -375,10 +379,11 @@ void KBD_RGB_Process(void)
                 if (s_layer_flash_blinks_left == 0) {
                     s_layer_flash_active = false;
                     s_effect_phase = 0;
-                    /* 不 return，继续执行正常灯效 */
+                    /* 不 return，继续执行正常灯效（指示灯将在下帧恢复状态显示） */
                 } else {
                     s_layer_flash_is_on = true;
                     WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+                    WS2812_Set_Indicator(s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
                     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
                 }
             }
@@ -389,7 +394,7 @@ void KBD_RGB_Process(void)
         }
     }
 
-    /* RGB 开关关闭时，仅关闭按键灯；指示灯仍由状态指示逻辑控制 */
+    /* RGB 开关关闭时，仅关闭按键灯；指示灯与层指示仍保持 */
     if (!cfg->enabled) {
         if (WS2812_LED_NUM > 1) {
             WS2812_FillKeys(0, 0, 0);
@@ -402,7 +407,11 @@ void KBD_RGB_Process(void)
     /* 根据模式处理 */
     switch (cfg->mode) {
         case KBD_RGB_OFF:
-            WS2812_Fill(0, 0, 0);
+            /* 仅关闭按键灯，指示灯继续显示状态 */
+            if (WS2812_LED_NUM > 1) {
+                WS2812_FillKeys(0, 0, 0);
+            }
+            ProcessIndicatorMode();
             break;
 
         case KBD_RGB_STATIC:
@@ -579,23 +588,19 @@ static uint8_t GetLayerLedIndex(uint8_t layer)
 
 void KBD_RGB_FlashLayer(uint8_t layer)
 {
-    /* 从配置文件读取层颜色 */
-    static const uint8_t layer_colors[5][3] = KBD_LAYER_COLORS;
-
-    /* 限制层号范围 */
     if (layer >= 5) layer = 4;
 
-    /* 设置闪烁参数 */
-    s_layer_flash_r = layer_colors[layer][0];
-    s_layer_flash_g = layer_colors[layer][1];
-    s_layer_flash_b = layer_colors[layer][2];
+    s_layer_flash_r = s_layer_colors[layer][0];
+    s_layer_flash_g = s_layer_colors[layer][1];
+    s_layer_flash_b = s_layer_colors[layer][2];
     s_layer_flash_led_index = GetLayerLedIndex(layer);
-    s_layer_flash_blinks_left = KBD_LAYER_FLASH_BLINKS;
+    s_layer_flash_blinks_left = KBD_LAYER_FLASH_BLINKS;  /* 固定 3 次 */
     s_layer_flash_is_on = true;
     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
     s_layer_flash_active = true;
 
-    /* 立即显示第一拍亮，后续由 Process 非阻塞推进 */
+    /* 立即点亮：按键灯与指示灯同步，后续由 Process 非阻塞推进 */
     WS2812_Set(s_layer_flash_led_index, s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+    WS2812_Set_Indicator(s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
     WS2812_Update();
 }

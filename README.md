@@ -38,6 +38,11 @@
 
 # 快速开始
 
+- 文档首页：[`docs/index.md`](./docs/index.md)
+- 有线款固件：[`firmware/CH552G/README.md`](./firmware/CH552G/README.md)
+- 无线款固件：[`firmware/CH592F/README.md`](./firmware/CH592F/README.md)
+- 改键工具（Web / PWA）：[`tools/studio/README.md`](./tools/studio/README.md)
+
 # 环境
 
 ## 有线款
@@ -47,6 +52,10 @@
 ## 无线款
 
 [无线款](./firmware/CH592F/README.md)
+
+## 改键工具
+
+[BinaryKeyboard Studio](./tools/studio/README.md)
 
 # 贡献
 

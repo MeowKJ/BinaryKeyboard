@@ -53,9 +53,19 @@ typedef enum {
 /* 蓝牙配置 */
 /*============================================================================*/
 
+/** 型号名称（由 CMake 注入，默认 5KEY） */
+#ifndef KBD_MODEL_NAME
+#define KBD_MODEL_NAME                 "5KEY"
+#endif
+
+/** 统一设备名称（USB/BLE 共用） */
+#ifndef KBD_DEVICE_NAME
+#define KBD_DEVICE_NAME                "BinaryKeyboard" KBD_MODEL_NAME
+#endif
+
 /** 设备名称 */
-#define KBD_BLE_DEVICE_NAME             "MeowKeyboard"
-#define KBD_BLE_DEVICE_NAME_LEN         12
+#define KBD_BLE_DEVICE_NAME             KBD_DEVICE_NAME
+#define KBD_BLE_DEVICE_NAME_LEN         (sizeof(KBD_BLE_DEVICE_NAME) - 1)
 
 /** 广播参数（单位：0.625ms） */
 #define KBD_BLE_ADV_INT_MIN             48      /**< 30ms */
@@ -69,7 +79,7 @@ typedef enum {
 #define KBD_BLE_CONN_TIMEOUT            500     /**< 5秒超时 */
 
 /** 配对模式 */
-#define KBD_BLE_PAIRING_MODE            GAPBOND_PAIRING_MODE_WAIT_FOR_REQ
+#define KBD_BLE_PAIRING_MODE            GAPBOND_PAIRING_MODE_INITIATE
 #define KBD_BLE_MITM_MODE               FALSE
 #define KBD_BLE_BONDING_MODE            TRUE
 #define KBD_BLE_IO_CAPABILITIES         GAPBOND_IO_CAP_NO_INPUT_NO_OUTPUT
@@ -87,7 +97,7 @@ typedef enum {
 
 /** USB 设备字符串 */
 #define KBD_USB_MANUFACTURER_STRING     "MeowKJ"
-#define KBD_USB_PRODUCT_STRING          "MeowKeyboard HID"
+#define KBD_USB_PRODUCT_STRING          KBD_DEVICE_NAME
 
 /*============================================================================*/
 /* HID 报告配置 */

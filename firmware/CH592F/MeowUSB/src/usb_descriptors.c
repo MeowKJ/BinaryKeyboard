@@ -8,6 +8,10 @@
 
 #include "usb_descriptors.h"
 #include "kbd_types.h"
+#include "kbd_mode_config.h"
+#include <string.h>
+
+#define USB_STRING_DESC_MAX_CHARS 31
 
 /* USB 设备描述符 */
 const uint8_t USB_DeviceDescriptor[] = {
@@ -173,11 +177,7 @@ const uint8_t USB_StringVendor[] = {
 };
 
 /* 字符串描述符 - 产品 */
-const uint8_t USB_StringProduct[] = {
-    0x1E, 0x03,
-    'B', 0, 'i', 0, 'n', 0, 'a', 0, 'r', 0, 'y', 0,
-    'K', 0, 'e', 0, 'y', 0, 'b', 0, 'o', 0, 'a', 0, 'r', 0, 'd', 0
-};
+uint8_t USB_StringProduct[2 + USB_STRING_DESC_MAX_CHARS * 2];
 
 /* USB 限定描述符 */
 const uint8_t USB_QualifierDescriptor[] = {
@@ -185,6 +185,26 @@ const uint8_t USB_QualifierDescriptor[] = {
     0xFF, 0x00, 0xFF, 0x40,
     0x01, 0x00
 };
+
+void USB_Descriptors_Init(void)
+{
+    const char *name = KBD_USB_PRODUCT_STRING;
+    uint8_t nameLen = (uint8_t)strlen(name);
+    uint8_t i;
+
+    if (nameLen > USB_STRING_DESC_MAX_CHARS) {
+        nameLen = USB_STRING_DESC_MAX_CHARS;
+    }
+
+    memset(USB_StringProduct, 0, sizeof(USB_StringProduct));
+    USB_StringProduct[0] = (uint8_t)(2 + nameLen * 2);
+    USB_StringProduct[1] = 0x03;
+
+    for (i = 0; i < nameLen; i++) {
+        USB_StringProduct[2 + i * 2] = (uint8_t)name[i];
+        USB_StringProduct[3 + i * 2] = 0;
+    }
+}
 
 /* ==================== HID Report Descriptors ==================== */
 

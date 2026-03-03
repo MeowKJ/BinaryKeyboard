@@ -43,4 +43,5 @@ jobs:
           path: |
             firmware/CH592F/build/release/CH592F.bin
             firmware/CH592F/build/release/CH592F.hex
+            firmware/CH592F/build/release/CH592F.map
           retention-days: 7

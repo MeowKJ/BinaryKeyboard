@@ -67,13 +67,13 @@ extern "C" {
  */
 
 #define KBD_FLASH_BASE 0x00000       /**< DataFlash 基址 */
-#define KBD_FLASH_HEADER 0x00000     /**< 配置头偏移 (32B) */
-#define KBD_FLASH_SYSTEM 0x00100     /**< 系统配置偏移 (64B) */
-#define KBD_FLASH_KEYMAP 0x00200     /**< 按键映射偏移 (164B) */
-#define KBD_FLASH_FNKEY 0x00300      /**< FN 键配置偏移 (32B) */
-#define KBD_FLASH_RGB 0x00340        /**< RGB 配置偏移 (32B) */
-#define KBD_FLASH_RESERVED 0x00400   /**< 配置块内预留起始 */
-#define KBD_FLASH_MACRO_BASE 0x01000 /**< 宏数据区起始，避开 BLE SNV */
+#define KBD_FLASH_HEADER 0x00000     /**< 配置头偏移 (32B, 槽位内偏移) */
+#define KBD_FLASH_SYSTEM 0x00100     /**< 系统配置偏移 (64B, 槽位内偏移) */
+#define KBD_FLASH_KEYMAP 0x00200     /**< 按键映射偏移 (164B, 槽位内偏移) */
+#define KBD_FLASH_FNKEY 0x00300      /**< FN 键配置偏移 (32B, 槽位内偏移) */
+#define KBD_FLASH_RGB 0x00340        /**< RGB 配置偏移 (32B, 槽位内偏移) */
+#define KBD_FLASH_RESERVED 0x00400   /**< 单配置槽大小 / 下一页起始 (1KB) */
+#define KBD_FLASH_MACRO_BASE 0x01000 /**< 宏数据区起始（0x0000~0x0BFF 配置槽；0x0C00~0x0FFF runtime 热数据） */
 #define KBD_FLASH_MACRO_SLOT 0x00800 /**< 单宏槽位 (2KB) */
 
 /** @} */ /* end of KBD_Flash */

@@ -10,11 +10,12 @@
  *
  * DataFlash 特性：
  * - 总容量：32KB (0x0000 ~ 0x7FFF)
- * - 擦除粒度：4KB (CH592A 要求)
+ * - 擦除粒度：256B / 4KB（CH592F 配置区使用 256B；CH592A 存在 4KB 限制）
  * - 写入推荐：256 字节对齐
  *
  * 存储布局：
- * - 0x0000 ~ 0x0FFF: 配置块 (4KB 整块擦写)
+ * - 0x0000 ~ 0x0BFF: 配置槽轮转区 (3 槽 × 1KB，冷/温数据)
+ * - 0x0C00 ~ 0x0FFF: runtime 热数据区 (4 页 × 256B，仅高频字段)
  * - 0x1000 ~ 0x4FFF: 宏数据区 (16KB, 8 槽 × 2KB)
  * - 0x7E00 ~ 0x7EFF: BLE SNV (蓝牙配对，WCH 库管理)
  *
@@ -23,12 +24,42 @@
 
 #include "kbd_storage.h"
 #include "CH59x_common.h"
+#include "ble_config.h"
 #include "debug.h"
 #include "kbd_config.h"
 #include <string.h>
 
 /** @brief 模块日志标签 */
 #define TAG "STOR"
+
+/* 配置存储（CH592F）采用“冷热分离”：
+ * - 冷/温配置：3 个 1KB 槽位轮转（header/system/keymap/fn/rgb）
+ * - 热数据（current_layer / last_mode）：1KB 区域内 4 个 256B 页轮转
+ */
+#define KBD_CFG_SLOT_SIZE KBD_FLASH_RESERVED          /* 0x400 (1KB) */
+#define KBD_CFG_PAGE_SIZE EEPROM_PAGE_SIZE            /* 256B */
+#define KBD_CFG_PAGE_COUNT (KBD_CFG_SLOT_SIZE / KBD_CFG_PAGE_SIZE) /* 4 */
+#define KBD_CFG_INVALID_SLOT 0xFF
+
+#define KBD_RUNTIME_REGION_ADDR (KBD_FLASH_MACRO_BASE - KBD_CFG_SLOT_SIZE) /* 0x0C00 */
+#define KBD_CFG_REGION_SIZE (KBD_RUNTIME_REGION_ADDR - KBD_FLASH_BASE)      /* 0x0C00 */
+#define KBD_CFG_SLOT_COUNT (KBD_CFG_REGION_SIZE / KBD_CFG_SLOT_SIZE) /* 3 */
+#define KBD_CFG_SLOT_ADDR(slot) ((uint32_t)KBD_FLASH_BASE + ((uint32_t)(slot) * KBD_CFG_SLOT_SIZE))
+
+#define KBD_RUNTIME_PAGE_COUNT KBD_CFG_PAGE_COUNT
+#define KBD_RUNTIME_INVALID_PAGE 0xFF
+#define KBD_RUNTIME_PAGE_ADDR(page) (KBD_RUNTIME_REGION_ADDR + ((uint32_t)(page) * KBD_CFG_PAGE_SIZE))
+#define KBD_RUNTIME_MAGIC 0x52554E54u /* 'RUNT' */
+#define KBD_RUNTIME_VERSION 0x0001u
+
+/* TMOS 延迟保存（高频 runtime 状态） */
+#define KBD_STORAGE_RUNTIME_SAVE_EVT 0x0001u
+#ifndef KBD_STORAGE_RUNTIME_SAVE_DELAY_MS
+#define KBD_STORAGE_RUNTIME_SAVE_DELAY_MS 200u
+#endif
+#ifndef KBD_STORAGE_RUNTIME_SAVE_RETRY_MS
+#define KBD_STORAGE_RUNTIME_SAVE_RETRY_MS 100u
+#endif
 
 /*============================================================================*/
 /*                              私有变量 */
@@ -54,6 +85,33 @@ static uint8_t s_macro_write_slot = 0xFF;
 
 /** @brief 宏写入状态：总数据大小 */
 static uint16_t s_macro_write_size = 0;
+
+/** @brief 当前已加载配置所在槽位（0~3，0xFF=未加载） */
+static uint8_t s_config_active_slot = KBD_CFG_INVALID_SLOT;
+
+/** @brief runtime 热数据页环当前页（0~3，0xFF=未加载） */
+static uint8_t s_runtime_active_page = KBD_RUNTIME_INVALID_PAGE;
+
+/** @brief runtime 热数据序号（单调递增） */
+static uint32_t s_runtime_seq = 0;
+
+/** @brief TMOS 存储任务 ID（用于 runtime 延迟保存） */
+static tmosTaskID s_storage_task_id = TASK_NO_TASK;
+
+/** @brief runtime 待保存标志 */
+static uint8_t s_runtime_dirty = 0;
+
+/** @brief runtime 待保存层号（防抖合并） */
+static uint8_t s_runtime_pending_layer = 0;
+
+/** @brief runtime 最近一次成功持久化的层号（0xFF=未知） */
+static uint8_t s_runtime_last_saved_layer = 0xFF;
+
+/** @brief runtime 待保存工作模式（0=USB, 1=BLE, 0xFF=未知） */
+static uint8_t s_runtime_pending_mode = 0xFF;
+
+/** @brief runtime 最近一次成功持久化的工作模式（0xFF=未知） */
+static uint8_t s_runtime_last_saved_mode = 0xFF;
 
 /*============================================================================*/
 /*                              默认配置 */
@@ -157,14 +215,14 @@ static const kbd_keymap_t s_default_keymap = {
 /**
  * @brief 默认 FN 键配置
  *
- * - FN1: 短按=开始广播, 长按=切换模式
+ * - FN1: 短按=切换模式, 长按=切换模式
  * - FN2: 短按=下一层, 长按=清除配对
  */
 static const kbd_fnkey_config_t s_default_fnkey = {
     .fn = {
         /* FN1 */
         {
-            .click_action = KBD_FN_BLE_ADV,
+            .click_action = KBD_FN_MODE_TOGGLE,
             .click_param = 0,
             .long_action = KBD_FN_MODE_TOGGLE,
             .long_param = 0,
@@ -270,6 +328,14 @@ static void LoadDefaults(void) {
   s_config_header.magic = KBD_CONFIG_MAGIC;
   s_config_header.version = KBD_CONFIG_VERSION;
   s_config_header.save_count = 0;
+  s_config_active_slot = KBD_CFG_INVALID_SLOT;
+  s_runtime_active_page = KBD_RUNTIME_INVALID_PAGE;
+  s_runtime_seq = 0;
+  s_runtime_dirty = 0;
+  s_runtime_pending_layer = 0;
+  s_runtime_last_saved_layer = 0xFF;
+  s_runtime_pending_mode = 0xFF;
+  s_runtime_last_saved_mode = 0xFF;
 
   memcpy(&s_system_config, &s_default_system, sizeof(kbd_system_config_t));
   memcpy(&s_keymap_config, &s_default_keymap, sizeof(kbd_keymap_t));
@@ -286,6 +352,302 @@ static uint32_t GetMacroSlotAddr(uint8_t slot) {
   return KBD_FLASH_MACRO_BASE + (slot * KBD_FLASH_MACRO_SLOT);
 }
 
+typedef struct {
+  uint8_t slot;
+  kbd_config_header_t header;
+  kbd_system_config_t system;
+  kbd_keymap_t keymap;
+  kbd_fnkey_config_t fnkey;
+  kbd_rgb_config_t rgb;
+} kbd_config_slot_cache_t;
+
+typedef struct __attribute__((packed)) {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t flags;
+  uint32_t seq;
+  uint8_t current_layer;
+  uint8_t last_mode;     /**< 工作模式 (0=USB, 1=BLE, 0xFF=未知) */
+  uint8_t reserved[238];
+  uint32_t crc32;
+} kbd_runtime_page_t;
+
+static uint32_t CalcConfigCRC(const kbd_system_config_t *system,
+                              const kbd_keymap_t *keymap,
+                              const kbd_fnkey_config_t *fnkey,
+                              const kbd_rgb_config_t *rgb) {
+  uint32_t crc = 0;
+  crc = KBD_CalcCRC32((const uint8_t *)system, sizeof(*system));
+  crc ^= KBD_CalcCRC32((const uint8_t *)keymap, sizeof(*keymap));
+  crc ^= KBD_CalcCRC32((const uint8_t *)fnkey, sizeof(*fnkey));
+  crc ^= KBD_CalcCRC32((const uint8_t *)rgb, sizeof(*rgb));
+  return crc;
+}
+
+static uint32_t CalcRuntimeCRC(const kbd_runtime_page_t *page) {
+  return KBD_CalcCRC32((const uint8_t *)page, sizeof(*page) - sizeof(page->crc32));
+}
+
+static uint16_t KBD_Storage_ProcessEvent(uint8_t task_id, uint16_t events);
+
+static void KBD_Storage_InitTMOSTask(void) {
+  if (s_storage_task_id != TASK_NO_TASK) {
+    return;
+  }
+  s_storage_task_id = TMOS_ProcessEventRegister(KBD_Storage_ProcessEvent);
+  if (s_storage_task_id == TASK_NO_TASK) {
+    LOG_W(TAG, "TMOS storage task register failed");
+  }
+}
+
+static bool TryLoadRuntimePage(uint8_t page_idx, kbd_runtime_page_t *out) {
+  EEPROM_READ(KBD_RUNTIME_PAGE_ADDR(page_idx), out, sizeof(*out));
+  if (out->magic != KBD_RUNTIME_MAGIC) return false;
+  if (out->version != KBD_RUNTIME_VERSION) return false;
+  if (CalcRuntimeCRC(out) != out->crc32) return false;
+  return true;
+}
+
+static void ApplyRuntimeLayerIfValid(void) {
+  bool found = false;
+  kbd_runtime_page_t best = {0};
+  kbd_runtime_page_t cur;
+  uint8_t best_page = KBD_RUNTIME_INVALID_PAGE;
+
+  for (uint8_t page = 0; page < KBD_RUNTIME_PAGE_COUNT; page++) {
+    if (!TryLoadRuntimePage(page, &cur)) continue;
+    if (!found || cur.seq > best.seq) {
+      memcpy(&best, &cur, sizeof(best));
+      best_page = page;
+      found = true;
+    }
+  }
+
+  if (!found) {
+    s_runtime_active_page = KBD_RUNTIME_INVALID_PAGE;
+    s_runtime_seq = 0;
+    s_runtime_last_saved_layer = 0xFF;
+    s_runtime_pending_mode = 0xFF;
+    s_runtime_last_saved_mode = 0xFF;
+    return;
+  }
+
+  s_runtime_active_page = best_page;
+  s_runtime_seq = best.seq;
+  s_runtime_pending_layer = best.current_layer;
+  s_runtime_last_saved_layer = best.current_layer;
+  s_runtime_pending_mode = best.last_mode;
+  s_runtime_last_saved_mode = best.last_mode;
+  s_runtime_dirty = 0;
+
+  if (best.current_layer < s_keymap_config.num_layers) {
+    s_keymap_config.current_layer = best.current_layer;
+  }
+}
+
+static int SaveRuntimeState(void) {
+  __attribute__((aligned(4))) kbd_runtime_page_t page;
+  uint8_t target_page;
+
+  memset(&page, 0xFF, sizeof(page));
+  page.magic = KBD_RUNTIME_MAGIC;
+  page.version = KBD_RUNTIME_VERSION;
+  page.flags = 0;
+  page.seq = s_runtime_seq + 1;
+  page.current_layer = s_runtime_pending_layer;
+  page.last_mode = s_runtime_pending_mode;
+  page.crc32 = CalcRuntimeCRC(&page);
+
+  if (s_runtime_active_page == KBD_RUNTIME_INVALID_PAGE) {
+    target_page = 0;
+  } else {
+    target_page = (uint8_t)((s_runtime_active_page + 1) % KBD_RUNTIME_PAGE_COUNT);
+  }
+
+  if (EEPROM_ERASE(KBD_RUNTIME_PAGE_ADDR(target_page), KBD_CFG_PAGE_SIZE) != 0) {
+    LOG_E(TAG, "Erase runtime page failed: %d", target_page);
+    return -1;
+  }
+  if (EEPROM_WRITE(KBD_RUNTIME_PAGE_ADDR(target_page), &page, KBD_CFG_PAGE_SIZE) !=
+      0) {
+    LOG_E(TAG, "Write runtime page failed: %d", target_page);
+    return -2;
+  }
+
+  s_runtime_active_page = target_page;
+  s_runtime_seq = page.seq;
+  s_runtime_last_saved_layer = s_runtime_pending_layer;
+  s_runtime_last_saved_mode = s_runtime_pending_mode;
+  s_runtime_dirty = 0;
+  return 0;
+}
+
+static void KBD_Storage_RequestRuntimeSave(void) {
+  bool layer_changed = (s_runtime_pending_layer != s_runtime_last_saved_layer);
+  bool mode_changed  = (s_runtime_pending_mode != 0xFF) &&
+                       (s_runtime_pending_mode != s_runtime_last_saved_mode);
+
+  if (!layer_changed && !mode_changed) {
+    s_runtime_dirty = 0;
+    if (s_storage_task_id != TASK_NO_TASK) {
+      (void)tmos_stop_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT);
+    }
+    return;
+  }
+
+  s_runtime_dirty = 1;
+
+  if (s_storage_task_id == TASK_NO_TASK) {
+    /* 兜底：TMOS 未就绪时同步保存 */
+    (void)SaveRuntimeState();
+    return;
+  }
+
+  /* 防抖合并：layer/mode 快速变化只保存最后一次 */
+  (void)tmos_stop_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT);
+  (void)tmos_start_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT,
+                        MS1_TO_SYSTEM_TIME(KBD_STORAGE_RUNTIME_SAVE_DELAY_MS));
+}
+
+static uint16_t KBD_Storage_ProcessEvent(uint8_t task_id, uint16_t events) {
+  (void)task_id;
+
+  if (events & KBD_STORAGE_RUNTIME_SAVE_EVT) {
+    if (s_runtime_dirty) {
+      if (SaveRuntimeState() != 0) {
+        LOG_W(TAG, "Runtime save failed, retry");
+        (void)tmos_start_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT,
+                              MS1_TO_SYSTEM_TIME(
+                                  KBD_STORAGE_RUNTIME_SAVE_RETRY_MS));
+      }
+    } else {
+      s_runtime_dirty = 0;
+    }
+    return (events ^ KBD_STORAGE_RUNTIME_SAVE_EVT);
+  }
+
+  return 0;
+}
+
+static void BuildConfigImage(uint8_t *image, const kbd_config_header_t *header,
+                             const kbd_system_config_t *system,
+                             const kbd_keymap_t *keymap,
+                             const kbd_fnkey_config_t *fnkey,
+                             const kbd_rgb_config_t *rgb) {
+  memset(image, 0xFF, KBD_CFG_SLOT_SIZE);
+  memcpy(image + KBD_FLASH_HEADER, header, sizeof(*header));
+  memcpy(image + KBD_FLASH_SYSTEM, system, sizeof(*system));
+  memcpy(image + KBD_FLASH_KEYMAP, keymap, sizeof(*keymap));
+  memcpy(image + KBD_FLASH_FNKEY, fnkey, sizeof(*fnkey));
+  memcpy(image + KBD_FLASH_RGB, rgb, sizeof(*rgb));
+}
+
+static void ReadConfigPayloadFromSlot(uint32_t base_addr,
+                                      kbd_system_config_t *system,
+                                      kbd_keymap_t *keymap,
+                                      kbd_fnkey_config_t *fnkey,
+                                      kbd_rgb_config_t *rgb) {
+  EEPROM_READ(base_addr + KBD_FLASH_SYSTEM, system, sizeof(*system));
+  EEPROM_READ(base_addr + KBD_FLASH_KEYMAP, keymap, sizeof(*keymap));
+  EEPROM_READ(base_addr + KBD_FLASH_FNKEY, fnkey, sizeof(*fnkey));
+  EEPROM_READ(base_addr + KBD_FLASH_RGB, rgb, sizeof(*rgb));
+}
+
+static bool TryLoadConfigSlot(uint8_t slot, kbd_config_slot_cache_t *out) {
+  const uint32_t base_addr = KBD_CFG_SLOT_ADDR(slot);
+
+  memset(out, 0, sizeof(*out));
+  out->slot = slot;
+  EEPROM_READ(base_addr + KBD_FLASH_HEADER, &out->header, sizeof(out->header));
+
+  if (out->header.magic != KBD_CONFIG_MAGIC) {
+    return false;
+  }
+  if ((out->header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
+    return false;
+  }
+
+  ReadConfigPayloadFromSlot(base_addr, &out->system, &out->keymap, &out->fnkey,
+                            &out->rgb);
+
+  if (CalcConfigCRC(&out->system, &out->keymap, &out->fnkey, &out->rgb) !=
+      out->header.crc32) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool TryLoadConfigAtAddr(uint32_t base_addr, uint8_t slot_tag,
+                                kbd_config_slot_cache_t *out) {
+  memset(out, 0, sizeof(*out));
+  out->slot = slot_tag;
+  EEPROM_READ(base_addr + KBD_FLASH_HEADER, &out->header, sizeof(out->header));
+
+  if (out->header.magic != KBD_CONFIG_MAGIC) return false;
+  if ((out->header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) return false;
+
+  ReadConfigPayloadFromSlot(base_addr, &out->system, &out->keymap, &out->fnkey,
+                            &out->rgb);
+  if (CalcConfigCRC(&out->system, &out->keymap, &out->fnkey, &out->rgb) !=
+      out->header.crc32) {
+    return false;
+  }
+  return true;
+}
+
+static void ApplyLoadedConfig(const kbd_config_slot_cache_t *cfg) {
+  memcpy(&s_config_header, &cfg->header, sizeof(s_config_header));
+  memcpy(&s_system_config, &cfg->system, sizeof(s_system_config));
+  memcpy(&s_keymap_config, &cfg->keymap, sizeof(s_keymap_config));
+  memcpy(&s_fnkey_config, &cfg->fnkey, sizeof(s_fnkey_config));
+  memcpy(&s_rgb_config, &cfg->rgb, sizeof(s_rgb_config));
+  s_config_active_slot = cfg->slot;
+}
+
+static int SaveConfigImageToSlot(uint8_t slot, const uint8_t *image) {
+  const uint32_t base_addr = KBD_CFG_SLOT_ADDR(slot);
+  __attribute__((aligned(4))) uint8_t old_page[KBD_CFG_PAGE_SIZE];
+  bool page_dirty[KBD_CFG_PAGE_COUNT] = {false};
+  uint8_t dirty_count = 0;
+
+  for (uint8_t page = 0; page < KBD_CFG_PAGE_COUNT; page++) {
+    const uint32_t off = (uint32_t)page * KBD_CFG_PAGE_SIZE;
+    EEPROM_READ(base_addr + off, old_page, KBD_CFG_PAGE_SIZE);
+    if (memcmp(old_page, image + off, KBD_CFG_PAGE_SIZE) != 0) {
+      page_dirty[page] = true;
+      dirty_count++;
+    }
+  }
+
+  if (dirty_count == 0) {
+    return 0;
+  }
+
+  /* 先写 payload 页，最后写 header 页（page0），确保掉电时老槽位仍可回退 */
+  for (uint8_t pass = 0; pass < 2; pass++) {
+    uint8_t begin = (pass == 0) ? 1 : 0;
+    uint8_t end = (pass == 0) ? KBD_CFG_PAGE_COUNT : 1;
+    for (uint8_t page = begin; page < end; page++) {
+      if (!page_dirty[page]) continue;
+      const uint32_t off = (uint32_t)page * KBD_CFG_PAGE_SIZE;
+      if (EEPROM_ERASE(base_addr + off, KBD_CFG_PAGE_SIZE) != 0) {
+        LOG_E(TAG, "Erase cfg page failed: slot=%d page=%d", slot, page);
+        return -1;
+      }
+      if (EEPROM_WRITE(base_addr + off, (void *)(image + off), KBD_CFG_PAGE_SIZE) !=
+          0) {
+        LOG_E(TAG, "Write cfg page failed: slot=%d page=%d", slot, page);
+        return -2;
+      }
+    }
+  }
+
+  LOG_D(TAG, "Config slot %d updated (%d/%d pages)", slot, dirty_count,
+        KBD_CFG_PAGE_COUNT);
+  return 0;
+}
+
 /*============================================================================*/
 /*                              公共函数实现 */
 /*============================================================================*/
@@ -298,8 +660,44 @@ uint32_t KBD_CalcCRC32(const uint8_t *data, uint32_t len) {
   return crc ^ 0xFFFFFFFF;
 }
 
+void KBD_Storage_DeferRuntimeSave(uint32_t delay_ms) {
+  if (s_storage_task_id == TASK_NO_TASK || !s_runtime_dirty) {
+    return;
+  }
+  (void)tmos_stop_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT);
+  (void)tmos_start_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT,
+                        MS1_TO_SYSTEM_TIME(delay_ms));
+  LOG_I(TAG, "Runtime save deferred %ums", (unsigned)delay_ms);
+}
+
+int KBD_Storage_FlushRuntime(void) {
+  if (s_storage_task_id != TASK_NO_TASK) {
+    (void)tmos_stop_task(s_storage_task_id, KBD_STORAGE_RUNTIME_SAVE_EVT);
+  }
+
+  if (!s_runtime_dirty) {
+    return 0;
+  }
+
+  return SaveRuntimeState();
+}
+
+void KBD_Storage_PollStatus(kbd_storage_status_t *status) {
+  if (!status) {
+    return;
+  }
+
+  status->config_active_slot = s_config_active_slot;
+  status->runtime_active_page = s_runtime_active_page;
+  status->runtime_dirty = s_runtime_dirty;
+  status->reserved = 0;
+  status->config_save_count = s_config_header.save_count;
+  status->runtime_seq = s_runtime_seq;
+}
+
 int KBD_Storage_Init(void) {
   LOG_I(TAG, "Storage init");
+  KBD_Storage_InitTMOSTask();
 
   int ret = KBD_Config_Load();
   if (ret != 0) {
@@ -311,28 +709,34 @@ int KBD_Storage_Init(void) {
 }
 
 int KBD_Config_Load(void) {
-  __attribute__((aligned(4))) kbd_config_header_t header;
+  bool found = false;
+  kbd_config_slot_cache_t best = {0};
+  kbd_config_slot_cache_t cur;
+  bool legacy_slot_loaded = false;
 
-  /* 读取配置头 */
-  EEPROM_READ(KBD_FLASH_HEADER, &header, sizeof(header));
+  for (uint8_t slot = 0; slot < KBD_CFG_SLOT_COUNT; slot++) {
+    if (!TryLoadConfigSlot(slot, &cur)) continue;
 
-  /* 验证魔数 */
-  if (header.magic != KBD_CONFIG_MAGIC) {
-    LOG_W(TAG, "Invalid magic: 0x%08X", header.magic);
-    return -1;
+    if (!found || cur.header.save_count > best.header.save_count) {
+      memcpy(&best, &cur, sizeof(best));
+      found = true;
+    }
   }
 
-  /* 验证主版本号 */
-  if ((header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
-    LOG_W(TAG, "Version mismatch: 0x%04X", header.version);
-    return -2;
+  if (!found) {
+    /* 兼容旧布局：历史版本可能把完整配置写在 0x0C00~0x0FFF（现已改为 runtime 热数据区） */
+    if (TryLoadConfigAtAddr(KBD_RUNTIME_REGION_ADDR, 3, &best)) {
+      found = true;
+      legacy_slot_loaded = true;
+      LOG_W(TAG, "Loaded config from legacy slot3 (0x0C00), will migrate on save");
+    } else {
+      LOG_W(TAG, "No valid config slot found");
+      s_config_active_slot = KBD_CFG_INVALID_SLOT;
+      return -1;
+    }
   }
 
-  /* 读取各配置块 */
-  EEPROM_READ(KBD_FLASH_SYSTEM, &s_system_config, sizeof(kbd_system_config_t));
-  EEPROM_READ(KBD_FLASH_KEYMAP, &s_keymap_config, sizeof(kbd_keymap_t));
-  EEPROM_READ(KBD_FLASH_FNKEY, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
-  EEPROM_READ(KBD_FLASH_RGB, &s_rgb_config, sizeof(kbd_rgb_config_t));
+  ApplyLoadedConfig(&best);
 
   /* 迁移：旧配置可能无 indicator_brightness，若低于最低值则提升（不可完全关闭） */
   if (s_rgb_config.indicator_brightness < KBD_INDICATOR_MIN_BRIGHTNESS) {
@@ -340,15 +744,24 @@ int KBD_Config_Load(void) {
   }
 
   /* 迁移 v1.1 → v1.2: 初始化 HID 日志开关 */
-  if (header.version < 0x0102) {
+  if (s_config_header.version < 0x0102) {
     s_system_config.log_enabled = 1;
     LOG_I(TAG, "Migrated log config (v1.1->v1.2)");
   }
 
-  memcpy(&s_config_header, &header, sizeof(header));
+  /* 热数据（层号）独立覆盖，减少高频切层带来的整份配置写入 */
+  ApplyRuntimeLayerIfValid();
 
-  LOG_I(TAG, "Config loaded, ver=0x%04X, saves=%d", header.version,
-        header.save_count);
+  /* 若从旧 slot3 加载，首次启动即迁移到新布局，避免后续 runtime 覆盖该区域后丢配置 */
+  if (legacy_slot_loaded) {
+    s_config_active_slot = KBD_CFG_INVALID_SLOT;
+    if (KBD_Config_Save() != 0) {
+      LOG_W(TAG, "Legacy config migration save failed");
+    }
+  }
+
+  LOG_I(TAG, "Config loaded: slot=%d ver=0x%04X saves=%d", s_config_active_slot,
+        s_config_header.version, s_config_header.save_count);
   LOG_D(TAG, "layers=%d, current=%d", s_keymap_config.num_layers,
         s_keymap_config.current_layer);
 
@@ -356,43 +769,49 @@ int KBD_Config_Load(void) {
 }
 
 int KBD_Config_Save(void) {
+  __attribute__((aligned(4))) uint8_t image[KBD_CFG_SLOT_SIZE];
+  kbd_config_header_t new_header = s_config_header;
+  uint8_t target_slot;
+  int ret;
+
   LOG_I(TAG, "Saving config...");
 
   /* 更新头部 */
-  s_config_header.magic = KBD_CONFIG_MAGIC;
-  s_config_header.version = KBD_CONFIG_VERSION;
-  s_config_header.save_count++;
+  new_header.magic = KBD_CONFIG_MAGIC;
+  new_header.version = KBD_CONFIG_VERSION;
+  new_header.save_count = s_config_header.save_count + 1;
+  new_header.crc32 =
+      CalcConfigCRC(&s_system_config, &s_keymap_config, &s_fnkey_config, &s_rgb_config);
 
-  /* 计算 CRC */
-  uint32_t crc = 0;
-  crc = KBD_CalcCRC32((uint8_t *)&s_system_config, sizeof(kbd_system_config_t));
-  crc ^= KBD_CalcCRC32((uint8_t *)&s_keymap_config, sizeof(kbd_keymap_t));
-  crc ^= KBD_CalcCRC32((uint8_t *)&s_fnkey_config, sizeof(kbd_fnkey_config_t));
-  crc ^= KBD_CalcCRC32((uint8_t *)&s_rgb_config, sizeof(kbd_rgb_config_t));
-  s_config_header.crc32 = crc;
-
-  /* 准备 4KB 块数据 */
-  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-  memset(block, 0xFF, sizeof(block));
-
-  /* 复制配置到块缓冲区 */
-  memcpy(block + 0x000, &s_config_header, sizeof(kbd_config_header_t));
-  memcpy(block + 0x100, &s_system_config, sizeof(kbd_system_config_t));
-  memcpy(block + 0x200, &s_keymap_config, sizeof(kbd_keymap_t));
-  memcpy(block + 0x300, &s_fnkey_config, sizeof(kbd_fnkey_config_t));
-  memcpy(block + 0x340, &s_rgb_config, sizeof(kbd_rgb_config_t));
-
-  /* 擦除并写入 */
-  if (EEPROM_ERASE(0, EEPROM_BLOCK_SIZE) != 0) {
-    LOG_E(TAG, "Erase failed");
-    return -1;
-  }
-  if (EEPROM_WRITE(0, block, EEPROM_BLOCK_SIZE) != 0) {
-    LOG_E(TAG, "Write failed");
-    return -2;
+  if (s_config_active_slot != KBD_CFG_INVALID_SLOT &&
+      s_config_header.version == KBD_CONFIG_VERSION &&
+      s_config_header.crc32 == new_header.crc32) {
+    LOG_I(TAG, "Config unchanged, skip slot write");
+    (void)KBD_Storage_FlushRuntime();
+    return 0;
   }
 
-  LOG_I(TAG, "Config saved, count=%d", s_config_header.save_count);
+  BuildConfigImage(image, &new_header, &s_system_config, &s_keymap_config,
+                   &s_fnkey_config, &s_rgb_config);
+
+  if (s_config_active_slot == KBD_CFG_INVALID_SLOT) {
+    target_slot = 0;
+  } else {
+    target_slot = (uint8_t)((s_config_active_slot + 1) % KBD_CFG_SLOT_COUNT);
+  }
+
+  ret = SaveConfigImageToSlot(target_slot, image);
+  if (ret != 0) {
+    return ret;
+  }
+
+  memcpy(&s_config_header, &new_header, sizeof(s_config_header));
+  s_config_active_slot = target_slot;
+  /* 同步 runtime 热数据（当前层） */
+  (void)KBD_Storage_FlushRuntime();
+
+  LOG_I(TAG, "Config saved: slot=%d count=%d", s_config_active_slot,
+        s_config_header.save_count);
   return 0;
 }
 
@@ -425,6 +844,17 @@ kbd_rgb_config_t *KBD_GetRgbConfig(void) { return &s_rgb_config; }
 /*                              层操作函数 */
 /*============================================================================*/
 
+uint8_t KBD_GetLastMode(void) { return s_runtime_pending_mode; }
+
+int KBD_SetLastMode(uint8_t mode) {
+  if (mode == s_runtime_last_saved_mode && mode == s_runtime_pending_mode) {
+    return 0;
+  }
+  s_runtime_pending_mode = mode;
+  KBD_Storage_RequestRuntimeSave();
+  return 0;
+}
+
 uint8_t KBD_GetCurrentLayer(void) { return s_keymap_config.current_layer; }
 
 int KBD_SetCurrentLayer(uint8_t layer) {
@@ -435,8 +865,9 @@ int KBD_SetCurrentLayer(uint8_t layer) {
     return 0; // 未变化, 跳过写 Flash
   }
   s_keymap_config.current_layer = layer;
-  LOG_D(TAG, "Switch to layer %d, saving", layer);
-  KBD_Config_Save();
+  s_runtime_pending_layer = layer;
+  LOG_D(TAG, "Switch to layer %d, queue runtime save", layer);
+  KBD_Storage_RequestRuntimeSave();
   return 0;
 }
 

@@ -58,6 +58,7 @@ export default defineConfig({
           { text: '固件开发', link: '/wireless/dev' },
           { text: 'HID 通讯协议', link: '/wireless/hid' },
           { text: '低功耗蓝牙', link: '/wireless/ble' },
+          { text: 'TMOS 调度', link: '/wireless/tmos' },
           { text: 'DataFlash 布局', link: '/wireless/dataflash' },
           { text: 'RGB 灯效架构', link: '/wireless/rgb-architecture' },
         ]

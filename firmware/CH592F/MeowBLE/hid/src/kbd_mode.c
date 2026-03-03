@@ -10,10 +10,12 @@
 #include "ble_hid.h"
 #include "usb_device.h"
 #include "usb_hid.h"
+#include "kbd_storage.h"
 #include "debug.h"
 #include <string.h>
 
 #define TAG "MODE"
+#define BLE_BOND_CLEAR_SETTLE_MS 50
 
 /*============================================================================*/
 /* 私有变量 */
@@ -24,6 +26,7 @@ static kbd_conn_state_t g_conn_state = KBD_CONN_DISCONNECTED;
 static kbd_mode_callbacks_t *g_pCallbacks = NULL;
 static uint8_t g_keyboard_leds = 0;
 static bool g_is_sleeping = false;
+static bool g_mode_switching = false;
 
 /** 报告缓冲区 */
 static uint8_t g_kbd_report[KBD_HID_KEYBOARD_REPORT_LEN];
@@ -61,6 +64,7 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
     g_current_mode = initial_mode;
     g_conn_state = KBD_CONN_DISCONNECTED;
     g_is_sleeping = false;
+    g_mode_switching = false;
 
     /* 清空报告缓冲区 */
     memset(g_kbd_report, 0, sizeof(g_kbd_report));
@@ -76,7 +80,7 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
         return ret;
     }
 
-    /* 总是初始化 USB（配置通道 EP4 用于日志输出，BLE 模式下也需要） */
+    /* 初始化 USB 硬件（无论初始模式均先 init，再按模式决定是否 deinit） */
     ret = KBD_Mode_USB_Init();
     if (ret != 0) {
         LOG_E(TAG, "USB init failed %d", ret);
@@ -84,9 +88,12 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
     }
 
     if (initial_mode == KBD_WORK_MODE_USB) {
-        KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
+        BLE_HID_Disable();
+        /* USB 枚举由 KBD_Mode_Process 轮询完成后自动置 CONNECTED */
     } else {
-        /* 蓝牙模式，开始广播 */
+        BLE_HID_Enable();
+        /* 蓝牙模式：关闭 USB PHY，消除中断冲突 */
+        USB_Device_Deinit();
 #if KBD_AUTO_START_ADVERTISING
         BLE_HID_StartAdvertising();
 #endif
@@ -97,6 +104,18 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
 
 void KBD_Mode_Process(void)
 {
+    /* USB 模式：轮询枚举状态，枚举完成后才置 CONNECTED */
+    if (g_current_mode == KBD_WORK_MODE_USB) {
+        bool usb_configured = (g_USB_DeviceState == USB_STATE_CONFIGURED);
+        bool is_connected   = (g_conn_state == KBD_CONN_CONNECTED);
+
+        if (usb_configured && !is_connected) {
+            KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
+        } else if (!usb_configured && is_connected) {
+            KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+        }
+    }
+
 #if KBD_AUTO_SWITCH_TO_USB_ON_PLUG
     /* 检测 USB 插入状态变化 */
     static bool last_usb_plugged = false;
@@ -119,38 +138,49 @@ void KBD_Mode_Process(void)
 
 int KBD_Mode_Switch(kbd_work_mode_t mode)
 {
+    if (g_mode_switching) {
+        return -1;
+    }
+
     if (mode == g_current_mode) {
         return 0;
     }
 
     LOG_I(TAG, "switch %d -> %d", g_current_mode, mode);
+    g_mode_switching = true;
 
     /* 释放当前所有按键 */
     KBD_Mode_ReleaseAllKeys();
 
     if (mode == KBD_WORK_MODE_USB) {
-        /* 切换到 USB 模式 */
-        if (BLE_HID_IsConnected()) {
-            BLE_HID_Disconnect();
-        } else {
-            BLE_HID_StopAdvertising();
-        }
-
-        KBD_Mode_USB_Init();
+        /* 切换到 USB 模式：先标记模式，屏蔽 BLE 回调中的反向切换 */
         g_current_mode = KBD_WORK_MODE_USB;
-        KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
+        BLE_HID_Disable();
+
+        /* 重新初始化 USB PHY */
+        KBD_Mode_USB_Init();
+        KBD_SetLastMode(0);
+        /* 不立即设 CONNECTED，由 KBD_Mode_Process 轮询 USB 枚举完成后再置位 */
+        KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
 
     } else {
-        /* 切换到蓝牙模式 */
+        /* 切换到蓝牙模式：关闭 USB PHY，消除中断冲突 */
+        USB_Device_Deinit();
+        BLE_HID_Enable();
         g_current_mode = KBD_WORK_MODE_BLE;
+        KBD_SetLastMode(1);
 
 #if KBD_AUTO_START_ADVERTISING
-        BLE_HID_StartAdvertising();
-        KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
+        if (BLE_HID_StartAdvertising() != 0) {
+            KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+        } else {
+            KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
+        }
 #else
         KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
 #endif
     }
+    g_mode_switching = false;
 
     /* 调用模式切换回调 */
     if (g_pCallbacks && g_pCallbacks->onModeChange) {
@@ -224,7 +254,39 @@ int KBD_Mode_BLE_Disconnect(void)
 
 int KBD_Mode_BLE_ClearBonds(void)
 {
-    return BLE_HID_ClearBonds();
+    int ret;
+
+    if (g_mode_switching) {
+        return -1;
+    }
+
+    /* 非 BLE 模式下不执行任何清配对操作 */
+    if (g_current_mode != KBD_WORK_MODE_BLE) {
+        return -1;
+    }
+
+    BLE_HID_Enable();
+    BLE_HID_StopAdvertising();
+
+    if (BLE_HID_IsConnected()) {
+        BLE_HID_Disconnect();
+        mDelaymS(BLE_BOND_CLEAR_SETTLE_MS);
+    }
+
+    ret = BLE_HID_ClearBonds();
+    mDelaymS(BLE_BOND_CLEAR_SETTLE_MS);
+
+#if KBD_AUTO_START_ADVERTISING
+    if (BLE_HID_StartAdvertising() == 0) {
+        KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
+    } else {
+        KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+    }
+#else
+    KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+#endif
+
+    return ret;
 }
 
 uint8_t KBD_Mode_BLE_GetBondCount(void)
@@ -376,6 +438,7 @@ void KBD_Mode_EnterSleep(void)
     LOG_I(TAG, "enter sleep");
 
     KBD_Mode_ReleaseAllKeys();
+    KBD_Storage_FlushRuntime();  /* 强制落盘 runtime 热数据（layer/mode），防断电丢失 */
     /* TODO: 关闭 LED，配置唤醒源 */
 }
 
@@ -409,10 +472,6 @@ uint8_t KBD_Mode_GetKeyboardLEDs(void)
 static int KBD_Mode_USB_Init(void)
 {
     USB_Device_Init();
-    USB_Keyboard_Init();
-    USB_Mouse_Init();
-    USB_Consumer_Init();
-    USB_Config_Init();
     return 0;
 }
 
@@ -423,11 +482,20 @@ static int KBD_Mode_BLE_InitInternal(void)
 
 static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState)
 {
-    if (g_current_mode != KBD_WORK_MODE_BLE) {
+    uint8_t state = (newState & GAPROLE_STATE_ADV_MASK);
+
+    if (g_mode_switching || g_current_mode != KBD_WORK_MODE_BLE) {
         return;
     }
 
-    switch (newState & GAPROLE_STATE_ADV_MASK) {
+    if (state == GAPROLE_CONNECTED || state == GAPROLE_CONNECTED_ADV) {
+        LOG_I(TAG, "BLE connected");
+        KBD_Storage_DeferRuntimeSave(5000); /* 推迟 Flash 写入，避免打断 BLE 配对握手 */
+        KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
+        return;
+    }
+
+    switch (state) {
         case GAPROLE_STARTED:
             LOG_D(TAG, "BLE started");
             break;
@@ -435,11 +503,6 @@ static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState)
         case GAPROLE_ADVERTISING:
             LOG_I(TAG, "BLE advertising");
             KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
-            break;
-
-        case GAPROLE_CONNECTED:
-            LOG_I(TAG, "BLE connected");
-            KBD_Mode_UpdateConnState(KBD_CONN_CONNECTED);
             break;
 
         case GAPROLE_WAITING:

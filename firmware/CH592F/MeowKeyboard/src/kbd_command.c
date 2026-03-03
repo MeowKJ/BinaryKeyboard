@@ -556,10 +556,16 @@ static void HandleFnkeyGet(const kbd_cmd_frame_t *frame) {
  */
 static void HandleFnkeySet(const kbd_cmd_frame_t *frame) {
   kbd_fnkey_config_t *fnkey = KBD_GetFnKeyConfig();
+  const kbd_fnkey_config_t *req = (const kbd_fnkey_config_t *)frame->data;
 
-  if (frame->len >= sizeof(kbd_fnkey_config_t)) {
-    memcpy(fnkey, frame->data, sizeof(kbd_fnkey_config_t));
+  if (frame->len < sizeof(kbd_fnkey_config_t)) {
+    uint8_t resp[1] = {KBD_RESP_ERR_PARAM};
+    KBD_Command_SendResponse(KBD_CMD_FNKEY_SET, 0, resp, 1);
+    LOG_W(TAG, "FN key config set rejected: len=%d", frame->len);
+    return;
   }
+
+  memcpy(fnkey, req, sizeof(kbd_fnkey_config_t));
 
   uint8_t resp[1] = {KBD_RESP_OK};
   KBD_Command_SendResponse(KBD_CMD_FNKEY_SET, 0, resp, 1);

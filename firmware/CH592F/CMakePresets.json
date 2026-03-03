@@ -16,6 +16,13 @@
       }
     },
     {
+      "name": "model-5key",
+      "hidden": true,
+      "cacheVariables": {
+        "KBD_MODEL": "5KEY"
+      }
+    },
+    {
       "name": "debug",
       "displayName": "Debug",
       "description": "Debug build with -Og -g3",
@@ -32,10 +39,24 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel"
       }
+    },
+    {
+      "name": "debug-5key",
+      "displayName": "Debug (5KEY)",
+      "description": "Debug build with 5KEY model naming",
+      "inherits": ["debug", "model-5key"]
+    },
+    {
+      "name": "release-5key",
+      "displayName": "Release (size, 5KEY)",
+      "description": "Size-optimized build with 5KEY model naming",
+      "inherits": ["release", "model-5key"]
     }
   ],
   "buildPresets": [
     { "name": "debug",   "configurePreset": "debug" },
-    { "name": "release", "configurePreset": "release" }
+    { "name": "release", "configurePreset": "release" },
+    { "name": "debug-5key", "configurePreset": "debug-5key" },
+    { "name": "release-5key", "configurePreset": "release-5key" }
   ]
 }

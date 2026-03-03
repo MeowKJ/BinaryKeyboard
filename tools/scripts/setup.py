@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO = "ch32-rs/wchisp"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
-TOOLS_SCRIPTS = Path(__file__).parent / "tools" / "scripts"
+TOOLS_SCRIPTS = Path(__file__).parent
 
 # ── Terminal colors ────────────────────────────────────────────────────────────
 def _c(code, text): return f"\033[{code}m{text}\033[0m" if sys.stdout.isatty() else text
@@ -208,8 +208,8 @@ def main():
 def print_next_steps():
     print(_c("1", "  Next steps:"))
     print("  1. Connect CH592F via USB while holding BOOT button")
-    print("  2. Run:  ./flash.sh flash     (build + flash)")
-    print("  3. Or:   ./flash.sh --help    (all commands)")
+    print("  2. Run:  python tools/scripts/flash.py flash     (build + flash)")
+    print("  3. Or:   python tools/scripts/flash.py --help    (all commands)")
     sep()
 
 
