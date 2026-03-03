@@ -126,3 +126,6 @@ model/
 
 # Python虚拟环境
 .venv/
+
+# Python cache
+__pycache__/
