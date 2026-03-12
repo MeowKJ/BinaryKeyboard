@@ -23,44 +23,56 @@
 </p>
 
 <p align="center">
-  <a href="#概述">概述</a> ·
   <a href="#快速开始">快速开始</a> ·
   <a href="#环境">环境</a> ·
+  <a href="#有线款">有线款</a> ·
+  <a href="#无线款">无线款</a> ·
   <a href="#贡献">贡献</a> ·
   <a href="#许可">许可</a>
 </p>
 
 <hr>
 
-# 概述
+# BinaryKeyboard 可爱二进制键盘
 
-**BinaryKeyboard** 为本项目名称（项目名），开源迷你键盘固件与改键工具。
+开源迷你键盘固件、改键工具和一些开发小工具。
 
 # 快速开始
 
 - 文档首页：[`docs/index.md`](./docs/index.md)
-- 有线款固件：[`firmware/CH552G/README.md`](./firmware/CH552G/README.md)
-- 无线款固件：[`firmware/CH592F/README.md`](./firmware/CH592F/README.md)
-- 改键工具（Web / PWA）：[`tools/studio/README.md`](./tools/studio/README.md)
+- 有线款：[`docs/wired/index.md`](./docs/wired/index.md)
+- 无线款：[`docs/wireless/index.md`](./docs/wireless/index.md)
+- 改键工具：[`docs/wired/remap.md`](./docs/wired/remap.md) / [`docs/wireless/remap.md`](./docs/wireless/remap.md)
 - PY 终端控制台：`python tools/scripts/console.py`
 
 # 环境
 
+- `Python 3`
+- `Node.js`
+- `pnpm`
+  
 ## 有线款
 
-[有线款](./firmware/CH552G/README.md)
+- 说明页：[`docs/wired/index.md`](./docs/wired/index.md)
+- 开发文档：[`docs/wired/dev.md`](./docs/wired/dev.md)
+- 刷写文档：[`docs/wired/flash.md`](./docs/wired/flash.md)
+- 改键文档：[`docs/wired/remap.md`](./docs/wired/remap.md)
 
 ## 无线款
 
-[无线款](./firmware/CH592F/README.md)
+- 说明页：[`docs/wireless/index.md`](./docs/wireless/index.md)
+- 开发文档：[`docs/wireless/dev.md`](./docs/wireless/dev.md)
+- 刷写文档：[`docs/wireless/flash.md`](./docs/wireless/flash.md)
+- 开发小工具：[`docs/wireless/dev-tools.md`](./docs/wireless/dev-tools.md)
 
 ## 改键工具
 
-[BinaryKeyboard Studio](./tools/studio/README.md)
+- 经典版：[`docs/wired/remap.md`](./docs/wired/remap.md)
+- 无线版：[`docs/wireless/remap.md`](./docs/wireless/remap.md)
 
 # 贡献
 
-[![Contributors](https://contrib.rocks/image?repo=MeowKJ/BinaryKeyboard)](https://github.com/MeowKJ/BinaryKeyboard/graphs/contributors)
+- [GitHub Contributors](https://github.com/MeowKJ/BinaryKeyboard/graphs/contributors)
 
 # 许可
 
