@@ -56,6 +56,7 @@ export default defineConfig({
           { text: '刷写固件', link: '/wireless/flash' },
           { text: '改键软件', link: '/wireless/remap' },
           { text: '固件开发', link: '/wireless/dev' },
+          { text: '便捷开发工具', link: '/wireless/dev-tools' },
           { text: 'HID 通讯协议', link: '/wireless/hid' },
           { text: '低功耗蓝牙', link: '/wireless/ble' },
           { text: 'TMOS 调度', link: '/wireless/tmos' },

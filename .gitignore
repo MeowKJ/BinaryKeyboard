@@ -96,6 +96,7 @@ build/
 # Downloaded wchisp binaries (run setup.py to fetch)
 tools/scripts/wchisp
 tools/scripts/wchisp.exe
+tools/scripts/.binarykeyboard_console_state.json
 eeprom_dump.bin
 
 # Windows reserved name (accidental create)

@@ -22,6 +22,7 @@
       "displayName": "Debug (local toolchain, 5KEY)",
       "inherits": "local-debug",
       "cacheVariables": {
+        "KBD_LAYOUT": "5KEY",
         "KBD_MODEL": "5KEY"
       }
     },
@@ -30,7 +31,26 @@
       "displayName": "Release (local toolchain, 5KEY)",
       "inherits": "local-release",
       "cacheVariables": {
+        "KBD_LAYOUT": "5KEY",
         "KBD_MODEL": "5KEY"
+      }
+    },
+    {
+      "name": "local-debug-knob",
+      "displayName": "Debug (local toolchain, KNOB)",
+      "inherits": "local-debug",
+      "cacheVariables": {
+        "KBD_LAYOUT": "KNOB",
+        "KBD_MODEL": "KNOB"
+      }
+    },
+    {
+      "name": "local-release-knob",
+      "displayName": "Release (local toolchain, KNOB)",
+      "inherits": "local-release",
+      "cacheVariables": {
+        "KBD_LAYOUT": "KNOB",
+        "KBD_MODEL": "KNOB"
       }
     }
   ],
@@ -38,6 +58,8 @@
     { "name": "local-debug",   "configurePreset": "local-debug" },
     { "name": "local-release", "configurePreset": "local-release" },
     { "name": "local-debug-5key",   "configurePreset": "local-debug-5key" },
-    { "name": "local-release-5key", "configurePreset": "local-release-5key" }
+    { "name": "local-release-5key", "configurePreset": "local-release-5key" },
+    { "name": "local-debug-knob", "configurePreset": "local-debug-knob" },
+    { "name": "local-release-knob", "configurePreset": "local-release-knob" }
   ]
 }

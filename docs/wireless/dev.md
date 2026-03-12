@@ -2,28 +2,60 @@
 
 基于 **CH592F** 芯片的 USB/蓝牙双模键盘固件开发指南。
 
+::: warning
+如果你使用 `MounRiver Studio` 开发，导入工程配置下编译目录和include即可，这一页的CMake环境配置可以直接跳过。
+
+// TODO: 未来补充 MRS 导入配置说明，主要是几个include，还有个.a文件和几个宏需要配一下（欢迎各路大神COMMIT这个）
+:::
+
 **仓库流程**：开发在 `dev` 分支进行，完成后 PR 到 `main`。
 
 ## 开发环境
 
-### 推荐工具链
+> 推荐使用 CMake 构建，可以用 VSCode 或 Clion 这种功能更强大的 IDE。Debug？我不知道。
+
+> 换成 CMake 其实主要目的就是 CI-CD。之前每次发布还得在 IDE 里面切换宏定义然后手动编译导出上传 Github，非常麻烦，还特别容易污染 git。现在改成 CMake 之后，Github 直接调用 Docker CMake 构建不同版本的固件，自动化发布，爽歪歪。还能做代码分析验证，AI 自动化编译测试等等。
+
+### 常用环境
 
 | 工具 | 说明 |
 | :--- | :--- |
-| CMake ≥ 3.21 + Ninja | 构建系统（使用 Presets） |
-| MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
+| CMake ≥ 3.21 + Ninja | - |
+| MRS Toolchain | RISC-V 交叉编译工具链 |
 | Python 3 | 烧录脚本（`tools/scripts/flash.py`） |
+| Node.js | Studio 环境 |
 | wchisp | 底层烧录工具（`tools/scripts/setup.py` 自动下载） |
 
-> VSCode 用户可直接使用状态栏按钮（Build / Flash）触发构建与烧录，无需手动执行命令。
-> 工具链路径推荐写入 `CMakeUserPresets.json`，也支持环境变量或系统 `PATH` 自动探测。
-> 若使用 VS Code CMake Tools 自带“生成/配置”，请优先选择 `local-release` / `local-debug` 预设。
+> `CMakeUserPresets.json` 只在你走 `CMake` 工作流时需要。
 
 ### 配置开发环境
 
-1. 安装 [MounRiver Studio](http://www.mounriver.com/)（获取 RISC-V 工具链）
-2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`，填写工具链路径
-3. 下载烧录工具：`python tools/scripts/setup.py`
+## Windows
+
+1. 安装 [MounRiver Studio](http://www.mounriver.com/)（主要是拿工具链）
+2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
+3. 填好工具链路径，一般可以在 `MounRiver Studio` 安装目录附近找到
+4. 下载烧录工具：`python tools/scripts/setup.py`
+5. 可选：启动 PY 终端控制台：`python tools/scripts/console.py`
+
+## MacOS/Linux
+> MacOS 目前只支持 M 系列芯片，Linux 只支持 x64 架构。
+> 树莓派, 香橙派, 泰山派等 ARM 设备，目前无法原生编译 CH592F 固件 - WCH没有发布对应工具链。
+
+1. 安装 [MounRiver Studio](http://www.mounriver.com/) 。
+
+1. 下载 [RISC-V 工具链](http://www.mounriver.com/)
+2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
+3. 填写工具链路径
+4. 下载烧录工具：`python tools/scripts/setup.py`
+5. 可选：启动 PY 终端控制台：`python tools/scripts/console.py`
+
+## 通用
+如果你想用一些顺手的小工具，可以再看一页：
+
+- [便捷开发工具](./dev-tools.md)
+
+如果你不走 `CMake`，这一段可以直接跳过。
 
 可选工具链配置方式（`cmake/toolchain-ch59x.cmake` 已支持）：
 - `MRS_TOOLCHAIN_ROOT`（推荐，填 MounRiver Toolchain 根目录）
@@ -137,7 +169,6 @@ Firmware/CH592F/
 
 | 类型   | 枚举值 | 物理按键 | 虚拟键位 | 说明                   |
 | :----- | :----- | :------- | :------- | :--------------------- |
-| 基础款 | 0      | 4 键     | 4        | 标准 4 键布局          |
 | 五键款 | 1      | 5 键     | 5        | 扩展 5 键布局          |
 | 旋钮款 | 2      | 4 键     | 7        | 4 键 + 旋钮 (3 虚拟键) |
 
@@ -151,26 +182,43 @@ Firmware/CH592F/
 
 ### 选择键盘布局
 
-在 `Board/include/kbd_config.h` 中取消注释对应的布局：
+CH592F 当前只保留 `5KEY` 与 `KNOB` 两种发布布局。推荐通过 CMake 选择：
+
+```bash
+# 五键款
+cmake --preset local-release-5key
+cmake --build --preset local-release-5key
+
+# 旋钮款
+cmake --preset local-release-knob
+cmake --build --preset local-release-knob
+```
+
+也可以直接传 CMake 变量：
+
+```bash
+cmake --preset local-release -DKBD_LAYOUT=KNOB
+cmake --build --preset local-release
+```
+
+如果不走 CMake，而是使用 MRS 或其他 IDE，请在预处理宏中定义其一：
 
 ```c
-// 选择一个键盘布局 (只能启用一个)
-// #define KBD_LAYOUT_BASIC    // 基础款: 4 键
-#define KBD_LAYOUT_5KEY       // 五键款: 5 键
-// #define KBD_LAYOUT_KNOB     // 旋钮款: 4 键 + 旋钮
+KBD_LAYOUT_5KEY
+KBD_LAYOUT_KNOB
 ```
 
 ### 获取键盘信息
 
 ```c
 // 获取当前键盘类型
-kbd_type_t type = KBD_GetType();          // KBD_TYPE_BASIC / 5KEYS / KNOB
+kbd_type_t type = KBD_GetType();          // KBD_TYPE_5KEYS / KBD_TYPE_KNOB
 
 // 获取总键位数 (用于映射)
-uint8_t total = KBD_GetTotalKeyCount();   // 4 / 5 / 7
+uint8_t total = KBD_GetTotalKeyCount();   // 5 / 7
 
 // 获取物理按键数
-uint8_t physical = KBD_GetPhysicalKeyCount();  // 4 / 5 / 4
+uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 ```
 
 ### GPIO 引脚映射
@@ -212,6 +260,12 @@ python tools/scripts/flash.py build --preset release
 
 # 构建并烧录
 python tools/scripts/flash.py flash --preset release
+
+# 指定旋钮款并烧录
+python tools/scripts/flash.py flash --preset release-knob
+
+# 透传额外 CMake 变量
+python tools/scripts/flash.py build --preset release -D KBD_LAYOUT=KNOB -D KBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardKNOBDEV
 ```
 
 ### 手动 CMake 构建
@@ -226,14 +280,68 @@ cmake --build --preset release  # 编译
 常用预设：
 - `release`：体积优先（`MinSizeRel`）
 - `debug`：调试优先（`-Og -g3`）
-- `local-release` / `local-debug`：本机预设（在 `CMakeUserPresets.json` 中定义，推荐 VS Code 使用）
+- `release-5key` / `debug-5key`：五键款共享预设
+- `release-knob` / `debug-knob`：旋钮款共享预设
+- `local-release` / `local-debug`：本机通用预设（在 `CMakeUserPresets.json` 中定义）
+- `local-release-5key` / `local-debug-5key`：本机五键款预设
+- `local-release-knob` / `local-debug-knob`：本机旋钮款预设
 
 推荐（本机开发）：
 
 ```bash
 cd firmware/CH592F
-cmake --preset local-release
+cmake --preset local-release-5key
+cmake --build --preset local-release-5key
+```
+
+### CMake 变量总览
+
+共享构建变量：
+
+| 变量 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `KBD_LAYOUT` | `5KEY` | 键盘布局，支持 `5KEY` / `KNOB` |
+| `KBD_MODEL` | `AUTO` | 设备名后缀；`AUTO` 时跟随 `KBD_LAYOUT` |
+| `KBD_NAME_PREFIX` | `BinaryKeyboard` | 设备名前缀 |
+| `KBD_DEVICE_NAME_OVERRIDE` | 空 | 设备完整名称覆盖，优先级最高 |
+| `MRS_TOOLCHAIN_ROOT` | 空 | MRS Toolchain 根目录 |
+| `RISCV_TOOLCHAIN_DIR` | 空 | 工具链 `bin` 目录（环境变量） |
+| `TOOLCHAIN_DIR` | 空 | 工具链 `bin` 目录（环境变量或 cache） |
+| `CMAKE_BUILD_TYPE` | `MinSizeRel` | 构建类型，常见为 `Debug` / `MinSizeRel` |
+
+编译期布局宏：
+
+| 宏 | 说明 |
+| :--- | :--- |
+| `KBD_LAYOUT_5KEY` | 五键款布局 |
+| `KBD_LAYOUT_KNOB` | 旋钮款布局 |
+| `KBD_MODEL_NAME` | 由 CMake 注入的设备型号字符串 |
+| `KBD_DEVICE_NAME` | 由 CMake 注入的统一 USB/BLE 设备名 |
+
+### 常用 CMake 命令清单
+
+```bash
+cd firmware/CH592F
+
+# 1. 用共享 preset 配置和构建
+cmake --preset release-5key
+cmake --build --preset release-5key
+
+# 2. 用本地 preset 配置和构建
+cmake --preset local-release-knob
+cmake --build --preset local-release-knob
+
+# 3. 在通用 preset 上覆写布局和名称
+cmake --preset local-release -DKBD_LAYOUT=KNOB -DKBD_MODEL=KNOB
 cmake --build --preset local-release
+
+# 4. 自定义完整设备名
+cmake --preset local-release -DKBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardLab
+cmake --build --preset local-release
+
+# 5. 不写 CMakeUserPresets.json 时，直接传工具链根目录
+cmake --preset release-5key -DMRS_TOOLCHAIN_ROOT=/path/to/MRS_Toolchain/Toolchain
+cmake --build --preset release-5key
 ```
 
 ### CMake 常见问题
@@ -241,6 +349,7 @@ cmake --build --preset local-release
 **1. VS Code CMake Tools 报 `RISC-V cross-compiler not found`**
 
 - 优先检查当前 Configure Preset 是否为 `local-release` / `local-debug`
+- 若在做布局切换，也检查是否选择了 `*-5key` / `*-knob`
 - 执行 `CMake: Delete Cache and Reconfigure`
 - 检查 `CMakeUserPresets.json` 中 `MRS_TOOLCHAIN_ROOT` 路径
 - 或使用 `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
@@ -532,11 +641,11 @@ KBD_RGB_Flash(0, 255, 0, 200);  // 绿色闪烁 200ms
 | 5      | 1    | 主版本         | 固件主版本号                 |
 | 6      | 1    | 次版本         | 固件次版本号                 |
 | 7      | 1    | 补丁版本       | 固件补丁版本                 |
-| 8      | 1    | 最大层数       | 支持的最大层数 (4)           |
+| 8      | 1    | 最大层数       | 支持的最大层数 (5)           |
 | 9      | 1    | 最大键数       | 单层最大键数 (8)             |
 | 10     | 1    | 宏槽位数       | 宏存储槽位数 (8)             |
-| **11** | 1    | **键盘类型**   | 0=基础款, 1=五键款, 2=旋钮款 |
-| **12** | 1    | **实际键位数** | 当前类型的虚拟键位数 (4/5/7) |
+| **11** | 1    | **键盘类型**   | 1=五键款, 2=旋钮款（0 保留） |
+| **12** | 1    | **实际键位数** | 当前类型的虚拟键位数 (5/7)   |
 | 13     | 1    | FN 键数量      | FN 功能键数量                |
 
 ::: tip 上位机适配

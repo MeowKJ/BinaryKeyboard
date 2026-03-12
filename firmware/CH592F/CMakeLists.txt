@@ -11,12 +11,29 @@ project(CH592F C ASM)
 set(TARGET_ELF ${PROJECT_NAME}.elf)
 
 # ---------------------------------------------------------------------------
-# Device naming (used by both USB and BLE)
+# Keyboard layout and device naming (used by both USB and BLE)
 # ---------------------------------------------------------------------------
+set(KBD_LAYOUT "5KEY" CACHE STRING "Keyboard layout variant (5KEY or KNOB)")
+set_property(CACHE KBD_LAYOUT PROPERTY STRINGS 5KEY KNOB)
 set(KBD_NAME_PREFIX "BinaryKeyboard" CACHE STRING "Keyboard name prefix")
-set(KBD_MODEL "5KEY" CACHE STRING "Keyboard model suffix for device name (e.g. 5KEY, 65KEY)")
+set(KBD_MODEL "AUTO" CACHE STRING "Keyboard model suffix for device name (AUTO uses KBD_LAYOUT)")
 set(KBD_DEVICE_NAME_OVERRIDE "" CACHE STRING "Override full USB/BLE device name, empty means auto compose")
-string(TOUPPER "${KBD_MODEL}" KBD_MODEL_UPPER)
+string(TOUPPER "${KBD_LAYOUT}" KBD_LAYOUT_UPPER)
+string(TOUPPER "${KBD_MODEL}" KBD_MODEL_UPPER_RAW)
+
+if(KBD_LAYOUT_UPPER STREQUAL "5KEY")
+    set(KBD_LAYOUT_DEFINE "KBD_LAYOUT_5KEY")
+elseif(KBD_LAYOUT_UPPER STREQUAL "KNOB")
+    set(KBD_LAYOUT_DEFINE "KBD_LAYOUT_KNOB")
+else()
+    message(FATAL_ERROR "Unsupported KBD_LAYOUT='${KBD_LAYOUT}'. Expected 5KEY or KNOB.")
+endif()
+
+if(KBD_MODEL_UPPER_RAW STREQUAL "" OR KBD_MODEL_UPPER_RAW STREQUAL "AUTO")
+    set(KBD_MODEL_UPPER "${KBD_LAYOUT_UPPER}")
+else()
+    set(KBD_MODEL_UPPER "${KBD_MODEL_UPPER_RAW}")
+endif()
 
 if(KBD_DEVICE_NAME_OVERRIDE STREQUAL "")
     set(KBD_DEVICE_NAME "${KBD_NAME_PREFIX}${KBD_MODEL_UPPER}")
@@ -26,6 +43,7 @@ endif()
 
 string(LENGTH "${KBD_DEVICE_NAME}" KBD_DEVICE_NAME_LEN)
 
+message(STATUS "Keyboard layout: ${KBD_LAYOUT_UPPER}")
 message(STATUS "Keyboard model: ${KBD_MODEL_UPPER}")
 message(STATUS "Unified device name: ${KBD_DEVICE_NAME}")
 message(STATUS "Unified device name length: ${KBD_DEVICE_NAME_LEN}")
@@ -128,6 +146,7 @@ target_include_directories(${TARGET_ELF} PRIVATE
 # ---------------------------------------------------------------------------
 target_compile_definitions(${TARGET_ELF} PRIVATE
     DEBUG=1
+    ${KBD_LAYOUT_DEFINE}
     KBD_MODEL_NAME=\"${KBD_MODEL_UPPER}\"
     KBD_DEVICE_NAME=\"${KBD_DEVICE_NAME}\"
 )

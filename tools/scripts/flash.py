@@ -90,6 +90,29 @@ def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
     return None
 
 
+def _build_dir_needs_configure(build_dir: Path) -> bool:
+    """Return True when the build directory is missing or incompletely generated."""
+    if not build_dir.is_dir():
+        return True
+
+    cache_file = build_dir / "CMakeCache.txt"
+    if not cache_file.is_file():
+        return True
+
+    generator = _parse_cmake_cache_var(cache_file, "CMAKE_GENERATOR")
+    make_program = _parse_cmake_cache_var(cache_file, "CMAKE_MAKE_PROGRAM")
+
+    # Incomplete Ninja generation leaves no build.ninja and often an empty
+    # CMAKE_MAKE_PROGRAM, which later surfaces as a misleading "permission denied".
+    if generator == "Ninja":
+        if not (build_dir / "build.ninja").is_file():
+            return True
+        if not make_program:
+            return True
+
+    return False
+
+
 def _parse_size_row_from_output(text: str) -> Optional[tuple[int, int, int]]:
     # e.g. " 178204    1740   13232  193176   2f298 /path/CH592F.elf"
     m = re.search(r'^\s*(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+[0-9a-fA-F]+\s+\S+\.elf\s*$',
@@ -237,6 +260,15 @@ def _resolve_preset(preset: str) -> str:
         except Exception:
             pass
     return preset
+
+
+def _cmake_define_args(defines: list[str]) -> list[str]:
+    args: list[str] = []
+    for item in defines:
+        if "=" not in item:
+            die(f"Invalid --cmake-define '{item}'. Expected KEY=VALUE.")
+        args.append(f"-D{item}")
+    return args
 
 
 # ── Locate wchisp ──────────────────────────────────────────────────────────────
@@ -438,14 +470,18 @@ def _build_report(lines: list, preset: str, build_dir: Path, elapsed: float) -> 
 
 
 # ── Build helper ───────────────────────────────────────────────────────────────
-def build_firmware(preset: str) -> Path:
+def build_firmware(preset: str, cmake_defines: Optional[list[str]] = None) -> Path:
     actual = _resolve_preset(preset)
+    define_args = _cmake_define_args(cmake_defines or [])
     sep()
     info(f"Building preset: {_c('1', actual)}")
     build_dir = FIRMWARE_DIR / "build" / actual
-    if not build_dir.is_dir():
-        info("Configuring (first build)...")
-        run(["cmake", "--preset", actual], cwd=str(FIRMWARE_DIR))
+    needs_configure = _build_dir_needs_configure(build_dir)
+    if needs_configure or define_args:
+        if needs_configure and build_dir.is_dir():
+            warn("Build directory is incomplete; reconfiguring preset.")
+        info("Configuring..." if build_dir.is_dir() else "Configuring (first build)...")
+        run(["cmake", "--preset", actual] + define_args, cwd=str(FIRMWARE_DIR))
     lines, elapsed = run_and_capture(
         ["cmake", "--build", "--preset", actual], cwd=str(FIRMWARE_DIR)
     )
@@ -483,7 +519,7 @@ def cmd_flash(args, wchisp: Path, extra: list):
     if args.file:
         bin_file = resolve_bin(args.file, args.preset)
     else:
-        bin_file = build_firmware(args.preset)
+        bin_file = build_firmware(args.preset, args.cmake_define)
 
     sep()
     check_device(wchisp, extra)
@@ -502,7 +538,7 @@ def cmd_flash(args, wchisp: Path, extra: list):
 
 
 def cmd_build(args, **_):
-    build_firmware(args.preset)
+    build_firmware(args.preset, args.cmake_define)
     sep()
     ok(f"Build complete (preset: {args.preset})")
 
@@ -619,6 +655,8 @@ examples:
     p_flash = sub.add_parser("flash", help="Build (if needed) and flash firmware")
     p_flash.add_argument("-p", "--preset", default=DEFAULT_PRESET,
                          help=f"CMake preset (default: {DEFAULT_PRESET})")
+    p_flash.add_argument("-D", "--cmake-define", action="append", default=[],
+                         help="Extra CMake cache definition (KEY=VALUE). Repeatable.")
     p_flash.add_argument("-f", "--file", metavar="FILE",
                          help="Flash a specific .bin/.hex/.elf (skip build)")
     p_flash.add_argument("--skip-erase",  action="store_true")
@@ -628,6 +666,8 @@ examples:
     # ── build ──────────────────────────────────────────────────────────────────
     p_build = sub.add_parser("build", help="Build firmware only")
     p_build.add_argument("-p", "--preset", default=DEFAULT_PRESET)
+    p_build.add_argument("-D", "--cmake-define", action="append", default=[],
+                         help="Extra CMake cache definition (KEY=VALUE). Repeatable.")
 
     # ── verify ─────────────────────────────────────────────────────────────────
     p_verify = sub.add_parser("verify", help="Verify chip flash matches .bin")

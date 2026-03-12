@@ -120,35 +120,7 @@ static uint8_t s_runtime_last_saved_mode = 0xFF;
 /**
  * @brief 默认按键映射 (根据键盘类型自动选择)
  */
-#if defined(KBD_LAYOUT_BASIC)
-/*---------------------------------------------------------------------------*/
-/* 基础款: 4 键, 4 层 → 数字键 1-4 */
-/*---------------------------------------------------------------------------*/
-static const kbd_keymap_t s_default_keymap = {
-    .num_layers = KBD_DEFAULT_LAYERS,
-    .current_layer = 0,
-    .default_layer = 0,
-    .reserved = 0,
-    .layers = {
-        {/* 层 1 */
-         .keys =
-             {
-                 {KBD_ACTION_KEYBOARD, 0, 0x1E, 0}, /* '1' */
-                 {KBD_ACTION_KEYBOARD, 0, 0x1F, 0}, /* '2' */
-                 {KBD_ACTION_KEYBOARD, 0, 0x20, 0}, /* '3' */
-                 {KBD_ACTION_KEYBOARD, 0, 0x21, 0}, /* '4' */
-                 {KBD_ACTION_NONE, 0, 0, 0},
-                 {KBD_ACTION_NONE, 0, 0, 0},
-                 {KBD_ACTION_NONE, 0, 0, 0},
-                 {KBD_ACTION_NONE, 0, 0, 0},
-             }},
-        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 2 */
-        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 3 */
-        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 4 */
-        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 5 (未使用) */
-    }};
-
-#elif defined(KBD_LAYOUT_5KEY)
+#if defined(KBD_LAYOUT_5KEY)
 /*---------------------------------------------------------------------------*/
 /* 五键款: 5 键, 5 层 → 数字键 1-5 */
 /*---------------------------------------------------------------------------*/
@@ -209,7 +181,7 @@ static const kbd_keymap_t s_default_keymap = {
     }};
 
 #else
-#error "请在 kbd_config.h 中选择一个键盘布局"
+#error "请通过 CMake 或 MRS 预处理宏选择一个键盘布局"
 #endif
 
 /**

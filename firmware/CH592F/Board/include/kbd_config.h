@@ -6,7 +6,7 @@
 /*============================================================================*/
 /**
  * @defgroup KBD_Type 键盘类型定义
- * @brief 支持多种键盘外形
+ * @brief 支持本次发布的键盘外形
  * @{
  */
 
@@ -14,7 +14,6 @@
  * @brief 键盘类型枚举
  */
 typedef enum {
-  KBD_TYPE_BASIC = 0, /**< 基础款: 4 键 */
   KBD_TYPE_5KEYS = 1, /**< 五键款: 5 键 */
   KBD_TYPE_KNOB = 2,  /**< 旋钮款: 4 键 + 1 旋钮 (等效 7 键) */
 } kbd_type_t;
@@ -22,7 +21,6 @@ typedef enum {
 /**
  * @brief 各类型键盘的按键数量
  */
-#define KBD_KEYS_BASIC 4u /**< 基础款按键数 */
 #define KBD_KEYS_5KEYS 5u /**< 五键款按键数 */
 #define KBD_KEYS_KNOB 7u  /**< 旋钮款按键数 (4 普通键 + 3 旋钮动作) */
 
@@ -43,10 +41,13 @@ typedef enum {
  * @{
  */
 
-// 选择一个键盘布局 (取消注释对应的行)
-// #define KBD_LAYOUT_BASIC        /**< 基础款 */
-#define KBD_LAYOUT_5KEY /**< 五键款 */
-// #define KBD_LAYOUT_KNOB         /**< 旋钮款 */
+#if defined(KBD_LAYOUT_5KEY) && defined(KBD_LAYOUT_KNOB)
+#error "Only one keyboard layout may be enabled: KBD_LAYOUT_5KEY or KBD_LAYOUT_KNOB."
+#endif
+
+#if !defined(KBD_LAYOUT_5KEY) && !defined(KBD_LAYOUT_KNOB)
+#error "Define KBD_LAYOUT_5KEY or KBD_LAYOUT_KNOB in CMake/MRS preprocessor settings before building."
+#endif
 
 /** @} */
 
@@ -149,27 +150,7 @@ typedef struct {
  * @{
  */
 
-#if defined(KBD_LAYOUT_BASIC)
-/*---------------------------------------------------------------------------*/
-/* 基础款: 4 键, 4 层 */
-/*---------------------------------------------------------------------------*/
-#define KBD_CURRENT_TYPE KBD_TYPE_BASIC
-#define KBD_NUM_KEYS KBD_KEYS_BASIC
-#define KBD_DEFAULT_LAYERS 4u /**< 默认层数 = 按键数 */
-
-#define KBD_K1_PORT GPIO_PORT_B
-#define KBD_K1_PIN GPIO_Pin_4
-
-#define KBD_K2_PORT GPIO_PORT_B
-#define KBD_K2_PIN GPIO_Pin_7
-
-#define KBD_K3_PORT GPIO_PORT_B
-#define KBD_K3_PIN GPIO_Pin_12
-
-#define KBD_K4_PORT GPIO_PORT_A
-#define KBD_K4_PIN GPIO_Pin_8
-
-#elif defined(KBD_LAYOUT_5KEY)
+#if defined(KBD_LAYOUT_5KEY)
 /*---------------------------------------------------------------------------*/
 /* 五键款: 5 键, 5 层 */
 /*---------------------------------------------------------------------------*/
@@ -228,7 +209,7 @@ typedef struct {
 
 #else
 #error                                                                         \
-    "请在 kbd_config.h 中选择一个键盘布局 (KBD_LAYOUT_BASIC / KBD_LAYOUT_5KEY / KBD_LAYOUT_KNOB)"
+    "请通过 CMake 或 MRS 预处理宏选择一个键盘布局 (KBD_LAYOUT_5KEY / KBD_LAYOUT_KNOB)"
 #endif
 
 /* 统一的虚拟按键总数 (用于按键映射) */
@@ -253,15 +234,9 @@ typedef struct {
  * 映射关系说明：
  * - 五键款: 层0(k0)->rgb3, 层1(k1)->rgb4, 层2(k2)->rgb5, 层3(k3)->rgb2, 层4(k4)->rgb1
  * - 旋钮款: 层0(k0)->rgb3, 层1(k1)->rgb4, 层2(k2)->rgb2, 层3(k3)->rgb1
- * - 经典款: 层0(k0)->rgb2, 层1(k1)->rgb3, 层2(k2)->rgb4, 层3(k3)->rgb1
  */
 
-#if defined(KBD_LAYOUT_BASIC)
-/* 经典款: 4 层按键映射到 4 个 RGB LED (WS2812 索引 1-4) */
-#define KBD_LAYER_TO_LED_MAP {2, 3, 4, 1}
-#define KBD_LAYER_TO_LED_MAP_SIZE 4
-
-#elif defined(KBD_LAYOUT_5KEY)
+#if defined(KBD_LAYOUT_5KEY)
 /* 五键款: 5 层按键映射到 5 个 RGB LED (WS2812 索引 1-5) */
 #define KBD_LAYER_TO_LED_MAP {3, 4, 5, 2, 1}
 #define KBD_LAYER_TO_LED_MAP_SIZE 5
