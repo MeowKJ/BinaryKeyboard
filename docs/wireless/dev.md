@@ -20,9 +20,9 @@
 
 | 工具 | 说明 |
 | :--- | :--- |
-| CMake ≥ 3.21 + Ninja | - |
-| MRS Toolchain | RISC-V 交叉编译工具链 |
-| Python 3 | 烧录脚本（`tools/scripts/flash.py`） |
+| CMake ≥ 3.21 + Ninja | 构建系统（使用 Presets） |
+| MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
+| Python 3 | 构建 / 烧录 / console 脚本入口 |
 | Node.js | Studio 环境 |
 | wchisp | 底层烧录工具（`tools/scripts/setup.py` 自动下载） |
 
@@ -36,7 +36,7 @@
 2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
 3. 填好工具链路径，一般可以在 `MounRiver Studio` 安装目录附近找到
 4. 下载烧录工具：`python tools/scripts/setup.py`
-5. 可选：启动 PY 终端控制台：`python tools/scripts/console.py`
+5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
 
 ## MacOS/Linux
 > MacOS 目前只支持 M 系列芯片，Linux 只支持 x64 架构。
@@ -48,7 +48,7 @@
 2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
 3. 填写工具链路径
 4. 下载烧录工具：`python tools/scripts/setup.py`
-5. 可选：启动 PY 终端控制台：`python tools/scripts/console.py`
+5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
 
 ## 通用
 如果你想用一些顺手的小工具，可以再看一页：
@@ -256,16 +256,10 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 python tools/scripts/setup.py
 
 # 仅构建
-python tools/scripts/flash.py build --preset release
+python tools/scripts/ch592f.py build --preset release
 
-# 构建并烧录
-python tools/scripts/flash.py flash --preset release
-
-# 指定旋钮款并烧录
-python tools/scripts/flash.py flash --preset release-knob
-
-# 透传额外 CMake 变量
-python tools/scripts/flash.py build --preset release -D KBD_LAYOUT=KNOB -D KBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardKNOBDEV
+# 烧录
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release/CH592F.bin
 ```
 
 ### 手动 CMake 构建
@@ -355,14 +349,16 @@ cmake --build --preset release-5key
 - 或使用 `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
 
 说明：
-- 状态栏 Task 按钮走 `tools/scripts/flash.py` 工作流，通常会优先使用本机 `local-*` 预设
+- 推荐将构建和烧录分离：
+  `tools/scripts/ch592f.py` 负责 preset 构建，`tools/scripts/flash.py` 负责烧录现成产物
 - VS Code CMake Tools 自带“生成/配置”直接使用当前选中的 preset，不会自动替换为 `local-*`
 
 ### 进入 Bootloader 模式
 
 1. 断开键盘与电脑连接
 2. 按住 **BOOT** 按钮的同时连接 USB
-3. 运行 `python tools/scripts/flash.py flash` 自动烧录
+3. 先运行 `python tools/scripts/ch592f.py build --preset release`
+4. 再运行 `python tools/scripts/flash.py flash --file firmware/CH592F/build/release/CH592F.bin`
 
 ## 按键映射系统
 

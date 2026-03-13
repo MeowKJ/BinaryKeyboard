@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interactive terminal console for BinaryKeyboard project helpers."""
+"""Unified TUI for BinaryKeyboard project helpers."""
 
 from __future__ import annotations
 
@@ -44,15 +44,18 @@ def _cached(key: str, fn, ttl: float = 5.0) -> list[str]:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
+CH592_FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
+CH552_FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH552G"
 STUDIO_DIR = PROJECT_ROOT / "tools" / "studio"
 DOCS_DIR = PROJECT_ROOT / "docs"
 FLASH_SCRIPT = SCRIPT_DIR / "flash.py"
+CH592_BUILD_SCRIPT = SCRIPT_DIR / "ch592f.py"
+CH552_BUILD_SCRIPT = SCRIPT_DIR / "ch552g.py"
 SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
 LEGACY_STATE_FILE = SCRIPT_DIR / ".ch592f_console_state.json"
-USER_PRESETS = FIRMWARE_DIR / "CMakeUserPresets.json"
-USER_PRESETS_EXAMPLE = FIRMWARE_DIR / "CMakeUserPresets.json.example"
+CH592_USER_PRESETS = CH592_FIRMWARE_DIR / "CMakeUserPresets.json"
+CH592_USER_PRESETS_EXAMPLE = CH592_FIRMWARE_DIR / "CMakeUserPresets.json.example"
 
 DOC_URLS = {
     "MRS download": "http://www.mounriver.com/download",
@@ -61,10 +64,14 @@ DOC_URLS = {
     "Project repo": "https://github.com/MeowKJ/BinaryKeyboard",
 }
 
+CH552_VARIANTS = ("BASIC", "KNOB", "5KEYS")
+
 DEFAULT_STATE = {
+    "target": "CH592F",
     "layout": "5KEY",
     "build_type": "release",
     "toolchain_root": "",
+    "ch552_variant": "BASIC",
 }
 
 
@@ -78,6 +85,14 @@ def load_state() -> dict:
         return dict(DEFAULT_STATE)
     state = dict(DEFAULT_STATE)
     state.update({k: v for k, v in data.items() if k in state})
+    if state["target"] not in ("CH592F", "CH552G"):
+        state["target"] = DEFAULT_STATE["target"]
+    if state["layout"] not in ("5KEY", "KNOB"):
+        state["layout"] = DEFAULT_STATE["layout"]
+    if state["build_type"] not in ("release", "debug"):
+        state["build_type"] = DEFAULT_STATE["build_type"]
+    if state["ch552_variant"] not in CH552_VARIANTS:
+        state["ch552_variant"] = DEFAULT_STATE["ch552_variant"]
     return state
 
 
@@ -93,7 +108,62 @@ def base_preset(state: dict) -> str:
 def resolved_preset_label(state: dict) -> str:
     shared = base_preset(state)
     local = f"local-{shared}"
-    return local if USER_PRESETS.is_file() else shared
+    return local if CH592_USER_PRESETS.is_file() else shared
+
+
+def is_ch592_target(state: dict) -> bool:
+    return state["target"] == "CH592F"
+
+
+def current_build_label(state: dict) -> str:
+    if is_ch592_target(state):
+        return f"preset {resolved_preset_label(state)}"
+    return f"variant {state['ch552_variant']}"
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+    except ValueError:
+        return str(path).replace("\\", "/")
+
+
+def current_artifact_path(state: dict) -> Path:
+    if is_ch592_target(state):
+        return CH592_FIRMWARE_DIR / "build" / resolved_preset_label(state) / "CH592F.bin"
+    return CH552_FIRMWARE_DIR / "build" / state["ch552_variant"].lower() / "CH552G.bin"
+
+
+def current_artifact_label(state: dict) -> str:
+    return display_path(current_artifact_path(state))
+
+
+def current_build_command(state: dict) -> list[str]:
+    if is_ch592_target(state):
+        return [sys.executable, str(CH592_BUILD_SCRIPT), "build", "--preset", base_preset(state)]
+    return [sys.executable, str(CH552_BUILD_SCRIPT), "build", "--variant", state["ch552_variant"]]
+
+
+def current_flash_command(state: dict) -> list[str]:
+    return [sys.executable, str(FLASH_SCRIPT), "flash", "--file", str(current_artifact_path(state))]
+
+
+def current_verify_command(state: dict) -> list[str]:
+    return [sys.executable, str(FLASH_SCRIPT), "verify", "--file", str(current_artifact_path(state))]
+
+
+def current_build_command_display(state: dict) -> str:
+    if is_ch592_target(state):
+        return f"python tools/scripts/ch592f.py build --preset {base_preset(state)}"
+    return f"python tools/scripts/ch552g.py build --variant {state['ch552_variant']}"
+
+
+def current_flash_command_display(state: dict) -> str:
+    return f"python tools/scripts/flash.py flash --file {current_artifact_label(state)}"
+
+
+def current_verify_command_display(state: dict) -> str:
+    return f"python tools/scripts/flash.py verify --file {current_artifact_label(state)}"
 
 
 def prompt_line(stdscr, prompt: str, default: str = "") -> str:
@@ -247,6 +317,20 @@ def run_command(stdscr, cmd: list[str], cwd: Path = PROJECT_ROOT) -> None:
         resume_curses(stdscr)
 
 
+def run_command_sequence(stdscr, commands: list[tuple[list[str], Path]]) -> None:
+    suspend_curses(stdscr)
+    try:
+        for cmd, cwd in commands:
+            print("\n$ " + " ".join(shlex.quote(part) for part in cmd))
+            result = subprocess.run(cmd, cwd=str(cwd), check=False)
+            if result.returncode != 0:
+                print(f"\nCommand failed with exit {result.returncode}.")
+                break
+        input("\nPress Enter to return...")
+    finally:
+        resume_curses(stdscr)
+
+
 def capture_command(cmd: list[str], cwd: Path = PROJECT_ROOT) -> tuple[int, str, str]:
     try:
         result = subprocess.run(
@@ -314,10 +398,10 @@ def safe_hline(stdscr, y: int, x: int, ch: int, count: int) -> None:
 
 def read_toolchain_from_presets() -> str:
     """Read MRS_TOOLCHAIN_ROOT from existing CMakeUserPresets.json, or empty."""
-    if not USER_PRESETS.is_file():
+    if not CH592_USER_PRESETS.is_file():
         return ""
     try:
-        data = json.loads(USER_PRESETS.read_text())
+        data = json.loads(CH592_USER_PRESETS.read_text())
         for preset in data.get("configurePresets", []):
             val = preset.get("cacheVariables", {}).get("MRS_TOOLCHAIN_ROOT", "")
             if val and val != "/path/to/MRS_Toolchain/Toolchain":
@@ -335,14 +419,14 @@ def _effective_toolchain(state: dict) -> str:
 def write_user_presets(toolchain_root: str) -> str:
     if not toolchain_root.strip():
         return "Toolchain root is empty."
-    if not USER_PRESETS_EXAMPLE.is_file():
-        return f"Missing template: {USER_PRESETS_EXAMPLE}"
-    data = json.loads(USER_PRESETS_EXAMPLE.read_text())
+    if not CH592_USER_PRESETS_EXAMPLE.is_file():
+        return f"Missing template: {CH592_USER_PRESETS_EXAMPLE}"
+    data = json.loads(CH592_USER_PRESETS_EXAMPLE.read_text())
     for preset in data.get("configurePresets", []):
         cache = preset.setdefault("cacheVariables", {})
         cache["MRS_TOOLCHAIN_ROOT"] = toolchain_root
-    USER_PRESETS.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n")
-    return f"Wrote {USER_PRESETS}"
+    CH592_USER_PRESETS.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n")
+    return f"Wrote {CH592_USER_PRESETS}"
 
 
 # ── Tool validation helpers ───────────────────────────────────────────────────
@@ -356,6 +440,63 @@ def _find_gcc_in_toolchain(toolchain_root: str) -> str | None:
     return hits[0] if hits else None
 
 
+def _candidate_windows_cmake_paths() -> list[Path]:
+    return [
+        Path(r"C:\Program Files\CMake\bin\cmake.exe"),
+        Path(r"C:\Program Files (x86)\CMake\bin\cmake.exe"),
+        Path(r"C:\ProgramData\chocolatey\bin\cmake.exe"),
+        Path(r"C:\Users\KJ\scoop\shims\cmake.exe"),
+        Path(r"C:\Users\KJ\scoop\apps\cmake\current\bin\cmake.exe"),
+        Path(r"C:\msys64\ucrt64\bin\cmake.exe"),
+        Path(r"C:\msys64\mingw64\bin\cmake.exe"),
+        Path(r"C:\msys64\usr\bin\cmake.exe"),
+        Path(r"C:\Tools\CMake\bin\cmake.exe"),
+        Path(r"C:\App\Tools\CMake\bin\cmake.exe"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
+    ]
+
+
+def _candidate_windows_sdcc_paths() -> list[Path]:
+    return [
+        Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
+        Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),
+        Path(r"C:\tools\sdcc\bin\sdcc.exe"),
+        Path(r"C:\Users\KJ\scoop\apps\sdcc\current\bin\sdcc.exe"),
+        Path(r"C:\msys64\ucrt64\bin\sdcc.exe"),
+        Path(r"C:\msys64\mingw64\bin\sdcc.exe"),
+    ]
+
+
+def find_cmake_binary() -> str | None:
+    found = shutil.which("cmake")
+    if found:
+        return found
+    if os.name == "nt":
+        for candidate in _candidate_windows_cmake_paths():
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def find_sdcc_binary() -> str | None:
+    found = shutil.which("sdcc")
+    if found:
+        return found
+    if os.name == "nt":
+        for candidate in _candidate_windows_sdcc_paths():
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
+def find_wchisp_binary() -> str | None:
+    local = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
+    if local.is_file():
+        return str(local)
+    return shutil.which("wchisp")
+
+
 def _tool_version(cmd: list[str]) -> str:
     """Run a command and return stdout first line, or empty."""
     code, out, err = capture_command(cmd)
@@ -365,19 +506,24 @@ def _tool_version(cmd: list[str]) -> str:
 
 
 def detect_tools(state: dict) -> list[str]:
-    wchisp_local = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
-    toolchain = _effective_toolchain(state)
     items = [
+        f"target: {state['target']}",
         f"python: {sys.executable}",
-        f"cmake: {shutil.which('cmake') or 'missing'}",
-        f"ninja: {shutil.which('ninja') or 'missing'}",
-        f"wchisp: {str(wchisp_local) if wchisp_local.is_file() else (shutil.which('wchisp') or 'missing')}",
-        f"CMakeUserPresets: {'present' if USER_PRESETS.is_file() else 'missing'}",
-        f"MRS_TOOLCHAIN_ROOT: {toolchain or 'unset'}",
+        f"cmake: {find_cmake_binary() or 'missing'}",
+        f"wchisp: {find_wchisp_binary() or 'missing'}",
     ]
-    if toolchain:
-        gcc = _find_gcc_in_toolchain(toolchain)
-        items.append(f"  riscv-gcc: {gcc or 'not found in toolchain path'}")
+    if is_ch592_target(state):
+        toolchain = _effective_toolchain(state)
+        items.extend([
+            f"ninja: {shutil.which('ninja') or 'missing'}",
+            f"CMakeUserPresets: {'present' if CH592_USER_PRESETS.is_file() else 'missing'}",
+            f"MRS_TOOLCHAIN_ROOT: {toolchain or 'unset'}",
+        ])
+        if toolchain:
+            gcc = _find_gcc_in_toolchain(toolchain)
+            items.append(f"  riscv-gcc: {gcc or 'not found in toolchain path'}")
+    else:
+        items.append(f"sdcc: {find_sdcc_binary() or 'missing'}")
     return items
 
 
@@ -388,59 +534,65 @@ def git_dirty() -> bool:
 
 def doctor_lines(state: dict) -> list[str]:
     items: list[str] = []
+    target = state["target"]
+    git_is_dirty = git_dirty()
 
     # 1. Required tools — existence + version
-    cmake_path = shutil.which("cmake")
+    cmake_path = find_cmake_binary()
     if cmake_path:
         ver = _tool_version([cmake_path, "--version"])
         items.append(f"[OK] cmake: {cmake_path} ({ver})")
     else:
         items.append("[WARN] cmake: missing")
 
-    ninja_path = shutil.which("ninja")
-    if ninja_path:
-        ver = _tool_version([ninja_path, "--version"])
-        items.append(f"[OK] ninja: {ninja_path} ({ver})")
-    else:
-        items.append("[WARN] ninja: missing")
-
-    # 2. wchisp
-    local_wchisp = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
-    wchisp_path = str(local_wchisp) if local_wchisp.is_file() else shutil.which("wchisp")
+    wchisp_path = find_wchisp_binary()
     if wchisp_path:
         ver = _tool_version([wchisp_path, "--version"])
         items.append(f"[OK] wchisp: {wchisp_path} ({ver})")
     else:
         items.append("[WARN] wchisp: missing — run 'Install wchisp'")
 
-    # 3. CMakeUserPresets.json
-    if USER_PRESETS.is_file():
-        items.append(f"[OK] CMakeUserPresets.json: present")
-    else:
-        items.append("[WARN] CMakeUserPresets.json: missing — run 'Configure toolchain'")
-
-    # 4. Toolchain — path exists + compiler found
-    toolchain = _effective_toolchain(state)
-    if toolchain:
-        if Path(toolchain).is_dir():
-            gcc = _find_gcc_in_toolchain(toolchain)
-            if gcc:
-                items.append(f"[OK] toolchain: {toolchain}")
-                items.append(f"[OK] riscv-gcc: {Path(gcc).name}")
-            else:
-                items.append(f"[WARN] toolchain: {toolchain} (no riscv-*-elf-gcc found)")
+    if is_ch592_target(state):
+        ninja_path = shutil.which("ninja")
+        if ninja_path:
+            ver = _tool_version([ninja_path, "--version"])
+            items.append(f"[OK] ninja: {ninja_path} ({ver})")
         else:
-            items.append(f"[WARN] toolchain: {toolchain} (path does not exist)")
-    else:
-        items.append("[WARN] toolchain: not configured")
+            items.append("[WARN] ninja: missing")
 
-    # 5. Optional tools
+        if CH592_USER_PRESETS.is_file():
+            items.append("[OK] CMakeUserPresets.json: present")
+        else:
+            items.append("[WARN] CMakeUserPresets.json: missing — run 'Configure toolchain'")
+
+        toolchain = _effective_toolchain(state)
+        if toolchain:
+            if Path(toolchain).is_dir():
+                gcc = _find_gcc_in_toolchain(toolchain)
+                if gcc:
+                    items.append(f"[OK] toolchain: {toolchain}")
+                    items.append(f"[OK] riscv-gcc: {Path(gcc).name}")
+                else:
+                    items.append(f"[WARN] toolchain: {toolchain} (no riscv-*-elf-gcc found)")
+            else:
+                items.append(f"[WARN] toolchain: {toolchain} (path does not exist)")
+        else:
+            items.append("[WARN] toolchain: not configured")
+    else:
+        sdcc_path = find_sdcc_binary()
+        if sdcc_path:
+            ver = _tool_version([sdcc_path, "--version"])
+            items.append(f"[OK] sdcc: {sdcc_path} ({ver})")
+        else:
+            items.append("[WARN] sdcc: missing")
+
+    items.append(f"[OK] target: {target}")
+
     for name in ("pnpm", "node", "git"):
         path = shutil.which(name)
         items.append(f"[{'OK' if path else 'WARN'}] {name}: {path or 'missing'}")
 
-    # 6. Git state
-    items.append(f"[{'WARN' if git_dirty() else 'OK'}] git worktree: {'dirty' if git_dirty() else 'clean'}")
+    items.append(f"[{'WARN' if git_is_dirty else 'OK'}] git worktree: {'dirty' if git_is_dirty else 'clean'}")
 
     return items
 
@@ -455,6 +607,11 @@ def action_install_wchisp(state: dict, stdscr) -> None:
     run_command(stdscr, [sys.executable, str(SETUP_SCRIPT)])
 
 
+def action_toggle_target(state: dict, stdscr) -> None:
+    state["target"] = "CH552G" if is_ch592_target(state) else "CH592F"
+    save_state(state)
+
+
 def action_toggle_layout(state: dict, stdscr) -> None:
     state["layout"] = "KNOB" if state["layout"] == "5KEY" else "5KEY"
     save_state(state)
@@ -462,6 +619,15 @@ def action_toggle_layout(state: dict, stdscr) -> None:
 
 def action_toggle_build_type(state: dict, stdscr) -> None:
     state["build_type"] = "debug" if state["build_type"] == "release" else "release"
+    save_state(state)
+
+
+def action_cycle_ch552_variant(state: dict, stdscr) -> None:
+    current = state["ch552_variant"]
+    if current not in CH552_VARIANTS:
+        current = CH552_VARIANTS[0]
+    next_index = (CH552_VARIANTS.index(current) + 1) % len(CH552_VARIANTS)
+    state["ch552_variant"] = CH552_VARIANTS[next_index]
     save_state(state)
 
 
@@ -498,27 +664,30 @@ def action_open_url(name: str, url: str, state: dict, stdscr) -> None:
 
 
 def action_show_commands(state: dict, stdscr) -> None:
-    preset = base_preset(state)
     lines = [
-        f"Preset: {resolved_preset_label(state)}",
+        f"Target: {state['target']}",
+        f"Build config: {current_build_label(state)}",
+        f"Artifact: {current_artifact_label(state)}",
         "",
         "Build:",
-        f"  python3 {FLASH_SCRIPT} build --preset {preset}",
+        f"  {current_build_command_display(state)}",
         "",
         "Flash:",
-        f"  python3 {FLASH_SCRIPT} flash --preset {preset}",
+        f"  {current_flash_command_display(state)}",
+        "",
+        "Verify:",
+        f"  {current_verify_command_display(state)}",
     ]
     show_text(stdscr, "Commands", lines)
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_local = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
-    wchisp_path = str(wchisp_local) if wchisp_local.is_file() else (shutil.which("wchisp") or "missing")
-    preset = resolved_preset_label(state)
+    wchisp_path = find_wchisp_binary() or "missing"
     return [
+        f"target: {state['target']}",
         f"wchisp: {wchisp_path}",
         f"flash wrapper: {FLASH_SCRIPT}",
-        f"default preset: {preset}",
+        f"default image: {current_artifact_label(state)}",
         "",
         "Transport options:",
         "  -d/--device N   choose USB device index",
@@ -528,7 +697,7 @@ def isp_lines(state: dict) -> list[str]:
         "ISP commands:",
         "  info                chip info / UID / bootloader",
         "  probe               list connected ISP devices",
-        "  flash               build or use file and program flash",
+        "  flash               program a prepared artifact",
         "  verify              verify chip flash against image",
         "  erase               erase code flash",
         "  reset               reset target chip",
@@ -541,21 +710,24 @@ def isp_lines(state: dict) -> list[str]:
 
 
 def action_show_isp_commands(state: dict, stdscr) -> None:
-    preset = base_preset(state)
     lines = [
         "ISP command sheet",
         "",
-        f"python3 {FLASH_SCRIPT} info",
-        f"python3 {FLASH_SCRIPT} probe",
-        f"python3 {FLASH_SCRIPT} flash --preset {preset}",
-        f"python3 {FLASH_SCRIPT} verify --preset {preset}",
-        f"python3 {FLASH_SCRIPT} erase",
-        f"python3 {FLASH_SCRIPT} reset",
-        f"python3 {FLASH_SCRIPT} eeprom dump --out eeprom_dump.bin",
-        f"python3 {FLASH_SCRIPT} eeprom erase",
-        f"python3 {FLASH_SCRIPT} eeprom write --file eeprom_dump.bin",
-        f"python3 {FLASH_SCRIPT} config info",
-        f"python3 {FLASH_SCRIPT} config reset",
+        "Build first:",
+        f"  {current_build_command_display(state)}",
+        "",
+        "ISP:",
+        "  python tools/scripts/flash.py info",
+        "  python tools/scripts/flash.py probe",
+        f"  {current_flash_command_display(state)}",
+        f"  {current_verify_command_display(state)}",
+        "  python tools/scripts/flash.py erase",
+        "  python tools/scripts/flash.py reset",
+        "  python tools/scripts/flash.py eeprom dump --out eeprom_dump.bin",
+        "  python tools/scripts/flash.py eeprom erase",
+        "  python tools/scripts/flash.py eeprom write --file eeprom_dump.bin",
+        "  python tools/scripts/flash.py config info",
+        "  python tools/scripts/flash.py config reset",
         "",
         "Optional transport flags:",
         "  -d 0",
@@ -565,11 +737,17 @@ def action_show_isp_commands(state: dict, stdscr) -> None:
 
 
 def action_build(state: dict, stdscr) -> None:
-    run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "build", "--preset", base_preset(state)])
+    run_command(stdscr, current_build_command(state))
 
 
 def action_flash(state: dict, stdscr) -> None:
-    run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "flash", "--preset", base_preset(state)])
+    run_command_sequence(
+        stdscr,
+        [
+            (current_build_command(state), PROJECT_ROOT),
+            (current_flash_command(state), PROJECT_ROOT),
+        ],
+    )
 
 
 def action_probe(state: dict, stdscr) -> None:
@@ -581,7 +759,7 @@ def action_isp_info(state: dict, stdscr) -> None:
 
 
 def action_isp_verify(state: dict, stdscr) -> None:
-    run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "verify", "--preset", base_preset(state)])
+    run_command(stdscr, current_verify_command(state))
 
 
 def action_isp_erase(state: dict, stdscr) -> None:
@@ -683,29 +861,55 @@ def action_doctor_report(state: dict, stdscr) -> None:
 # ── Tab layout ────────────────────────────────────────────────────────────────
 
 def build_tabs(state: dict) -> list[dict]:
-    toolchain = _effective_toolchain(state) or "(unset)"
-    preset_status = "present" if USER_PRESETS.is_file() else "missing — run Configure toolchain"
+    if is_ch592_target(state):
+        toolchain = _effective_toolchain(state) or "(unset)"
+        preset_status = "present" if CH592_USER_PRESETS.is_file() else "missing — run Configure toolchain"
+        home_lines = [
+            "BinaryKeyboard project console",
+            "",
+            f"Target: {state['target']}",
+            f"Layout: {state['layout']}    Build: {state['build_type']}",
+            f"Preset: {resolved_preset_label(state)}",
+            f"Artifact: {current_artifact_label(state)}",
+            f"Toolchain: {toolchain}",
+            f"CMakeUserPresets: {preset_status}",
+        ]
+        home_actions = [
+            {"label": f"Toggle target  [{state['target']}]", "hint": "Switch between CH592F and CH552G workflows.", "fn": action_toggle_target},
+            {"label": f"Toggle layout  [{state['layout']}]", "hint": "Switch between 5KEY and KNOB.", "fn": action_toggle_layout},
+            {"label": f"Toggle build type  [{state['build_type']}]", "hint": "Switch between release and debug.", "fn": action_toggle_build_type},
+            {"label": "Configure toolchain", "hint": "Set MRS_TOOLCHAIN_ROOT and write CMakeUserPresets.json.", "fn": action_configure_toolchain},
+            {"label": "Build selected target", "hint": "Run tools/scripts/ch592f.py build.", "fn": action_build},
+            {"label": "Flash selected target", "hint": "Build, then flash the resolved CH592F artifact.", "fn": action_flash},
+            {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
+            {"label": "Install or update wchisp", "hint": "Run tools/scripts/setup.py.", "fn": action_install_wchisp},
+            {"label": "Probe ISP devices", "hint": "List connected WCH ISP devices.", "fn": action_probe},
+        ]
+    else:
+        home_lines = [
+            "BinaryKeyboard project console",
+            "",
+            f"Target: {state['target']}",
+            f"Variant: {state['ch552_variant']}",
+            f"Artifact: {current_artifact_label(state)}",
+            "Keymap: single-layer remap only",
+            "RGB: key RGB only (no indicator RGB)",
+        ]
+        home_actions = [
+            {"label": f"Toggle target  [{state['target']}]", "hint": "Switch between CH592F and CH552G workflows.", "fn": action_toggle_target},
+            {"label": f"Cycle variant  [{state['ch552_variant']}]", "hint": "Cycle BASIC / KNOB / 5KEYS.", "fn": action_cycle_ch552_variant},
+            {"label": "Build selected target", "hint": "Run tools/scripts/ch552g.py build.", "fn": action_build},
+            {"label": "Flash selected target", "hint": "Build, then flash the resolved CH552G artifact.", "fn": action_flash},
+            {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
+            {"label": "Install or update wchisp", "hint": "Run tools/scripts/setup.py.", "fn": action_install_wchisp},
+            {"label": "Probe ISP devices", "hint": "List connected WCH ISP devices.", "fn": action_probe},
+        ]
+
     return [
         {
             "name": "Home",
-            "lines": [
-                "BinaryKeyboard project console",
-                "",
-                f"Layout: {state['layout']}    Build: {state['build_type']}",
-                f"Preset: {resolved_preset_label(state)}",
-                f"Toolchain: {toolchain}",
-                f"CMakeUserPresets: {preset_status}",
-            ],
-            "actions": [
-                {"label": f"Toggle layout  [{state['layout']}]", "hint": "Switch between 5KEY and KNOB.", "fn": action_toggle_layout},
-                {"label": f"Toggle build type  [{state['build_type']}]", "hint": "Switch between release and debug.", "fn": action_toggle_build_type},
-                {"label": "Configure toolchain", "hint": "Set MRS_TOOLCHAIN_ROOT and write CMakeUserPresets.json.", "fn": action_configure_toolchain},
-                {"label": "Build selected preset", "hint": "Run tools/scripts/flash.py build.", "fn": action_build},
-                {"label": "Flash selected preset", "hint": "Build + flash.", "fn": action_flash},
-                {"label": "Show build commands", "hint": "Print the resolved cmake commands.", "fn": action_show_commands},
-                {"label": "Install or update wchisp", "hint": "Run tools/scripts/setup.py.", "fn": action_install_wchisp},
-                {"label": "Probe ISP devices", "hint": "List connected WCH ISP devices.", "fn": action_probe},
-            ],
+            "lines": home_lines,
+            "actions": home_actions,
         },
         {
             "name": "ISP",
@@ -723,6 +927,7 @@ def build_tabs(state: dict) -> list[dict]:
             "lines": [
                 f"Path: {STUDIO_DIR}",
                 "Stack: Vue 3 + Vite + PrimeVue",
+                "Targets: CH592F / CH552G",
             ],
             "actions": [
                 {"label": "Install dependencies", "hint": "Run pnpm install in tools/studio.", "fn": action_studio_install},
@@ -742,7 +947,7 @@ def build_tabs(state: dict) -> list[dict]:
         },
         {
             "name": "Doctor",
-            "lines": _cached("doctor", lambda: doctor_lines(state)),
+            "lines": _cached(f"doctor:{state['target']}", lambda: doctor_lines(state)),
             "actions": [
                 {"label": "Show doctor report", "hint": "Rerun all health checks.", "fn": action_doctor_report},
                 {"label": "Check tools", "hint": "Show cmake/ninja/wchisp/toolchain detection.", "fn": action_check_tools},
@@ -969,8 +1174,12 @@ def run_text_mode() -> None:
     state = load_state()
     while True:
         tabs = build_tabs(state)
+        if is_ch592_target(state):
+            summary = f"CH592F layout={state['layout']} build={state['build_type']} preset={resolved_preset_label(state)}"
+        else:
+            summary = f"CH552G variant={state['ch552_variant']} artifact={current_artifact_label(state)}"
         print(f"\n{_c('1;36', 'BinaryKeyboard Console')}")
-        print(_c("2", f"CH592F layout={state['layout']} build={state['build_type']} preset={resolved_preset_label(state)}"))
+        print(_c("2", summary))
         print(_c("2", "-" * 44))
         for i, tab in enumerate(tabs, start=1):
             print(f"  {_c('36', str(i))}. {tab['name']}")
@@ -1009,12 +1218,12 @@ def run_text_mode() -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tools/scripts/console.py",
-        description="Interactive terminal console for BinaryKeyboard project workflows.",
+        description="Unified TUI for BinaryKeyboard project workflows.",
     )
     parser.add_argument(
         "--text",
         action="store_true",
-        help="Force the plain text fallback menu instead of curses UI.",
+        help="Force the plain text fallback menu instead of the curses-based TUI.",
     )
     return parser
 

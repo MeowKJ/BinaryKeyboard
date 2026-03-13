@@ -6,7 +6,7 @@
 
 这里就放两个可选小工具：
 
-- `tools/scripts/console.py`
+- `tools/scripts/console.py`（统一 TUI 入口）
 - `.vscode/tasks.json` / `.vscode/settings.json`
 
 ## 怎么选

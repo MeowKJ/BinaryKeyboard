@@ -1,14 +1,14 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-// 基础款
+// 设备变体选择
+// Arduino IDE: 取消注释对应的款式
+// CMake 构建: 通过 -DKBD_VARIANT=BASIC|KNOB|5KEYS 选择，无需修改此处
+#if !defined(USE_BASIC) && !defined(USE_KNOB) && !defined(USE_5KEYS)
 #define USE_BASIC
-
-// 旋钮款
 // #define USE_KNOB
-
-//五键款
-//#define USE_5KEYS
+// #define USE_5KEYS
+#endif
 
 
 #define CURRENT_FW_VERSION 0x0B

@@ -1,0 +1,147 @@
+#include <Arduino.h>
+#include <string.h>
+
+#include "KeyScanner.h"
+
+#include "config.h"
+#include "CustomUSBHID.h"
+#include "KeysDataHandler.h"
+
+#define KEY_SCANNER_DEBOUNCE_THRESHOLD 5
+#define KEY_SCANNER_MAX_REPORT_KEYS 6
+
+static bool keyState[KEY_COUNT] = { false };
+static bool keyPressPrev[KEY_COUNT] = { false };
+static bool keyBuffer[KEY_COUNT] = { false };
+static uint8_t debounceCount[KEY_COUNT] = { 0 };
+static __near uint8_t keyReportBuffer[KEY_SCANNER_MAX_REPORT_KEYS] = { 0 };
+static uint8_t modReport = 0;
+
+static const uint8_t keyPins[KEY_COUNT] = {
+#ifdef USE_BASIC
+  KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN
+#endif
+#ifdef USE_5KEYS
+  KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, KEY4_PIN
+#endif
+#ifdef USE_KNOB
+  KEY0_PIN, KEY1_PIN, KEY2_PIN, KEY3_PIN, ENCODER_KEY
+#endif
+};
+
+static void scanKeys(void)
+{
+  for (uint8_t i = 0; i < KEY_COUNT; i++)
+  {
+    bool currentState = !digitalRead(keyPins[i]);
+
+    if (currentState != keyBuffer[i])
+    {
+      debounceCount[i] = 0;
+      keyBuffer[i] = currentState;
+    }
+    else if (debounceCount[i] < KEY_SCANNER_DEBOUNCE_THRESHOLD)
+    {
+      debounceCount[i]++;
+    }
+    else if (debounceCount[i] == KEY_SCANNER_DEBOUNCE_THRESHOLD)
+    {
+      keyState[i] = currentState;
+      debounceCount[i]++;
+    }
+  }
+}
+
+void KeyScanner_init(void)
+{
+  for (uint8_t i = 0; i < KEY_COUNT; i++)
+  {
+    pinMode(keyPins[i], INPUT_PULLUP);
+    keyState[i] = false;
+    keyPressPrev[i] = false;
+    keyBuffer[i] = false;
+    debounceCount[i] = 0;
+  }
+}
+
+void KeyScanner_process(void)
+{
+  scanKeys();
+
+  memset(keyReportBuffer, 0, sizeof(keyReportBuffer));
+  modReport = 0;
+  uint8_t keyCount = 0;
+
+  for (uint8_t i = 0; i < KEY_COUNT; i++)
+  {
+    uint16_t keyValue = getKeyValue(i);
+    uint8_t keyType = getKeyType(i);
+
+    if (keyType == KEY_TYPE_KB)
+    {
+      if (keyState[i])
+      {
+        uint8_t keycode = keyValue & 0xFF;
+        uint8_t mod = (keyValue >> 8) & 0xFF;
+
+        modReport |= mod;
+        if (keycode != 0 && keyCount < KEY_SCANNER_MAX_REPORT_KEYS)
+        {
+          keyReportBuffer[keyCount++] = keycode;
+        }
+      }
+    }
+    else if (keyType == KEY_TYPE_MEDIA)
+    {
+      if (keyState[i] != keyPressPrev[i])
+      {
+        if (keyState[i])
+        {
+          Consumer_press(keyValue);
+        }
+        else
+        {
+          Consumer_release(keyValue);
+        }
+      }
+    }
+    else if (keyType == KEY_TYPE_MOUSE)
+    {
+      uint8_t keycode = keyValue & 0xFF;
+      int8_t scroll = (int8_t)((keyValue >> 8) & 0xFF);
+
+      if (keyState[i] != keyPressPrev[i])
+      {
+        if (keyState[i])
+        {
+          if (keycode != 0)
+          {
+            Mouse_press(keycode);
+          }
+          if (scroll != 0)
+          {
+            Mouse_scroll(scroll);
+          }
+        }
+        else if (keycode != 0)
+        {
+          Mouse_release(keycode);
+        }
+      }
+
+      if (keyState[i] && keycode != 0 && keyState[i] == keyPressPrev[i])
+      {
+        Mouse_press(keycode);
+      }
+    }
+
+    keyPressPrev[i] = keyState[i];
+  }
+
+  Keyboard_sendReport(modReport, keyReportBuffer);
+}
+
+bool KeyScanner_isPressed(uint8_t index)
+{
+  return (index < KEY_COUNT) ? keyState[index] : false;
+}

@@ -138,7 +138,7 @@
 
           <KeyboardStatus />
 
-          <div class="panel layer-panel">
+          <div v-if="showLayerPanel" class="panel layer-panel">
             <h3 class="panel-title">
               <i class="pi pi-layer-group"></i>
               层选择
@@ -182,7 +182,7 @@
             </div>
           </div>
 
-          <div class="panel fn-panel">
+          <div v-if="showFnPanel" class="panel fn-panel">
             <h3 class="panel-title">
               <i class="pi pi-bolt"></i>
               FN 键设置
@@ -265,7 +265,7 @@
             </div>
           </div>
 
-          <div class="panel rgb-panel">
+          <div v-if="showRgbPanel" class="panel rgb-panel">
             <h3 class="panel-title">
               <i class="pi pi-palette"></i>
               RGB 灯效
@@ -326,12 +326,12 @@
               操作
             </h3>
             <div class="action-buttons">
-              <Button label="保存配置" icon="pi pi-save" :disabled="!deviceStore.hasChanges" @click="saveConfig"
+              <Button :label="saveKeymapLabel" icon="pi pi-save" :disabled="!deviceStore.hasChanges" @click="saveConfig"
                 class="action-btn btn-primary" />
               <Button label="放弃更改" icon="pi pi-undo" severity="secondary" :disabled="!deviceStore.hasChanges"
                 @click="discardChanges" class="action-btn btn-secondary" />
-              <Divider />
-              <Button label="恢复出厂" icon="pi pi-refresh" severity="danger" outlined @click="confirmReset"
+              <Divider v-if="showResetButton" />
+              <Button v-if="showResetButton" label="恢复出厂" icon="pi pi-refresh" severity="danger" outlined @click="confirmReset"
                 class="action-btn btn-danger-outline" />
             </div>
           </div>
@@ -373,9 +373,9 @@
             <div class="card-header">
               <div class="card-title-section">
                 <span class="card-title">🎹 键盘布局</span>
-                <span class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
+                <span v-if="showLayerBadge" class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
               </div>
-              <span class="card-subtitle">点击按键进行编辑 · 按住 FN + 按键N 切换到层N</span>
+              <span class="card-subtitle">{{ keyboardCardSubtitle }}</span>
             </div>
             <div class="keyboard-container">
               <KeyboardLayout :keyboard-type="currentKeyboardType" :keys="currentLayerKeysForDisplay"
@@ -414,6 +414,7 @@ import { HidService, hidService } from '@/services/HidService';
 import { initToastService, showToast } from '@/services/toastService';
 import type { KeyAction } from '@/types/protocol';
 import {
+  DeviceProtocol,
   createEmptyAction,
   KeyboardType,
   KeyboardTypeInfo,
@@ -422,7 +423,7 @@ import {
   hexToRgb,
 } from '@/types/protocol';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
-import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
+import { getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
@@ -464,9 +465,12 @@ const selectedAction = computed<KeyAction>(() => {
 // 静态/呼吸/闪烁模式使用的颜色 (调色盘 + hex)
 const showRgbColorPicker = computed(
   () =>
-    deviceStore.rgbConfig.mode === 1 ||
-    deviceStore.rgbConfig.mode === 2 ||
-    deviceStore.rgbConfig.mode === 3,
+    deviceStore.supportsRgb &&
+    (
+      deviceStore.rgbConfig.mode === 1 ||
+      deviceStore.rgbConfig.mode === 2 ||
+      deviceStore.rgbConfig.mode === 3
+    ),
 );
 const rgbColorHex = computed({
   get: () =>
@@ -502,6 +506,22 @@ const currentKeyboardType = computed(() => {
   return deviceStore.deviceInfo?.keyboardType ?? 0; // 实际设备
 });
 
+const showLayerPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsMultiLayer);
+const showFnPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFnKeys);
+const showRgbPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsRgb);
+const showResetButton = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFactoryReset);
+const showLayerBadge = computed(() => previewKeyboardType.value >= 0 || deviceStore.supportsMultiLayer);
+const saveKeymapLabel = computed(() => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552 ? '写入键位' : '保存配置');
+const keyboardCardSubtitle = computed(() => {
+  if (previewKeyboardType.value >= 0) {
+    return '预览布局模式';
+  }
+  if (deviceStore.supportsMultiLayer) {
+    return '点击按键进行编辑 · 按住 FN + 按键N 切换到层N';
+  }
+  return '点击按键进行编辑 · CH552G 仅支持单层键位映射';
+});
+
 // 获取当前层的按键数据（预览模式或实际设备）
 const currentLayerKeysForDisplay = computed(() => {
   if (previewKeyboardType.value >= 0) {
@@ -513,14 +533,9 @@ const currentLayerKeysForDisplay = computed(() => {
   return deviceStore.currentLayerKeys;
 });
 
-// 根据键盘类型获取应该显示的层数
-const availableLayers = computed(() => {
-  const keyboardType = currentKeyboardType.value;
-  return KeyboardTypeInfo[keyboardType as KeyboardType]?.layers || 4;
-});
-
 // 获取当前键盘的层选择布局
 const layerLayout = computed<LayoutDef | null>(() => {
+  if (!showLayerPanel.value) return null;
   const keyboardType = currentKeyboardType.value;
   return getLayerLayoutByType(keyboardType);
 });
@@ -653,8 +668,12 @@ async function disconnect() {
 async function refreshAll() {
   try {
     await deviceStore.refreshKeymap();
-    await deviceStore.refreshRgbConfig();
-    await deviceStore.refreshFnKeyConfig();
+    if (deviceStore.supportsRgb) {
+      await deviceStore.refreshRgbConfig();
+    }
+    if (deviceStore.supportsFnKeys) {
+      await deviceStore.refreshFnKeyConfig();
+    }
     showToast('success', '刷新成功', '配置已从设备重新加载');
   } catch (error) {
     showToast('error', '刷新失败', error instanceof Error ? error.message : '未知错误');
@@ -668,7 +687,7 @@ async function refreshAll() {
 async function saveConfig() {
   try {
     await deviceStore.saveKeymap();
-    showToast('success', '保存成功', '配置已保存到设备');
+    showToast('success', '保存成功', deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552 ? '键位已写入 CH552G 设备' : '配置已保存到设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
   }

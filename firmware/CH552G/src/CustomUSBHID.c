@@ -6,7 +6,6 @@
 #include "USBConstant.h"
 #include "USBHandler.h"
 #include "KeysDataHandler.h"
-#include "KeysDataHandler.h"
 #include "config.h"
 // clang-format on
 
@@ -191,7 +190,7 @@ void USB_EP1_OUT() {
         if (Ep1Buffer[2] != CURRENT_FW_VERSION || Ep1Buffer[3] != EXPECT_DEVICE_TYPE) {
           return;
         }
-        for (uint8_t i = 0; i < 8; i++) {
+        for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
           uint16_t value = ((uint16_t)Ep1Buffer[i * 3 + 5] << 8) | Ep1Buffer[i * 3 + 6];
           setKey(i, Ep1Buffer[i * 3 + 4], value);
         }
@@ -351,6 +350,7 @@ uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod) {
     if (HIDKey[i] == 0) {
       HIDKey[i] = k;
       USB_EP1_send(1);
+      return 1;
     }
   }
 
@@ -366,6 +366,7 @@ uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod) {
     if (HIDKey[i] == k) {
       HIDKey[i] = 0;
       USB_EP1_send(1);
+      return 1;
     }
   }
   return 0;

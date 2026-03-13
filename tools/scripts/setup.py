@@ -26,7 +26,7 @@ def info(msg):    print(_c("36", "[INFO]"), msg)
 def ok(msg):      print(_c("32", "[ OK ]"), msg)
 def warn(msg):    print(_c("33", "[WARN]"), msg)
 def error(msg):   print(_c("31", "[ERR ]"), msg, file=sys.stderr)
-def sep():        print(_c("2", "─" * 44))
+def sep():        print(_c("2", "-" * 44))
 
 
 # ── Platform detection ─────────────────────────────────────────────────────────
@@ -207,9 +207,12 @@ def main():
 
 def print_next_steps():
     print(_c("1", "  Next steps:"))
-    print("  1. Connect CH592F via USB while holding BOOT button")
-    print("  2. Run:  python tools/scripts/flash.py flash     (build + flash)")
-    print("  3. Or:   python tools/scripts/flash.py --help    (all commands)")
+    print("  1. Build firmware:")
+    print("     CH592F: python tools/scripts/ch592f.py build --preset release")
+    print("     CH552G: python tools/scripts/ch552g.py build --variant BASIC")
+    print("  2. Connect target via USB while holding BOOT button")
+    print("  3. Flash artifact:")
+    print("     python tools/scripts/flash.py flash --file <firmware-artifact.bin>")
     sep()
 
 

@@ -7,7 +7,10 @@ typedef struct {
   uint16_t value;
 } KeyConfig;
 
-static KeyConfig keySettings[8];
+static uint8_t validateEepromHeader(void);
+static void initDefaultConfig(void);
+
+static KeyConfig keySettings[KEY_CONFIG_SLOTS];
 
 void KeysDataInit(void) {
   if (eeprom_read_byte(EEPROM_VERSION_ADDR) == 0xFF || !validateEepromHeader()) {
@@ -26,7 +29,7 @@ static void initDefaultConfig(void) {
   eeprom_write_byte(EEPROM_VERSION_ADDR, CURRENT_FW_VERSION);
   eeprom_write_byte(EEPROM_DEVTYPE_ADDR, EXPECT_DEVICE_TYPE);
 #ifdef USE_KNOB
-  KeyConfig defaults[8] = {
+  KeyConfig defaults[KEY_CONFIG_SLOTS] = {
     { KEY_TYPE_KB, 0x0004 },
     { KEY_TYPE_KB, 0x0005 },
     { KEY_TYPE_KB, 0x0006 },
@@ -39,45 +42,52 @@ static void initDefaultConfig(void) {
 #endif
 
 #ifdef USE_BASIC
-  KeyConfig defaults[4] = {
+  KeyConfig defaults[KEY_CONFIG_SLOTS] = {
     { KEY_TYPE_KB, 0x0027 },  // 键 "0"
     { KEY_TYPE_KB, 0x001E },  // 键 "1"
     { KEY_TYPE_KB, 0x0028 },  // 回车 (Enter)
-    { KEY_TYPE_KB, 0x002C }   // 空格 (Space)
+    { KEY_TYPE_KB, 0x002C },  // 空格 (Space)
+    { KEY_TYPE_INVALID, 0 },
+    { KEY_TYPE_INVALID, 0 },
+    { KEY_TYPE_INVALID, 0 },
+    { KEY_TYPE_INVALID, 0 }
   };
 #endif
 
 #ifdef USE_5KEYS
-  KeyConfig defaults[5] = {
+  KeyConfig defaults[KEY_CONFIG_SLOTS] = {
     { KEY_TYPE_KB, 0x001E },  // 键 "1"
     { KEY_TYPE_KB, 0x001F },  // 键 "2"
     { KEY_TYPE_KB, 0x0020 },  // 键 "3"
     { KEY_TYPE_KB, 0x0021 },  // 键 "4"
-    { KEY_TYPE_KB, 0x0022 }   // 键 "5"
+    { KEY_TYPE_KB, 0x0022 },  // 键 "5"
+    { KEY_TYPE_INVALID, 0 },
+    { KEY_TYPE_INVALID, 0 },
+    { KEY_TYPE_INVALID, 0 }
   };
 #endif
 
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
     keySettings[i] = defaults[i];
   }
 }
 
 void setKey(uint8_t index, uint8_t type, uint16_t value) {
-  if (index >= 8) return;
+  if (index >= KEY_CONFIG_SLOTS) return;
   keySettings[index].type = type;
   keySettings[index].value = value;
 }
 
 uint8_t getKeyType(uint8_t index) {
-  return (index < 8) ? keySettings[index].type : KEY_TYPE_INVALID;
+  return (index < KEY_CONFIG_SLOTS) ? keySettings[index].type : KEY_TYPE_INVALID;
 }
 
 uint16_t getKeyValue(uint8_t index) {
-  return (index < 8) ? keySettings[index].value : 0;
+  return (index < KEY_CONFIG_SLOTS) ? keySettings[index].value : 0;
 }
 
 void saveKeysToEEPROM(void) {
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
     const uint16_t addr = EEPROM_KEYDATA_START + i * KEY_CONFIG_SIZE;
     eeprom_write_byte(addr, keySettings[i].type);
     eeprom_write_byte(addr + 1, (uint8_t)(keySettings[i].value >> 8));
@@ -86,7 +96,7 @@ void saveKeysToEEPROM(void) {
 }
 
 void loadKeysFromEEPROM(void) {
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
     const uint16_t addr = EEPROM_KEYDATA_START + i * KEY_CONFIG_SIZE;
     keySettings[i].type = eeprom_read_byte(addr);
     const uint8_t high = eeprom_read_byte(addr + 1);

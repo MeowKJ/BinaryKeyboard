@@ -7,14 +7,24 @@
 // 设备信息常量
 // ============================================================================
 
-export const VENDOR_ID = 0x413d;
-export const PRODUCT_ID = 0x2107;
+export const CH592_VENDOR_ID = 0x413d;
+export const CH592_PRODUCT_ID = 0x2107;
+export const CH552_VENDOR_ID = 0x1209;
+export const CH552_PRODUCT_ID = 0xc55d;
+
+// 向后兼容：默认常量仍指向 CH592F
+export const VENDOR_ID = CH592_VENDOR_ID;
+export const PRODUCT_ID = CH592_PRODUCT_ID;
 
 // 无 Report ID 模式 - 通过独立 HID 接口区分（兼容 Linux/macOS）
 export const REPORT_ID_COMMAND = 0; // 主机 → 键盘 (Output Report, 无 Report ID)
 export const REPORT_ID_RESPONSE = 0; // 键盘 → 主机 (Input Report, 无 Report ID)
 
 export const FRAME_SIZE = 64; // 帧大小
+
+export const CH552_REPORT_ID_COMMAND = 0x04;
+export const CH552_REPORT_ID_RESPONSE = 0x05;
+export const CH552_FRAME_SIZE = 31;
 
 // ============================================================================
 // 键盘类型
@@ -34,6 +44,44 @@ export const KeyboardTypeInfo: Record<
   [KeyboardType.FIVE_KEYS]: { name: "五键款", keys: 5, physical: 5, layers: 5 },
   [KeyboardType.KNOB]: { name: "旋钮款", keys: 7, physical: 4, layers: 5 },
 };
+
+export enum DeviceProtocol {
+  CH592 = 'ch592',
+  CH552 = 'ch552',
+}
+
+export interface DeviceCapabilities {
+  multiLayer: boolean;
+  rgb: boolean;
+  fnKeys: boolean;
+  battery: boolean;
+  logs: boolean;
+  reset: boolean;
+}
+
+export function createDeviceCapabilities(
+  overrides: Partial<DeviceCapabilities> = {},
+): DeviceCapabilities {
+  return {
+    multiLayer: true,
+    rgb: true,
+    fnKeys: true,
+    battery: true,
+    logs: true,
+    reset: true,
+    ...overrides,
+  };
+}
+
+export const CH592_CAPABILITIES = createDeviceCapabilities();
+export const CH552_CAPABILITIES = createDeviceCapabilities({
+  multiLayer: false,
+  rgb: false,
+  fnKeys: false,
+  battery: false,
+  logs: false,
+  reset: false,
+});
 
 // ============================================================================
 // HID 命令码
@@ -332,6 +380,8 @@ export interface DeviceInfo {
   keyboardType: KeyboardType;
   actualKeyCount: number;
   fnKeyCount: number;
+  protocol: DeviceProtocol;
+  capabilities: DeviceCapabilities;
 }
 
 /** 系统状态 (SYS_STATUS 响应) */

@@ -6,34 +6,48 @@
 
 ### 推荐工具链
 
-| 工具        | 说明                 |
-| :---------- | :------------------- |
-| Arduino IDE | 借助 CH55xduino 编译 |
+| 工具  | 说明                    |
+| :---- | :---------------------- |
+| CMake | 项目生成与构建入口      |
+| SDCC  | CH552G 8051 交叉编译器  |
 
 ### 配置开发环境
 
-1. 安装 Arduino IDE
-2. 安装 CH55xduino 库
+1. 安装 CMake
+2. 安装 SDCC
+3. 可选：下载通用烧录工具 `python tools/scripts/setup.py`
+4. 可选：启动 TUI 控制台 `python tools/scripts/console.py`
 
 ## 版本配置
 
-在 `src/config.h` 中选择外形版本：
+通过 CMake 变量选择外形版本：
 
-```c
-// 只启用一个
-#define USE_BASIC    // 基础款
-// #define USE_5KEYS // 五键款
-// #define USE_KNOB  // 旋钮款
+```powershell
+python tools/scripts/ch552g.py configure --variant BASIC
 ```
 
 ## 编译与烧录
 
-### 使用 Arduino IDE
+### 使用 CMake + SDCC
 
-1. 打开 `CH552G.ino` 文件
-2. 选择板子：**CH552**
-3. 在 USB Setting 中选择：**USER CODE w/148B USB ram**
-4. 点击编译并上传
+1. 配置工程：
+
+```powershell
+python tools/scripts/ch552g.py configure --variant BASIC
+```
+
+2. 编译固件：
+
+```powershell
+python tools/scripts/ch552g.py build --variant BASIC
+```
+
+3. 在 `firmware/CH552G/build/basic` 下取得 `CH552G.hex` 或 `CH552G.bin`
+4. 按住 **BOOT** 进入 Bootloader，执行：
+
+```powershell
+python tools/scripts/flash.py flash --file firmware/CH552G/build/basic/CH552G.bin
+```
 
 ## 常见改动点
 
