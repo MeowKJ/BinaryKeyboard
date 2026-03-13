@@ -5,6 +5,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { hidService } from '@/services/HidService';
+import { FIRMWARE_VERSION_META } from '@/generated/versionConfig';
 import {
   type DeviceCapabilities,
   type DeviceInfo,
@@ -14,7 +15,6 @@ import {
   type FnKeyConfig,
   type KeyAction,
   KeyboardTypeInfo,
-  DeviceProtocol,
   createEmptyKeymap,
   createEmptyFnKeyConfig,
   createDefaultRgbConfig,
@@ -24,11 +24,16 @@ import {
 export const useDeviceStore = defineStore('device', () => {
   const EMPTY_CAPABILITIES: DeviceCapabilities = {
     multiLayer: false,
+    layerKeyActions: false,
     rgb: false,
     fnKeys: false,
+    macroActions: false,
+    wheelClickAction: false,
     battery: false,
     logs: false,
     reset: false,
+    explicitSave: false,
+    wireless: false,
   };
 
   // ========================================
@@ -86,11 +91,16 @@ export const useDeviceStore = defineStore('device', () => {
   });
 
   const supportsMultiLayer = computed(() => capabilities.value.multiLayer);
+  const supportsLayerKeyActions = computed(() => capabilities.value.layerKeyActions);
   const supportsRgb = computed(() => capabilities.value.rgb);
   const supportsFnKeys = computed(() => capabilities.value.fnKeys);
+  const supportsMacroActions = computed(() => capabilities.value.macroActions);
+  const supportsWheelClickAction = computed(() => capabilities.value.wheelClickAction);
   const supportsBattery = computed(() => capabilities.value.battery);
   const supportsLogs = computed(() => capabilities.value.logs);
   const supportsFactoryReset = computed(() => capabilities.value.reset);
+  const supportsExplicitSave = computed(() => capabilities.value.explicitSave);
+  const supportsWireless = computed(() => capabilities.value.wireless);
 
   /** 键盘类型名称 */
   const keyboardTypeName = computed(() => {
@@ -124,7 +134,10 @@ export const useDeviceStore = defineStore('device', () => {
   const deviceInfoList = computed(() => {
     if (!deviceInfo.value) return [];
     return [
-      { key: '协议类型', value: deviceInfo.value.protocol === DeviceProtocol.CH552 ? 'CH552G USB' : 'CH592F HID' },
+      { key: '芯片家族', value: deviceInfo.value.chipFamily },
+      { key: '协议类型', value: deviceInfo.value.protocolLabel },
+      { key: '协议版本', value: `${deviceInfo.value.protocolFamily} ${deviceInfo.value.protocolVersionMajor}.${deviceInfo.value.protocolVersionMinor}` },
+      { key: '存储版本', value: `${deviceInfo.value.storageVersionMajor}.${deviceInfo.value.storageVersionMinor}` },
       { key: '型号名称', value: keyboardTypeName.value },
       { key: '按键数量', value: `${actualKeyCount.value} 键` },
       { key: '固件版本', value: `v${firmwareVersion.value}` },
@@ -199,8 +212,8 @@ export const useDeviceStore = defineStore('device', () => {
     keymapOriginal.value = JSON.parse(JSON.stringify(config)); // 深拷贝
     
     if (deviceInfo.value?.capabilities.multiLayer) {
-      // 根据键盘类型自动设置层数
-      const expectedLayers = KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers || 4;
+      // 以设备上报的 maxLayers 为准，避免不同协议/固件的层数能力不一致
+      const expectedLayers = Math.max(1, deviceInfo.value.maxLayers || KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers || 1);
       if (keymap.value.numLayers !== expectedLayers) {
         keymap.value.numLayers = expectedLayers;
         // 确保当前层在有效范围内
@@ -245,7 +258,9 @@ export const useDeviceStore = defineStore('device', () => {
 
     try {
       await hidService.setFullKeymap(keymap.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
       keymapOriginal.value = JSON.parse(JSON.stringify(keymap.value));
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '保存失败';
@@ -265,7 +280,9 @@ export const useDeviceStore = defineStore('device', () => {
 
     try {
       await hidService.setRgbConfig(rgbConfig.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '保存失败';
       throw error;
@@ -284,7 +301,9 @@ export const useDeviceStore = defineStore('device', () => {
 
     try {
       await hidService.setFnKeyConfig(fnKeyConfig.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '保存失败';
       throw error;
@@ -435,11 +454,16 @@ export const useDeviceStore = defineStore('device', () => {
     isConnected,
     capabilities,
     supportsMultiLayer,
+    supportsLayerKeyActions,
     supportsRgb,
     supportsFnKeys,
+    supportsMacroActions,
+    supportsWheelClickAction,
     supportsBattery,
     supportsLogs,
     supportsFactoryReset,
+    supportsExplicitSave,
+    supportsWireless,
     keyboardTypeName,
     actualKeyCount,
     firmwareVersion,

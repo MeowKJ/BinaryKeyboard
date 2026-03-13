@@ -36,13 +36,13 @@ typedef enum {
 
 /*============================================================================*/
 /**
- * @defgroup KBD_Layout 键盘布局选择
- * @brief 编译时选择键盘类型 (只能启用一个)
+ * @defgroup KBD_Keyboard 键盘型号选择
+ * @brief 编译时选择键盘型号 (只能启用一个)
  * @{
  */
 
 #if defined(KBD_LAYOUT_5KEY) && defined(KBD_LAYOUT_KNOB)
-#error "Only one keyboard layout may be enabled: KBD_LAYOUT_5KEY or KBD_LAYOUT_KNOB."
+#error "Only one keyboard may be enabled: KBD_LAYOUT_5KEY or KBD_LAYOUT_KNOB."
 #endif
 
 #if !defined(KBD_LAYOUT_5KEY) && !defined(KBD_LAYOUT_KNOB)
@@ -146,7 +146,7 @@ typedef struct {
 /*============================================================================*/
 /**
  * @defgroup KBD_Keys 普通按键定义
- * @brief 根据键盘类型定义不同的引脚映射
+ * @brief 根据键盘型号定义不同的引脚映射
  * @{
  */
 
@@ -209,7 +209,7 @@ typedef struct {
 
 #else
 #error                                                                         \
-    "请通过 CMake 或 MRS 预处理宏选择一个键盘布局 (KBD_LAYOUT_5KEY / KBD_LAYOUT_KNOB)"
+    "请通过 CMake 或 MRS 预处理宏选择一个键盘型号 (KBD_LAYOUT_5KEY / KBD_LAYOUT_KNOB)"
 #endif
 
 /* 统一的虚拟按键总数 (用于按键映射) */

@@ -181,7 +181,7 @@ static const kbd_keymap_t s_default_keymap = {
     }};
 
 #else
-#error "请通过 CMake 或 MRS 预处理宏选择一个键盘布局"
+#error "请通过 CMake 或 MRS 预处理宏选择一个键盘型号"
 #endif
 
 /**

@@ -10,10 +10,12 @@
 #define KEY_SCANNER_DEBOUNCE_THRESHOLD 5
 #define KEY_SCANNER_MAX_REPORT_KEYS 6
 
-static bool keyState[KEY_COUNT] = { false };
-static bool keyPressPrev[KEY_COUNT] = { false };
-static bool keyBuffer[KEY_COUNT] = { false };
-static uint8_t debounceCount[KEY_COUNT] = { 0 };
+volatile bool funcActive = false;
+
+static __xdata bool keyState[KEY_COUNT];
+static __xdata bool keyPressPrev[KEY_COUNT];
+static __xdata bool keyBuffer[KEY_COUNT];
+static __xdata uint8_t debounceCount[KEY_COUNT];
 static __near uint8_t keyReportBuffer[KEY_SCANNER_MAX_REPORT_KEYS] = { 0 };
 static uint8_t modReport = 0;
 
@@ -66,7 +68,23 @@ void KeyScanner_init(void)
 
 void KeyScanner_process(void)
 {
+  funcActive = !digitalRead(FUNC_PIN);
   scanKeys();
+
+  // FUNC 按住时不发送普通按键报告
+  if (funcActive)
+  {
+    // 更新 prev 状态以避免释放 FUNC 后误触发
+    for (uint8_t i = 0; i < KEY_COUNT; i++)
+    {
+      keyPressPrev[i] = keyState[i];
+    }
+    // 发送空报告释放所有按键
+    Keyboard_releaseAll();
+    Consumer_releaseAll();
+    Mouse_releaseAll();
+    return;
+  }
 
   memset(keyReportBuffer, 0, sizeof(keyReportBuffer));
   modReport = 0;

@@ -181,7 +181,7 @@ void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data,
 /**
  * @brief 处理系统信息查询
  *
- * 响应格式 (14 字节):
+ * 响应格式 (18 字节):
  * [0]  KBD_RESP_OK
  * [1]  VID 高字节
  * [2]  VID 低字节
@@ -196,9 +196,13 @@ void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data,
  * [11] 键盘类型 (kbd_type_t)
  * [12] 实际按键数 (当前类型)
  * [13] FN 键数量
+ * [14] 协议主版本
+ * [15] 协议次版本
+ * [16] 存储主版本
+ * [17] 存储次版本
  */
 static void HandleSysInfo(const kbd_cmd_frame_t *frame) {
-  uint8_t resp[16];
+  uint8_t resp[18];
   resp[0] = KBD_RESP_OK;
   resp[1] = (KBD_VENDOR_ID >> 8) & 0xFF;
   resp[2] = KBD_VENDOR_ID & 0xFF;
@@ -213,8 +217,12 @@ static void HandleSysInfo(const kbd_cmd_frame_t *frame) {
   resp[11] = (uint8_t)KBD_GetType(); /* 键盘类型 */
   resp[12] = KBD_GetTotalKeyCount(); /* 实际键位数 */
   resp[13] = KBD_FN_NUM_KEYS;        /* FN 键数量 */
+  resp[14] = BK_PROTOCOL_VERSION_MAJOR;
+  resp[15] = BK_PROTOCOL_VERSION_MINOR;
+  resp[16] = BK_STORAGE_VERSION_MAJOR;
+  resp[17] = BK_STORAGE_VERSION_MINOR;
 
-  KBD_Command_SendResponse(KBD_CMD_SYS_INFO, 0, resp, 14);
+  KBD_Command_SendResponse(KBD_CMD_SYS_INFO, 0, resp, 18);
   LOG_D(TAG, "SysInfo sent: type=%d keys=%d", resp[11], resp[12]);
 }
 
@@ -293,6 +301,7 @@ static void HandleKeymapGet(const kbd_cmd_frame_t *frame) {
 static void HandleKeymapSet(const kbd_cmd_frame_t *frame) {
   uint8_t layer = frame->sub;
   kbd_keymap_t *keymap = KBD_GetKeymap();
+  const uint8_t expected_len = 3 + sizeof(kbd_layer_t);
 
   if (layer >= KBD_MAX_LAYERS) {
     uint8_t resp[1] = {KBD_RESP_ERR_PARAM};
@@ -302,7 +311,7 @@ static void HandleKeymapSet(const kbd_cmd_frame_t *frame) {
 
   /* 数据格式: [numLayers:1][reserved:1][defaultLayer:1][layer_data:32] = 35
    * bytes */
-  if (frame->len >= 3 + sizeof(kbd_layer_t)) {
+  if (frame->len >= expected_len) {
     uint8_t num_layers = frame->data[0];
     uint8_t default_layer = frame->data[2];
 
@@ -318,8 +327,11 @@ static void HandleKeymapSet(const kbd_cmd_frame_t *frame) {
 
     memcpy(&keymap->layers[layer], &frame->data[3], sizeof(kbd_layer_t));
   } else {
+    uint8_t resp[1] = {KBD_RESP_ERR_PARAM};
     LOG_W(TAG, "Keymap data too short: len=%d need=%d", frame->len,
-          3 + sizeof(kbd_layer_t));
+          expected_len);
+    KBD_Command_SendResponse(KBD_CMD_KEYMAP_SET, layer, resp, 1);
+    return;
   }
 
   uint8_t resp[1] = {KBD_RESP_OK};
@@ -346,6 +358,13 @@ static void HandleLayerGet(const kbd_cmd_frame_t *frame) {
  * @brief 处理当前层设置
  */
 static void HandleLayerSet(const kbd_cmd_frame_t *frame) {
+  if (frame->len < 1) {
+    uint8_t resp[2] = {KBD_RESP_ERR_PARAM, KBD_GetCurrentLayer()};
+    LOG_W(TAG, "Layer set rejected: len=%d", frame->len);
+    KBD_Command_SendResponse(KBD_CMD_LAYER_SET, 0, resp, 2);
+    return;
+  }
+
   uint8_t layer = frame->data[0];
   int ret = KBD_SetCurrentLayer(layer);
 

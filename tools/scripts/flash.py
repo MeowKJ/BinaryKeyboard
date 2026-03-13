@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from firmware_naming import ch552_filename_for_keyboard, ch592_filename_for_keyboard
+
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 BIN_NAME = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
@@ -248,15 +250,17 @@ def cmd_config(args, wchisp: Path, extra: list[str]) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    ch592_example = ch592_filename_for_keyboard("5KEY", "bin")
+    ch552_example = ch552_filename_for_keyboard("BASIC", "bin")
     parser = argparse.ArgumentParser(
         prog="tools/scripts/flash.py",
         description="Generic WCH ISP tool wrapper",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 examples:
-  python tools/scripts/flash.py flash --file firmware/CH592F/build/release/CH592F.bin
-  python tools/scripts/flash.py flash --file firmware/CH552G/build/basic/CH552G.bin
-  python tools/scripts/flash.py verify --file firmware/CH592F/build/release/CH592F.bin
+  python tools/scripts/flash.py flash --file firmware/CH592F/build/local-release-5key/{ch592_example}
+  python tools/scripts/flash.py flash --file firmware/CH552G/build/basic/{ch552_example}
+  python tools/scripts/flash.py verify --file firmware/CH592F/build/local-release-5key/{ch592_example}
   python tools/scripts/flash.py eeprom dump --out data.bin
   python tools/scripts/flash.py info
         """,

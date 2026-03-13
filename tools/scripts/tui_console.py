@@ -22,6 +22,10 @@ try:
 except ImportError:  # pragma: no cover - Windows fallback
     curses = None
 
+from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
+from targets.ch592 import CH592_USER_PRESETS, CH592_USER_PRESETS_EXAMPLE
+from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
+
 # ── Line cache for expensive calls (git, doctor, etc.) ────────────────────────
 _line_cache: dict[str, tuple[float, list[str]]] = {}
 
@@ -29,6 +33,33 @@ try:
     locale.setlocale(locale.LC_ALL, "")
 except locale.Error:
     pass
+
+
+_USE_COLOR = sys.stdout.isatty()
+
+
+def _c(code: str, text: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
+
+
+def _stylize_text_line(line: str) -> str:
+    stripped = line.strip()
+    if not stripped:
+        return line
+    if stripped.startswith("[OK]"):
+        return _c("32", line)
+    if stripped.startswith("[WARN]"):
+        return _c("33", line)
+    if stripped.startswith("[ERR]") or stripped.startswith("[ERR ]"):
+        return _c("31", line)
+    if stripped.endswith(":") and ":" not in stripped[:-1]:
+        return _c("1;36", line)
+    if ": " in line:
+        key, value = line.split(": ", 1)
+        return f"{_c('36', key + ':')} {_c('1', value)}"
+    if stripped.startswith("- "):
+        return f"{line[:line.index('-')]}{_c('35', '-')} {line[line.index('-') + 2:]}"
+    return line
 
 
 def _cached(key: str, fn, ttl: float = 5.0) -> list[str]:
@@ -44,18 +75,12 @@ def _cached(key: str, fn, ttl: float = 5.0) -> list[str]:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-CH592_FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
-CH552_FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH552G"
 STUDIO_DIR = PROJECT_ROOT / "tools" / "studio"
 DOCS_DIR = PROJECT_ROOT / "docs"
 FLASH_SCRIPT = SCRIPT_DIR / "flash.py"
-CH592_BUILD_SCRIPT = SCRIPT_DIR / "ch592f.py"
-CH552_BUILD_SCRIPT = SCRIPT_DIR / "ch552g.py"
 SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
 LEGACY_STATE_FILE = SCRIPT_DIR / ".ch592f_console_state.json"
-CH592_USER_PRESETS = CH592_FIRMWARE_DIR / "CMakeUserPresets.json"
-CH592_USER_PRESETS_EXAMPLE = CH592_FIRMWARE_DIR / "CMakeUserPresets.json.example"
 
 DOC_URLS = {
     "MRS download": "http://www.mounriver.com/download",
@@ -64,14 +89,11 @@ DOC_URLS = {
     "Project repo": "https://github.com/MeowKJ/BinaryKeyboard",
 }
 
-CH552_VARIANTS = ("BASIC", "KNOB", "5KEYS")
-
 DEFAULT_STATE = {
     "target": "CH592F",
-    "layout": "5KEY",
+    "keyboard": "5KEY",
     "build_type": "release",
     "toolchain_root": "",
-    "ch552_variant": "BASIC",
 }
 
 
@@ -85,14 +107,10 @@ def load_state() -> dict:
         return dict(DEFAULT_STATE)
     state = dict(DEFAULT_STATE)
     state.update({k: v for k, v in data.items() if k in state})
-    if state["target"] not in ("CH592F", "CH552G"):
+    if state["target"] not in TARGET_PROFILES:
         state["target"] = DEFAULT_STATE["target"]
-    if state["layout"] not in ("5KEY", "KNOB"):
-        state["layout"] = DEFAULT_STATE["layout"]
-    if state["build_type"] not in ("release", "debug"):
-        state["build_type"] = DEFAULT_STATE["build_type"]
-    if state["ch552_variant"] not in CH552_VARIANTS:
-        state["ch552_variant"] = DEFAULT_STATE["ch552_variant"]
+    for profile in TARGET_PROFILES.values():
+        profile.normalize_state(state)
     return state
 
 
@@ -100,15 +118,8 @@ def save_state(state: dict) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=True) + "\n")
 
 
-def base_preset(state: dict) -> str:
-    suffix = "knob" if state["layout"] == "KNOB" else "5key"
-    return f'{state["build_type"]}-{suffix}'
-
-
-def resolved_preset_label(state: dict) -> str:
-    shared = base_preset(state)
-    local = f"local-{shared}"
-    return local if CH592_USER_PRESETS.is_file() else shared
+def current_target_profile(state: dict):
+    return get_target_profile(state["target"])
 
 
 def is_ch592_target(state: dict) -> bool:
@@ -116,9 +127,7 @@ def is_ch592_target(state: dict) -> bool:
 
 
 def current_build_label(state: dict) -> str:
-    if is_ch592_target(state):
-        return f"preset {resolved_preset_label(state)}"
-    return f"variant {state['ch552_variant']}"
+    return current_target_profile(state).build_label(state)
 
 
 def display_path(path: Path) -> str:
@@ -129,41 +138,43 @@ def display_path(path: Path) -> str:
 
 
 def current_artifact_path(state: dict) -> Path:
-    if is_ch592_target(state):
-        return CH592_FIRMWARE_DIR / "build" / resolved_preset_label(state) / "CH592F.bin"
-    return CH552_FIRMWARE_DIR / "build" / state["ch552_variant"].lower() / "CH552G.bin"
+    return current_target_profile(state).artifact_path(state)
 
 
 def current_artifact_label(state: dict) -> str:
     return display_path(current_artifact_path(state))
 
 
+def current_build_dir(state: dict) -> Path:
+    return current_target_profile(state).build_dir(state)
+
+
+def current_build_dir_label(state: dict) -> str:
+    return display_path(current_build_dir(state))
+
+
 def current_build_command(state: dict) -> list[str]:
-    if is_ch592_target(state):
-        return [sys.executable, str(CH592_BUILD_SCRIPT), "build", "--preset", base_preset(state)]
-    return [sys.executable, str(CH552_BUILD_SCRIPT), "build", "--variant", state["ch552_variant"]]
+    return current_target_profile(state).build_command(state)
 
 
 def current_flash_command(state: dict) -> list[str]:
-    return [sys.executable, str(FLASH_SCRIPT), "flash", "--file", str(current_artifact_path(state))]
+    return current_target_profile(state).flash_command(state)
 
 
 def current_verify_command(state: dict) -> list[str]:
-    return [sys.executable, str(FLASH_SCRIPT), "verify", "--file", str(current_artifact_path(state))]
+    return current_target_profile(state).verify_command(state)
 
 
 def current_build_command_display(state: dict) -> str:
-    if is_ch592_target(state):
-        return f"python tools/scripts/ch592f.py build --preset {base_preset(state)}"
-    return f"python tools/scripts/ch552g.py build --variant {state['ch552_variant']}"
+    return current_target_profile(state).build_command_display(state)
 
 
 def current_flash_command_display(state: dict) -> str:
-    return f"python tools/scripts/flash.py flash --file {current_artifact_label(state)}"
+    return current_target_profile(state).flash_command_display(state)
 
 
 def current_verify_command_display(state: dict) -> str:
-    return f"python tools/scripts/flash.py verify --file {current_artifact_label(state)}"
+    return current_target_profile(state).verify_command_display(state)
 
 
 def prompt_line(stdscr, prompt: str, default: str = "") -> str:
@@ -173,10 +184,20 @@ def prompt_line(stdscr, prompt: str, default: str = "") -> str:
         if default:
             shown += f" [{default}]"
         shown += ": "
-        value = input(shown).strip()
+        try:
+            value = input(shown).strip()
+        except (EOFError, KeyboardInterrupt):
+            value = ""
     finally:
         resume_curses(stdscr)
     return value or default
+
+
+def wait_for_return(prompt: str = "\nPress Enter to return...") -> None:
+    try:
+        input(_c("2", prompt))
+    except (EOFError, KeyboardInterrupt):
+        print()
 
 
 def choose_directory_dialog(default: str = "") -> str:
@@ -285,23 +306,23 @@ def _choose_directory_tk(default: str = "") -> str:
 def show_text(stdscr, title: str, lines: list[str]) -> None:
     suspend_curses(stdscr)
     try:
-        print(f"\n== {title} ==")
+        print(f"\n{_c('1;36', f'== {title} ==')}")
         for line in lines:
-            print(line)
-        input("\nPress Enter to return...")
+            print(_stylize_text_line(line))
+        wait_for_return()
     finally:
         resume_curses(stdscr)
 
 
 def suspend_curses(stdscr) -> None:
-    if curses is None:
+    if curses is None or stdscr is None:
         return
     curses.def_prog_mode()
     curses.endwin()
 
 
 def resume_curses(stdscr) -> None:
-    if curses is None:
+    if curses is None or stdscr is None:
         return
     curses.reset_prog_mode()
     stdscr.refresh()
@@ -310,9 +331,9 @@ def resume_curses(stdscr) -> None:
 def run_command(stdscr, cmd: list[str], cwd: Path = PROJECT_ROOT) -> None:
     suspend_curses(stdscr)
     try:
-        print("\n$ " + " ".join(shlex.quote(part) for part in cmd))
+        print("\n" + _c("1;36", "$") + " " + _c("1", " ".join(shlex.quote(part) for part in cmd)))
         subprocess.run(cmd, cwd=str(cwd), check=False)
-        input("\nPress Enter to return...")
+        wait_for_return()
     finally:
         resume_curses(stdscr)
 
@@ -321,12 +342,12 @@ def run_command_sequence(stdscr, commands: list[tuple[list[str], Path]]) -> None
     suspend_curses(stdscr)
     try:
         for cmd, cwd in commands:
-            print("\n$ " + " ".join(shlex.quote(part) for part in cmd))
+            print("\n" + _c("1;36", "$") + " " + _c("1", " ".join(shlex.quote(part) for part in cmd)))
             result = subprocess.run(cmd, cwd=str(cwd), check=False)
             if result.returncode != 0:
-                print(f"\nCommand failed with exit {result.returncode}.")
+                print(f"\n{_c('31', f'Command failed with exit {result.returncode}.')}")
                 break
-        input("\nPress Enter to return...")
+        wait_for_return()
     finally:
         resume_curses(stdscr)
 
@@ -512,18 +533,7 @@ def detect_tools(state: dict) -> list[str]:
         f"cmake: {find_cmake_binary() or 'missing'}",
         f"wchisp: {find_wchisp_binary() or 'missing'}",
     ]
-    if is_ch592_target(state):
-        toolchain = _effective_toolchain(state)
-        items.extend([
-            f"ninja: {shutil.which('ninja') or 'missing'}",
-            f"CMakeUserPresets: {'present' if CH592_USER_PRESETS.is_file() else 'missing'}",
-            f"MRS_TOOLCHAIN_ROOT: {toolchain or 'unset'}",
-        ])
-        if toolchain:
-            gcc = _find_gcc_in_toolchain(toolchain)
-            items.append(f"  riscv-gcc: {gcc or 'not found in toolchain path'}")
-    else:
-        items.append(f"sdcc: {find_sdcc_binary() or 'missing'}")
+    items.extend(current_target_profile(state).detect_tool_lines(state))
     return items
 
 
@@ -552,39 +562,7 @@ def doctor_lines(state: dict) -> list[str]:
     else:
         items.append("[WARN] wchisp: missing — run 'Install wchisp'")
 
-    if is_ch592_target(state):
-        ninja_path = shutil.which("ninja")
-        if ninja_path:
-            ver = _tool_version([ninja_path, "--version"])
-            items.append(f"[OK] ninja: {ninja_path} ({ver})")
-        else:
-            items.append("[WARN] ninja: missing")
-
-        if CH592_USER_PRESETS.is_file():
-            items.append("[OK] CMakeUserPresets.json: present")
-        else:
-            items.append("[WARN] CMakeUserPresets.json: missing — run 'Configure toolchain'")
-
-        toolchain = _effective_toolchain(state)
-        if toolchain:
-            if Path(toolchain).is_dir():
-                gcc = _find_gcc_in_toolchain(toolchain)
-                if gcc:
-                    items.append(f"[OK] toolchain: {toolchain}")
-                    items.append(f"[OK] riscv-gcc: {Path(gcc).name}")
-                else:
-                    items.append(f"[WARN] toolchain: {toolchain} (no riscv-*-elf-gcc found)")
-            else:
-                items.append(f"[WARN] toolchain: {toolchain} (path does not exist)")
-        else:
-            items.append("[WARN] toolchain: not configured")
-    else:
-        sdcc_path = find_sdcc_binary()
-        if sdcc_path:
-            ver = _tool_version([sdcc_path, "--version"])
-            items.append(f"[OK] sdcc: {sdcc_path} ({ver})")
-        else:
-            items.append("[WARN] sdcc: missing")
+    items.extend(current_target_profile(state).doctor_lines(state))
 
     items.append(f"[OK] target: {target}")
 
@@ -599,36 +577,54 @@ def doctor_lines(state: dict) -> list[str]:
 
 # ── Actions ───────────────────────────────────────────────────────────────────
 
+# Actions that modify state or environment should set this flag so the main
+# loop knows to clear cached data (doctor, ISP lines, etc.) after they run.
+_invalidate_cache_after_action = False
+
+
+def _mark_cache_dirty():
+    """Signal that the next main-loop iteration should clear cached data."""
+    global _invalidate_cache_after_action
+    _invalidate_cache_after_action = True
+
+
 def action_check_tools(state: dict, stdscr) -> None:
     show_text(stdscr, "Environment", detect_tools(state))
 
 
 def action_install_wchisp(state: dict, stdscr) -> None:
     run_command(stdscr, [sys.executable, str(SETUP_SCRIPT)])
+    _mark_cache_dirty()
 
 
 def action_toggle_target(state: dict, stdscr) -> None:
-    state["target"] = "CH552G" if is_ch592_target(state) else "CH592F"
+    current = state["target"]
+    if current not in TARGET_ORDER:
+        current = TARGET_ORDER[0]
+    next_index = (TARGET_ORDER.index(current) + 1) % len(TARGET_ORDER)
+    state["target"] = TARGET_ORDER[next_index]
+    current_target_profile(state).normalize_state(state)
     save_state(state)
+    _mark_cache_dirty()
 
 
-def action_toggle_layout(state: dict, stdscr) -> None:
-    state["layout"] = "KNOB" if state["layout"] == "5KEY" else "5KEY"
+def action_cycle_keyboard(state: dict, stdscr) -> None:
+    if is_ch592_target(state):
+        state["keyboard"] = "KNOB" if state["keyboard"] == "5KEY" else "5KEY"
+    else:
+        current = state["keyboard"]
+        if current not in CH552_KEYBOARDS:
+            current = CH552_KEYBOARDS[0]
+        next_index = (CH552_KEYBOARDS.index(current) + 1) % len(CH552_KEYBOARDS)
+        state["keyboard"] = CH552_KEYBOARDS[next_index]
     save_state(state)
+    _mark_cache_dirty()
 
 
 def action_toggle_build_type(state: dict, stdscr) -> None:
     state["build_type"] = "debug" if state["build_type"] == "release" else "release"
     save_state(state)
-
-
-def action_cycle_ch552_variant(state: dict, stdscr) -> None:
-    current = state["ch552_variant"]
-    if current not in CH552_VARIANTS:
-        current = CH552_VARIANTS[0]
-    next_index = (CH552_VARIANTS.index(current) + 1) % len(CH552_VARIANTS)
-    state["ch552_variant"] = CH552_VARIANTS[next_index]
-    save_state(state)
+    _mark_cache_dirty()
 
 
 def action_configure_toolchain(state: dict, stdscr) -> None:
@@ -642,6 +638,7 @@ def action_configure_toolchain(state: dict, stdscr) -> None:
         return
     state["toolchain_root"] = toolchain_root
     save_state(state)
+    _mark_cache_dirty()
     msg = write_user_presets(toolchain_root)
     # Validate the path
     gcc = _find_gcc_in_toolchain(toolchain_root)
@@ -679,6 +676,10 @@ def action_show_commands(state: dict, stdscr) -> None:
         f"  {current_verify_command_display(state)}",
     ]
     show_text(stdscr, "Commands", lines)
+
+
+def target_details_lines(state: dict) -> list[str]:
+    return current_target_profile(state).target_details_lines(state)
 
 
 def isp_lines(state: dict) -> list[str]:
@@ -842,12 +843,24 @@ def action_studio_install(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "install"], cwd=STUDIO_DIR)
 
 
+def action_studio_dev(state: dict, stdscr) -> None:
+    run_command(stdscr, ["pnpm", "run", "dev"], cwd=STUDIO_DIR)
+
+
 def action_studio_build(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "run", "build"], cwd=STUDIO_DIR)
 
 
+def action_studio_preview(state: dict, stdscr) -> None:
+    run_command(stdscr, ["pnpm", "run", "preview"], cwd=STUDIO_DIR)
+
+
 def action_docs_install(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "install"], cwd=DOCS_DIR)
+
+
+def action_docs_dev(state: dict, stdscr) -> None:
+    run_command(stdscr, ["pnpm", "run", "dev"], cwd=DOCS_DIR)
 
 
 def action_docs_build(state: dict, stdscr) -> None:
@@ -860,56 +873,54 @@ def action_doctor_report(state: dict, stdscr) -> None:
 
 # ── Tab layout ────────────────────────────────────────────────────────────────
 
+ACTION_HANDLERS = {
+    "toggle_target": action_toggle_target,
+    "cycle_keyboard": action_cycle_keyboard,
+    "toggle_build_type": action_toggle_build_type,
+    "configure_toolchain": action_configure_toolchain,
+    "build": action_build,
+    "flash": action_flash,
+    "show_commands": action_show_commands,
+    "install_wchisp": action_install_wchisp,
+    "probe": action_probe,
+}
+
+
+def resolve_target_actions(state: dict) -> list[dict]:
+    actions: list[dict] = []
+    for spec in current_target_profile(state).home_actions(state):
+        fn = ACTION_HANDLERS.get(spec.action_id)
+        if not fn:
+            continue
+        actions.append({
+            "label": spec.label,
+            "hint": spec.hint,
+            "fn": fn,
+        })
+    return actions
+
 def build_tabs(state: dict) -> list[dict]:
-    if is_ch592_target(state):
-        toolchain = _effective_toolchain(state) or "(unset)"
-        preset_status = "present" if CH592_USER_PRESETS.is_file() else "missing — run Configure toolchain"
-        home_lines = [
-            "BinaryKeyboard project console",
-            "",
-            f"Target: {state['target']}",
-            f"Layout: {state['layout']}    Build: {state['build_type']}",
-            f"Preset: {resolved_preset_label(state)}",
-            f"Artifact: {current_artifact_label(state)}",
-            f"Toolchain: {toolchain}",
-            f"CMakeUserPresets: {preset_status}",
-        ]
-        home_actions = [
-            {"label": f"Toggle target  [{state['target']}]", "hint": "Switch between CH592F and CH552G workflows.", "fn": action_toggle_target},
-            {"label": f"Toggle layout  [{state['layout']}]", "hint": "Switch between 5KEY and KNOB.", "fn": action_toggle_layout},
-            {"label": f"Toggle build type  [{state['build_type']}]", "hint": "Switch between release and debug.", "fn": action_toggle_build_type},
-            {"label": "Configure toolchain", "hint": "Set MRS_TOOLCHAIN_ROOT and write CMakeUserPresets.json.", "fn": action_configure_toolchain},
-            {"label": "Build selected target", "hint": "Run tools/scripts/ch592f.py build.", "fn": action_build},
-            {"label": "Flash selected target", "hint": "Build, then flash the resolved CH592F artifact.", "fn": action_flash},
-            {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
-            {"label": "Install or update wchisp", "hint": "Run tools/scripts/setup.py.", "fn": action_install_wchisp},
-            {"label": "Probe ISP devices", "hint": "List connected WCH ISP devices.", "fn": action_probe},
-        ]
-    else:
-        home_lines = [
-            "BinaryKeyboard project console",
-            "",
-            f"Target: {state['target']}",
-            f"Variant: {state['ch552_variant']}",
-            f"Artifact: {current_artifact_label(state)}",
-            "Keymap: single-layer remap only",
-            "RGB: key RGB only (no indicator RGB)",
-        ]
-        home_actions = [
-            {"label": f"Toggle target  [{state['target']}]", "hint": "Switch between CH592F and CH552G workflows.", "fn": action_toggle_target},
-            {"label": f"Cycle variant  [{state['ch552_variant']}]", "hint": "Cycle BASIC / KNOB / 5KEYS.", "fn": action_cycle_ch552_variant},
-            {"label": "Build selected target", "hint": "Run tools/scripts/ch552g.py build.", "fn": action_build},
-            {"label": "Flash selected target", "hint": "Build, then flash the resolved CH552G artifact.", "fn": action_flash},
-            {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
-            {"label": "Install or update wchisp", "hint": "Run tools/scripts/setup.py.", "fn": action_install_wchisp},
-            {"label": "Probe ISP devices", "hint": "List connected WCH ISP devices.", "fn": action_probe},
-        ]
+    common_home_lines = [
+        "BinaryKeyboard project console",
+        "",
+        f"Target: {state['target']}",
+        f"Build config: {current_build_label(state)}",
+        f"Artifact: {current_artifact_label(state)}",
+    ]
 
     return [
         {
             "name": "Home",
-            "lines": home_lines,
-            "actions": home_actions,
+            "lines": common_home_lines,
+            "actions": resolve_target_actions(state),
+        },
+        {
+            "name": "Target",
+            "lines": target_details_lines(state),
+            "actions": [
+                {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
+                {"label": "Check tools", "hint": "Show cmake/ninja/wchisp/toolchain detection.", "fn": action_check_tools},
+            ],
         },
         {
             "name": "ISP",
@@ -931,7 +942,9 @@ def build_tabs(state: dict) -> list[dict]:
             ],
             "actions": [
                 {"label": "Install dependencies", "hint": "Run pnpm install in tools/studio.", "fn": action_studio_install},
+                {"label": "Dev server", "hint": "Run pnpm run dev in tools/studio.", "fn": action_studio_dev},
                 {"label": "Build studio", "hint": "Run pnpm run build in tools/studio.", "fn": action_studio_build},
+                {"label": "Preview build", "hint": "Run pnpm run preview in tools/studio.", "fn": action_studio_preview},
             ],
         },
         {
@@ -942,6 +955,7 @@ def build_tabs(state: dict) -> list[dict]:
             ],
             "actions": [
                 {"label": "Install dependencies", "hint": "Run pnpm install in docs.", "fn": action_docs_install},
+                {"label": "Dev server", "hint": "Run pnpm run dev in docs.", "fn": action_docs_dev},
                 {"label": "Build docs", "hint": "Run pnpm run build in docs.", "fn": action_docs_build},
             ],
         },
@@ -1099,6 +1113,10 @@ def run_curses(stdscr) -> None:
     stdscr.keypad(True)
 
     while True:
+        global _invalidate_cache_after_action
+        if _invalidate_cache_after_action:
+            _line_cache.clear()
+            _invalidate_cache_after_action = False
         tabs = build_tabs(state)
         action_count = len(tabs[tab_index]["actions"])
         action_index = max(0, min(action_index, action_count - 1))
@@ -1127,16 +1145,12 @@ def run_curses(stdscr) -> None:
             continue
         if key in (10, 13, curses.KEY_ENTER):
             tabs[tab_index]["actions"][action_index]["fn"](state, stdscr)
-            _line_cache.clear()
-            save_state(state)
             continue
         if ord("1") <= key <= ord("9"):
             idx = key - ord("1")
             if idx < action_count:
                 action_index = idx
                 tabs[tab_index]["actions"][action_index]["fn"](state, stdscr)
-                _line_cache.clear()
-                save_state(state)
             continue
         if key == curses.KEY_MOUSE:
             try:
@@ -1158,33 +1172,28 @@ def run_curses(stdscr) -> None:
                         action_index = idx
                         if left_double:
                             tabs[tab_index]["actions"][action_index]["fn"](state, stdscr)
-                            _line_cache.clear()
-                            save_state(state)
                         break
 
 
 # ── Text mode fallback ────────────────────────────────────────────────────────
 
 def run_text_mode() -> None:
-    _color = sys.stdout.isatty()
-
-    def _c(code: str, text: str) -> str:
-        return f"\033[{code}m{text}\033[0m" if _color else text
-
     state = load_state()
     while True:
         tabs = build_tabs(state)
-        if is_ch592_target(state):
-            summary = f"CH592F layout={state['layout']} build={state['build_type']} preset={resolved_preset_label(state)}"
-        else:
-            summary = f"CH552G variant={state['ch552_variant']} artifact={current_artifact_label(state)}"
+        summary = f"{state['target']}  ·  {current_build_label(state)}  ·  {current_artifact_label(state)}"
         print(f"\n{_c('1;36', 'BinaryKeyboard Console')}")
         print(_c("2", summary))
         print(_c("2", "-" * 44))
         for i, tab in enumerate(tabs, start=1):
             print(f"  {_c('36', str(i))}. {tab['name']}")
         print(f"  {_c('31', 'q')}. Quit")
-        choice = input(_c("32", "> ")).strip().lower()
+        try:
+            choice = input(_c("32", "> ")).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            save_state(state)
+            return
         if choice == "q":
             save_state(state)
             return
@@ -1197,20 +1206,23 @@ def run_text_mode() -> None:
         print(f"\n{_c('1;36', tab['name'])}")
         print(_c("2", "-" * 44))
         for line in tab["lines"]:
-            print(f"  {line}")
+            print(f"  {_stylize_text_line(line)}")
         print(_c("2", "-" * 44))
         for i, action in enumerate(tab["actions"], start=1):
             print(f"  {_c('36', str(i))}. {_c('1', action['label'])}  {_c('2', action['hint'])}")
         print(f"  {_c('2', 'b. Back')}")
-        action_choice = input(_c("32", "> ")).strip().lower()
+        try:
+            action_choice = input(_c("32", "> ")).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            save_state(state)
+            return
         if action_choice == "b":
             continue
         if action_choice.isdigit():
             idx = int(action_choice) - 1
             if 0 <= idx < len(tab["actions"]):
                 tab["actions"][idx]["fn"](state, None)
-                _line_cache.clear()
-                save_state(state)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -1230,10 +1242,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    if args.text or curses is None:
-        run_text_mode()
+    try:
+        if args.text or curses is None:
+            run_text_mode()
+            return
+        curses.wrapper(run_curses)
+    except KeyboardInterrupt:
+        print()
         return
-    curses.wrapper(run_curses)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "bk_version_config.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +37,7 @@ extern "C" {
  */
 
 #define KBD_CONFIG_MAGIC 0x4D454F57 /**< 配置魔数 "MEOW" */
-#define KBD_CONFIG_VERSION 0x0102   /**< 配置版本 v1.2 (添加 HID 日志配置) */
+#define KBD_CONFIG_VERSION ((BK_STORAGE_VERSION_MAJOR << 8) | BK_STORAGE_VERSION_MINOR) /**< 配置版本 */
 
 #define KBD_MAX_LAYERS 5  /**< 最大层数 (5键款/旋钮款支持5层) */
 #define KBD_MAX_KEYS 8    /**< 单层最大按键数 (支持所有类型) */
@@ -52,9 +53,9 @@ extern "C" {
  */
 #define KBD_VENDOR_ID 0x413D  /**< USB Vendor ID */
 #define KBD_PRODUCT_ID 0x2107 /**< USB Product ID */
-#define KBD_VERSION_MAJOR 3   /**< 固件主版本 */
-#define KBD_VERSION_MINOR 0   /**< 固件次版本 */
-#define KBD_VERSION_PATCH 0   /**< 固件补丁版本 */
+#define KBD_VERSION_MAJOR BK_FIRMWARE_VERSION_MAJOR /**< 固件主版本 */
+#define KBD_VERSION_MINOR BK_FIRMWARE_VERSION_MINOR /**< 固件次版本 */
+#define KBD_VERSION_PATCH BK_FIRMWARE_VERSION_PATCH /**< 固件补丁版本 */
 /** 主.次 版本 BCD 16 位，供 USB bcdDevice、BLE PnP 等使用，改主/次版本后自动同步 */
 #define KBD_VERSION_BCD16 ((KBD_VERSION_MAJOR << 8) | KBD_VERSION_MINOR)
 

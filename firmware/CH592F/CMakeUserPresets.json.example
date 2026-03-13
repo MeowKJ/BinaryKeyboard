@@ -22,7 +22,7 @@
       "displayName": "Debug (local toolchain, 5KEY)",
       "inherits": "local-debug",
       "cacheVariables": {
-        "KBD_LAYOUT": "5KEY",
+        "KEYBOARD": "5KEY",
         "KBD_MODEL": "5KEY"
       }
     },
@@ -31,7 +31,7 @@
       "displayName": "Release (local toolchain, 5KEY)",
       "inherits": "local-release",
       "cacheVariables": {
-        "KBD_LAYOUT": "5KEY",
+        "KEYBOARD": "5KEY",
         "KBD_MODEL": "5KEY"
       }
     },
@@ -40,7 +40,7 @@
       "displayName": "Debug (local toolchain, KNOB)",
       "inherits": "local-debug",
       "cacheVariables": {
-        "KBD_LAYOUT": "KNOB",
+        "KEYBOARD": "KNOB",
         "KBD_MODEL": "KNOB"
       }
     },
@@ -49,7 +49,7 @@
       "displayName": "Release (local toolchain, KNOB)",
       "inherits": "local-release",
       "cacheVariables": {
-        "KBD_LAYOUT": "KNOB",
+        "KEYBOARD": "KNOB",
         "KBD_MODEL": "KNOB"
       }
     }

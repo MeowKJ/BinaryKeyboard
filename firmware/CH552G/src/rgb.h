@@ -17,7 +17,8 @@ enum {
 
 
 // ==================== HSV 转 RGB（SDCC 兼容）====================
-void hsv_to_rgb(uint32_t h, uint8_t s, uint8_t v, uint8_t *r, uint8_t *g, uint8_t *b);
+void hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v,
+                uint8_t *__data r, uint8_t *__data g, uint8_t *__data b);
 
 // ==================== 光效实现 ====================
 void effect_off();
@@ -39,4 +40,7 @@ void nextEffect(void);          // 切换灯效
 void updateLEDs();
 
 void led_init();
+
+// ==================== 层切换闪烁 ====================
+void flashLayerColor(uint8_t layer);  // 触发层切换闪烁
 #endif

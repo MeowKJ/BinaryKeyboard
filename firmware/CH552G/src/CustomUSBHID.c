@@ -182,19 +182,35 @@ void USB_EP1_OUT() {
     if (Ep1Buffer[0] == 1) {
       keyboardLedStatus = Ep1Buffer[1];
     } else if (Ep1Buffer[0] == 4) {
-      if (Ep1Buffer[1] == 0x01) {
-        //发送eeprom数据
-        send_custom_data(0x01);
-      } else if (Ep1Buffer[1] == 0x02) {
-        //按键修改数据
+      uint8_t cmd = Ep1Buffer[1];
+      if (cmd == HOST_CMD_READ) {
+        // 0x01: 读取系统信息 + layer 0
+        send_custom_data(HOST_CMD_READ);
+      } else if (cmd == HOST_CMD_WRITE) {
+        // 0x02: 写入指定层 — [cmd, version, devType, layerIdx, 24 bytes]
         if (Ep1Buffer[2] != CURRENT_FW_VERSION || Ep1Buffer[3] != EXPECT_DEVICE_TYPE) {
           return;
         }
+        uint8_t layer = Ep1Buffer[4];
+        if (layer >= MAX_LAYERS) return;
         for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
-          uint16_t value = ((uint16_t)Ep1Buffer[i * 3 + 5] << 8) | Ep1Buffer[i * 3 + 6];
-          setKey(i, Ep1Buffer[i * 3 + 4], value);
+          uint16_t value = ((uint16_t)Ep1Buffer[i * 3 + 6] << 8) | Ep1Buffer[i * 3 + 7];
+          setKey(layer, i, Ep1Buffer[i * 3 + 5], value);
         }
-        saveKeysToEEPROM();
+        saveLayerToEEPROM(layer);
+      } else if (cmd == HOST_CMD_READ_LAYER) {
+        // 0x03: 读取指定层
+        uint8_t layer = Ep1Buffer[2];
+        send_custom_data(HOST_CMD_READ_LAYER + (layer << 4));
+      } else if (cmd == HOST_CMD_SET_LAYER) {
+        // 0x04: 切换当前层
+        uint8_t layer = Ep1Buffer[2];
+        if (layer < MAX_LAYERS) {
+          setCurrentLayer(layer);
+        }
+      } else if (cmd == HOST_CMD_READ_META) {
+        // 0x05: 读取固件/协议/存储元信息
+        send_custom_data(HOST_CMD_READ_META);
       }
     }
   }
@@ -468,6 +484,11 @@ uint8_t Mouse_release(__data uint8_t k) {
   return 1;
 }
 
+void Mouse_releaseAll(void) {
+  HIDMouse[0] = 0;
+  USB_EP1_send(3);
+}
+
 uint8_t Mouse_click(__data uint8_t k) {
   Mouse_press(k);
   delayMicroseconds(10000);
@@ -499,8 +520,17 @@ uint8_t send_test() {
 }
 
 uint8_t send_custom_data(__data uint8_t cmd) {
-  if (cmd == 0x01) {
-    readRawDataFromEEPROM(CustomBuf);
+  if (cmd == HOST_CMD_READ) {
+    // 系统信息 + layer 0
+    fillSysInfoResponse(CustomBuf);
+    USB_EP1_send(5);
+  } else if (cmd == HOST_CMD_READ_META) {
+    fillMetaResponse(CustomBuf);
+    USB_EP1_send(5);
+  } else if ((cmd & 0x0F) == HOST_CMD_READ_LAYER) {
+    // 读取指定层
+    uint8_t layer = (cmd >> 4) & 0x0F;
+    fillLayerResponse(CustomBuf, layer);
     USB_EP1_send(5);
   }
   return 1;

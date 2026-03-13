@@ -208,8 +208,8 @@ def main():
 def print_next_steps():
     print(_c("1", "  Next steps:"))
     print("  1. Build firmware:")
-    print("     CH592F: python tools/scripts/ch592f.py build --preset release")
-    print("     CH552G: python tools/scripts/ch552g.py build --variant BASIC")
+    print("     CH592F: python tools/scripts/ch592f.py build --keyboard 5KEY --profile release")
+    print("     CH552G: python tools/scripts/ch552g.py build --keyboard BASIC")
     print("  2. Connect target via USB while holding BOOT button")
     print("  3. Flash artifact:")
     print("     python tools/scripts/flash.py flash --file <firmware-artifact.bin>")

@@ -1,0 +1,28 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - semver-major
+    - title: Firmware
+      labels:
+        - firmware
+        - ch592f
+        - ch552g
+    - title: Studio And Tools
+      labels:
+        - studio
+        - tooling
+        - ci
+        - docs
+    - title: Fixes
+      labels:
+        - bug
+        - fix
+    - title: Other Changes
+      labels:
+        - "*"

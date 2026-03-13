@@ -24,7 +24,7 @@ body:
     id: keyboard_type
     attributes:
       label: Keyboard Type / 键盘类型
-      description: Select the keyboard variant / 选择键盘变体
+      description: Select the keyboard model / 选择键盘型号
       options:
         - Basic / 基础款
         - Five Keys / 五键款

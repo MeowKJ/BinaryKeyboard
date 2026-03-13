@@ -17,11 +17,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from build_report import UsageRow, fmt_bytes, pct_color_code, render_usage_report, rpad, usage_bar
+from firmware_naming import ch592_filename_for_keyboard, normalize_keyboard_name
+
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.resolve()
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
-DEFAULT_PRESET = "release"
+DEFAULT_KEYBOARD = "5KEY"
+DEFAULT_PROFILE = "release"
 
 
 def _enable_win_ansi() -> None:
@@ -224,58 +228,101 @@ def _artifact_region_usage_from_objdump(build_dir: Path) -> Optional[dict[str, i
     return {"FLASH": flash_used, "RAM": ram_used}
 
 
-def _strip_ansi(s: str) -> str:
-    return re.sub(r'\033\[[^m]*m', '', s)
-
-
-def _vlen(s: str) -> int:
-    return len(_strip_ansi(s))
-
-
-def _rpad(s: str, w: int) -> str:
-    return s + ' ' * max(0, w - _vlen(s))
-
-
-def _usage_bar(pct: float, width: int = 15) -> str:
-    filled = round(pct / 100 * width)
-    bar = '█' * filled + '░' * (width - filled)
-    code = '31' if pct >= 90 else '33' if pct >= 70 else '32'
-    return _c(code, bar)
-
-
-def _pct_clr(pct: float) -> str:
-    return '31' if pct >= 90 else '33' if pct >= 70 else '32'
-
-
-def _fmt_b(n: int) -> str:
-    return f'{n / 1024:.1f} KB' if n >= 1024 else f'{n} B'
-
-
 def _resolve_preset(preset: str) -> str:
     user = FIRMWARE_DIR / "CMakeUserPresets.json"
     if user.is_file():
         try:
             data = json.loads(user.read_text())
-            names = {p["name"] for p in data.get("buildPresets", [])}
+            build_presets = {p["name"]: p for p in data.get("buildPresets", [])}
+            configure_presets = {p["name"]: p for p in data.get("configurePresets", [])}
             local = f"local-{preset}"
-            if local in names:
-                return local
+            if local in build_presets:
+                configure_name = build_presets[local].get("configurePreset", "")
+                if not configure_name:
+                    return local
+                if _preset_toolchain_exists(configure_name, configure_presets):
+                    return local
         except Exception:
             pass
     return preset
+
+
+def _preset_toolchain_exists(name: str, presets: dict[str, dict], seen: Optional[set[str]] = None) -> bool:
+    if not name:
+        return False
+    if seen is None:
+        seen = set()
+    if name in seen:
+        return False
+    seen.add(name)
+
+    preset = presets.get(name)
+    if not preset:
+        return False
+
+    cache_vars = preset.get("cacheVariables", {})
+    toolchain_root = str(cache_vars.get("MRS_TOOLCHAIN_ROOT", "")).strip()
+    if toolchain_root:
+        return Path(toolchain_root).is_dir()
+
+    inherits = preset.get("inherits", [])
+    if isinstance(inherits, str):
+        inherits = [inherits]
+    for parent in inherits:
+        if _preset_toolchain_exists(parent, presets, seen):
+            return True
+    return False
+
+
+def _normalize_keyboard(value: str) -> str:
+    keyboard = normalize_keyboard_name(value)
+    if keyboard == "BASIC":
+        die("CH592F does not support BASIC keyboard.")
+    return keyboard
+
+
+def _normalize_profile(value: str) -> str:
+    profile = value.strip().lower()
+    if profile not in {"release", "debug"}:
+        die(f"Unsupported profile: {value}. Expected release or debug.")
+    return profile
+
+
+def preset_for(keyboard: str, profile: str) -> str:
+    return f"{_normalize_profile(profile)}-{_normalize_keyboard(keyboard).lower()}"
 
 
 def build_dir_for(preset: str) -> Path:
     return FIRMWARE_DIR / "build" / _resolve_preset(preset)
 
 
-def artifact_paths(build_dir: Path) -> dict[str, Path]:
+def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
     return {
         "elf": build_dir / "CH592F.elf",
         "bin": build_dir / "CH592F.bin",
         "hex": build_dir / "CH592F.hex",
         "map": build_dir / "CH592F.map",
     }
+
+
+def artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
+    return {
+        "elf": raw_artifact_paths(build_dir)["elf"],
+        "bin": build_dir / ch592_filename_for_keyboard(keyboard, "bin"),
+        "hex": build_dir / ch592_filename_for_keyboard(keyboard, "hex"),
+        "map": raw_artifact_paths(build_dir)["map"],
+    }
+
+
+def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
+    raw = raw_artifact_paths(build_dir)
+    exported = artifact_paths(build_dir, keyboard)
+    for name in ("bin", "hex"):
+        src = raw[name]
+        dst = exported[name]
+        if src.is_file():
+            shutil.copy2(src, dst)
+    return exported
 
 
 def run(cmd: list[str], cwd: Optional[Path] = None) -> None:
@@ -347,106 +394,103 @@ def _build_report(lines: list[str], preset: str, build_dir: Path, elapsed: float
     if not regions and size_row is None:
         return
 
-    bin_file = build_dir / "CH592F.bin"
+    bin_file = raw_artifact_paths(build_dir)["bin"]
     bin_sz = bin_file.stat().st_size if bin_file.is_file() else None
 
-    w = 68
-    bc = "1;36"
-
-    def hline(l: str, r: str, fill: str = "─") -> str:
-        return _c(bc, l + fill * w + r) if _USE_COLOR else l + fill * w + r
-
-    def brow(cells: str) -> str:
-        inner = _rpad(cells, w)
-        if _USE_COLOR:
-            return _c(bc, "│") + inner + _c(bc, "│")
-        return "│" + inner + "│"
-
-    print()
-    print(hline("┌", "┐"))
-    print(brow("  " + _c("1", "CH592F Memory Report") +
-               _c("2", f"  ·  preset: {preset}  ·  built in {elapsed:.1f}s  ·  source: {report_source}")))
-    print(hline("├", "┤"))
-
-    hdr = "  " + _rpad(_c("2", "Region"), 9)
-    hdr += _rpad(_c("2", "Used / Total"), 22)
-    hdr += _rpad(_c("2", "Free"), 12)
-    hdr += _c("2", "Usage")
-    print(brow(hdr))
-    print(hline("├", "┤"))
-
-    for name, used, total, free, pct in regions:
-        cc = _pct_clr(pct)
-        c1 = "  " + _rpad(_c("1", name), 8) + " "
-        c2 = _rpad(f"{_fmt_b(used)} / {_fmt_b(total)}", 22)
-        c3 = _rpad(_c(cc, _fmt_b(free)), 12)
-        c4 = _usage_bar(pct) + "  " + _c(cc, f"{pct:5.1f}%")
-        print(brow(c1 + c2 + c3 + c4))
-
+    detail = ""
     if size_row is not None or bin_sz is not None:
-        print(hline("├", "┤"))
-        det = "  "
         if size_row:
             text, data, bss = size_row
-            det += f".text {_c('36', str(text))}   "
-            det += f".data {_c('33', str(data))}   "
-            det += f".bss  {_c('35', str(bss))}"
+            detail += f".text {_c('36', str(text))}   "
+            detail += f".data {_c('33', str(data))}   "
+            detail += f".bss  {_c('35', str(bss))}"
         if bin_sz is not None:
-            det += f"   .bin {_c('32;1', _fmt_b(bin_sz))}"
-        print(brow(det))
+            detail += f"   .bin {_c('32;1', fmt_bytes(bin_sz))}"
 
-    print(hline("└", "┘"))
+    render_usage_report(
+        title="◆ CH592F Memory Report",
+        subtitle=f"preset: {preset}  ·  built in {elapsed:.1f}s  ·  source: {report_source}",
+        rows=[UsageRow(name, used, total, free, pct) for name, used, total, free, pct in regions],
+        detail_line=detail,
+        colorize=_c,
+        use_color=_USE_COLOR,
+    )
 
 
-def configure(preset: str) -> tuple[str, Path]:
+def configure(keyboard: str, profile: str) -> tuple[str, Path]:
     cmake = find_cmake()
     if not cmake:
         die("CMake not found. Install CMake or add it to PATH.")
+    keyboard = _normalize_keyboard(keyboard)
+    profile = _normalize_profile(profile)
+    preset = preset_for(keyboard, profile)
     actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     sep()
-    info(f"Configuring CH592F preset: {_c('1', actual)}")
-    run([str(cmake), "--preset", actual], cwd=FIRMWARE_DIR)
+    info(f"Configuring CH592F ({keyboard}, {profile})")
+    run(
+        [
+            str(cmake),
+            "--preset",
+            actual,
+            f"-DKEYBOARD={keyboard}",
+            f"-DKBD_MODEL={keyboard}",
+        ],
+        cwd=FIRMWARE_DIR,
+    )
     ok(f"Configure complete → {build_dir}")
     return actual, build_dir
 
 
-def build(preset: str) -> tuple[str, Path]:
+def build(keyboard: str, profile: str) -> tuple[str, Path]:
     cmake = find_cmake()
     if not cmake:
         die("CMake not found. Install CMake or add it to PATH.")
 
+    keyboard = _normalize_keyboard(keyboard)
+    profile = _normalize_profile(profile)
+    preset = preset_for(keyboard, profile)
     actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     cache_file = build_dir / "CMakeCache.txt"
-    if not cache_file.is_file():
-        configure(preset)
+    cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
+    cached_model = _parse_cmake_cache_var(cache_file, "KBD_MODEL")
+    if (
+        not cache_file.is_file()
+        or (cached_keyboard and _normalize_keyboard(cached_keyboard) != keyboard)
+        or (cached_model and _normalize_keyboard(cached_model) != keyboard)
+    ):
+        configure(keyboard, profile)
 
     sep()
-    info(f"Building CH592F preset: {_c('1', actual)}")
+    info(f"Building CH592F ({keyboard}, {profile})")
     lines, elapsed = run_and_capture([str(cmake), "--build", "--preset", actual], cwd=FIRMWARE_DIR)
     _build_report(lines, actual, build_dir, elapsed)
 
-    for name, path in artifact_paths(build_dir).items():
+    artifacts = export_named_artifacts(build_dir, keyboard)
+    artifacts["elf"] = raw_artifact_paths(build_dir)["elf"]
+    artifacts["map"] = raw_artifact_paths(build_dir)["map"]
+    for name, path in artifacts.items():
         if path.is_file():
             ok(f"{name.upper()} → {path}")
 
     return actual, build_dir
 
 
-def rebuild(preset: str) -> tuple[str, Path]:
+def rebuild(keyboard: str, profile: str) -> tuple[str, Path]:
+    preset = preset_for(keyboard, profile)
     actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     if build_dir.is_dir():
         sep()
         info(f"Removing {build_dir}")
         shutil.rmtree(build_dir)
-    configure(preset)
-    return build(preset)
+    configure(keyboard, profile)
+    return build(keyboard, profile)
 
 
-def clean(preset: str) -> None:
-    build_dir = build_dir_for(preset)
+def clean(keyboard: str, profile: str) -> None:
+    build_dir = build_dir_for(preset_for(keyboard, profile))
     sep()
     if build_dir.is_dir():
         shutil.rmtree(build_dir)
@@ -455,26 +499,36 @@ def clean(preset: str) -> None:
         warn(f"Build directory does not exist: {build_dir}")
 
 
-def status(preset: str) -> None:
+def status(keyboard: str, profile: str) -> None:
+    preset = preset_for(keyboard, profile)
     actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     cache_file = build_dir / "CMakeCache.txt"
 
     sep()
+    info(f"Keyboard: {keyboard}")
+    info(f"Profile: {profile}")
     info(f"Preset: {preset} (actual: {actual})")
     info(f"CMake: {find_cmake() if find_cmake() else 'not found'}")
     info(f"Build directory: {build_dir}")
     info(f"Configured: {'yes' if cache_file.is_file() else 'no'}")
-    for name, path in artifact_paths(build_dir).items():
+    raw_artifacts = raw_artifact_paths(build_dir)
+    if raw_artifacts["bin"].is_file() or raw_artifacts["hex"].is_file():
+        export_named_artifacts(build_dir, keyboard)
+    for name, path in artifact_paths(build_dir, keyboard).items():
         if path.is_file():
             info(f"{name.upper()}: {path} ({path.stat().st_size} B)")
         else:
             info(f"{name.upper()}: missing")
 
 
-def show_artifact(preset: str, artifact_type: str) -> int:
+def show_artifact(keyboard: str, profile: str, artifact_type: str) -> int:
+    preset = preset_for(keyboard, profile)
     build_dir = build_dir_for(preset)
-    artifacts = artifact_paths(build_dir)
+    raw = raw_artifact_paths(build_dir)
+    if raw["bin"].is_file() or raw["hex"].is_file():
+        export_named_artifacts(build_dir, keyboard)
+    artifacts = artifact_paths(build_dir, keyboard)
 
     if artifact_type == "all":
         sep()
@@ -496,10 +550,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     for name in ("status", "configure", "build", "rebuild", "clean"):
         p = sub.add_parser(name, help=f"{name.capitalize()} CH592F firmware")
-        p.add_argument("-p", "--preset", default=DEFAULT_PRESET)
+        p.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
+        p.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
+        p.add_argument("-p", "--preset", dest="preset_legacy", help=argparse.SUPPRESS)
 
     p_artifact = sub.add_parser("artifact", help="Print artifact path")
-    p_artifact.add_argument("-p", "--preset", default=DEFAULT_PRESET)
+    p_artifact.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
+    p_artifact.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
+    p_artifact.add_argument("-p", "--preset", dest="preset_legacy", help=argparse.SUPPRESS)
     p_artifact.add_argument(
         "-t",
         "--type",
@@ -514,25 +572,31 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    keyboard = args.keyboard
+    profile = args.profile
+    if getattr(args, "preset_legacy", None):
+        preset = args.preset_legacy.lower()
+        profile = "debug" if preset.startswith("debug-") else "release"
+        keyboard = "KNOB" if "knob" in preset else "5KEY"
 
     try:
         if args.command == "status":
-            status(args.preset)
+            status(keyboard, profile)
             return 0
         if args.command == "configure":
-            configure(args.preset)
+            configure(keyboard, profile)
             return 0
         if args.command == "build":
-            build(args.preset)
+            build(keyboard, profile)
             return 0
         if args.command == "rebuild":
-            rebuild(args.preset)
+            rebuild(keyboard, profile)
             return 0
         if args.command == "clean":
-            clean(args.preset)
+            clean(keyboard, profile)
             return 0
         if args.command == "artifact":
-            return show_artifact(args.preset, args.type)
+            return show_artifact(keyboard, profile, args.type)
         parser.error(f"Unsupported command: {args.command}")
     except subprocess.CalledProcessError as exc:
         die(f"Command failed (exit {exc.returncode})")

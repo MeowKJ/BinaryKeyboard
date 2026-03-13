@@ -9,14 +9,41 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(CH552G C)
 
 set(TARGET_IHX ${PROJECT_NAME}.ihx)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+set(BK_VERSION_HEADER ${GENERATED_DIR}/bk_version_config.h)
+
+add_custom_command(
+    OUTPUT ${BK_VERSION_HEADER}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/scripts/versioning.py
+            emit-c-header --chip CH552G --out ${BK_VERSION_HEADER}
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/scripts/versioning.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../config/versions.json
+    COMMENT "Generating CH552G version header"
+)
+
+add_custom_target(ch552g_version_header DEPENDS ${BK_VERSION_HEADER})
 
 # ---------------------------------------------------------------------------
-# Device variant selection
+# Keyboard selection
 # ---------------------------------------------------------------------------
-set(KBD_VARIANT "BASIC" CACHE STRING "Keyboard variant: BASIC, KNOB, 5KEYS")
-set_property(CACHE KBD_VARIANT PROPERTY STRINGS "BASIC" "KNOB" "5KEYS")
-string(TOUPPER "${KBD_VARIANT}" KBD_VARIANT_UPPER)
-message(STATUS "Keyboard variant: ${KBD_VARIANT_UPPER}")
+set(KEYBOARD "BASIC" CACHE STRING "Keyboard: BASIC, KNOB, 5KEY")
+set_property(CACHE KEYBOARD PROPERTY STRINGS "BASIC" "KNOB" "5KEY")
+string(TOUPPER "${KEYBOARD}" KEYBOARD_UPPER)
+
+if(KEYBOARD_UPPER STREQUAL "5KEY")
+    set(KEYBOARD_DEFINE "USE_5KEYS")
+elseif(KEYBOARD_UPPER STREQUAL "KNOB")
+    set(KEYBOARD_DEFINE "USE_KNOB")
+elseif(KEYBOARD_UPPER STREQUAL "BASIC")
+    set(KEYBOARD_DEFINE "USE_BASIC")
+else()
+    message(FATAL_ERROR "Unsupported KEYBOARD='${KEYBOARD}'. Expected BASIC, KNOB or 5KEY.")
+endif()
+
+message(STATUS "Keyboard: ${KEYBOARD_UPPER}")
 
 # ---------------------------------------------------------------------------
 # Source files
@@ -46,11 +73,13 @@ set(SOURCES
 )
 
 add_executable(${TARGET_IHX} ${SOURCES})
+add_dependencies(${TARGET_IHX} ch552g_version_header)
 
 # ---------------------------------------------------------------------------
 # Include directories
 # ---------------------------------------------------------------------------
 target_include_directories(${TARGET_IHX} PRIVATE
+    ${GENERATED_DIR}
     # ch55xduino SDK headers
     SDK/cores                       # Arduino.h, usbCommonDescriptors/, wiring_*.h
     SDK/variants/ch552              # include/ch5xx.h, pins_arduino*.h
@@ -68,7 +97,7 @@ target_compile_definitions(${TARGET_IHX} PRIVATE
     CH552=1
     F_CPU=24000000
     USER_USB_RAM=${CH552_USB_RAM}
-    USE_${KBD_VARIANT_UPPER}
+    ${KEYBOARD_DEFINE}
 )
 
 # ---------------------------------------------------------------------------

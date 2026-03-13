@@ -197,7 +197,6 @@
 import { ref, computed, watch } from 'vue';
 import {
   ActionType,
-  DeviceProtocol,
   Modifier,
   MouseButton,
   WheelDirection,
@@ -245,8 +244,8 @@ const layerTarget = ref(0);
 
 // 宏相关
 const macroId = ref(0);
-const allowLayerActions = computed(() => deviceStore.supportsMultiLayer);
-const allowMacroActions = computed(() => deviceStore.deviceInfo?.protocol !== DeviceProtocol.CH552);
+const allowLayerActions = computed(() => deviceStore.supportsLayerKeyActions);
+const allowMacroActions = computed(() => deviceStore.supportsMacroActions);
 
 // 预览
 const previewKeyName = computed(() => {
@@ -275,7 +274,7 @@ const wheelDirections = computed(() => {
     { label: '向下', value: WheelDirection.DOWN },
   ];
 
-  if (deviceStore.deviceInfo?.protocol !== DeviceProtocol.CH552) {
+  if (deviceStore.supportsWheelClickAction) {
     directions.push({ label: '中键点击', value: WheelDirection.CLICK });
   }
 

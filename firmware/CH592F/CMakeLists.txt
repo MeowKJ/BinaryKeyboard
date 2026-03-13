@@ -9,28 +9,44 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(CH592F C ASM)
 
 set(TARGET_ELF ${PROJECT_NAME}.elf)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+set(BK_VERSION_HEADER ${GENERATED_DIR}/bk_version_config.h)
+
+add_custom_command(
+    OUTPUT ${BK_VERSION_HEADER}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_DIR}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/scripts/versioning.py
+            emit-c-header --chip CH592F --out ${BK_VERSION_HEADER}
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../tools/scripts/versioning.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../config/versions.json
+    COMMENT "Generating CH592F version header"
+)
+
+add_custom_target(ch592f_version_header DEPENDS ${BK_VERSION_HEADER})
 
 # ---------------------------------------------------------------------------
-# Keyboard layout and device naming (used by both USB and BLE)
+# Keyboard selection and device naming (used by both USB and BLE)
 # ---------------------------------------------------------------------------
-set(KBD_LAYOUT "5KEY" CACHE STRING "Keyboard layout variant (5KEY or KNOB)")
-set_property(CACHE KBD_LAYOUT PROPERTY STRINGS 5KEY KNOB)
+set(KEYBOARD "5KEY" CACHE STRING "Keyboard (5KEY or KNOB)")
+set_property(CACHE KEYBOARD PROPERTY STRINGS 5KEY KNOB)
 set(KBD_NAME_PREFIX "BinaryKeyboard" CACHE STRING "Keyboard name prefix")
-set(KBD_MODEL "AUTO" CACHE STRING "Keyboard model suffix for device name (AUTO uses KBD_LAYOUT)")
+set(KBD_MODEL "AUTO" CACHE STRING "Keyboard model suffix for device name (AUTO uses KEYBOARD)")
 set(KBD_DEVICE_NAME_OVERRIDE "" CACHE STRING "Override full USB/BLE device name, empty means auto compose")
-string(TOUPPER "${KBD_LAYOUT}" KBD_LAYOUT_UPPER)
+string(TOUPPER "${KEYBOARD}" KEYBOARD_UPPER)
 string(TOUPPER "${KBD_MODEL}" KBD_MODEL_UPPER_RAW)
 
-if(KBD_LAYOUT_UPPER STREQUAL "5KEY")
+if(KEYBOARD_UPPER STREQUAL "5KEY")
     set(KBD_LAYOUT_DEFINE "KBD_LAYOUT_5KEY")
-elseif(KBD_LAYOUT_UPPER STREQUAL "KNOB")
+elseif(KEYBOARD_UPPER STREQUAL "KNOB")
     set(KBD_LAYOUT_DEFINE "KBD_LAYOUT_KNOB")
 else()
-    message(FATAL_ERROR "Unsupported KBD_LAYOUT='${KBD_LAYOUT}'. Expected 5KEY or KNOB.")
+    message(FATAL_ERROR "Unsupported KEYBOARD='${KEYBOARD}'. Expected 5KEY or KNOB.")
 endif()
 
 if(KBD_MODEL_UPPER_RAW STREQUAL "" OR KBD_MODEL_UPPER_RAW STREQUAL "AUTO")
-    set(KBD_MODEL_UPPER "${KBD_LAYOUT_UPPER}")
+    set(KBD_MODEL_UPPER "${KEYBOARD_UPPER}")
 else()
     set(KBD_MODEL_UPPER "${KBD_MODEL_UPPER_RAW}")
 endif()
@@ -43,7 +59,7 @@ endif()
 
 string(LENGTH "${KBD_DEVICE_NAME}" KBD_DEVICE_NAME_LEN)
 
-message(STATUS "Keyboard layout: ${KBD_LAYOUT_UPPER}")
+message(STATUS "Keyboard: ${KEYBOARD_UPPER}")
 message(STATUS "Keyboard model: ${KBD_MODEL_UPPER}")
 message(STATUS "Unified device name: ${KBD_DEVICE_NAME}")
 message(STATUS "Unified device name length: ${KBD_DEVICE_NAME_LEN}")
@@ -125,11 +141,13 @@ set(SOURCES
 )
 
 add_executable(${TARGET_ELF} ${SOURCES})
+add_dependencies(${TARGET_ELF} ch592f_version_header)
 
 # ---------------------------------------------------------------------------
 # Include directories
 # ---------------------------------------------------------------------------
 target_include_directories(${TARGET_ELF} PRIVATE
+    ${GENERATED_DIR}
     StdPeriphDriver/inc
     RVMSIS
     Board/include

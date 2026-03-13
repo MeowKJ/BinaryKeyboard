@@ -52,11 +52,16 @@ export enum DeviceProtocol {
 
 export interface DeviceCapabilities {
   multiLayer: boolean;
+  layerKeyActions: boolean;
   rgb: boolean;
   fnKeys: boolean;
+  macroActions: boolean;
+  wheelClickAction: boolean;
   battery: boolean;
   logs: boolean;
   reset: boolean;
+  explicitSave: boolean;
+  wireless: boolean;
 }
 
 export function createDeviceCapabilities(
@@ -64,23 +69,33 @@ export function createDeviceCapabilities(
 ): DeviceCapabilities {
   return {
     multiLayer: true,
+    layerKeyActions: true,
     rgb: true,
     fnKeys: true,
+    macroActions: true,
+    wheelClickAction: true,
     battery: true,
     logs: true,
     reset: true,
+    explicitSave: true,
+    wireless: true,
     ...overrides,
   };
 }
 
 export const CH592_CAPABILITIES = createDeviceCapabilities();
 export const CH552_CAPABILITIES = createDeviceCapabilities({
-  multiLayer: false,
+  multiLayer: true,
+  layerKeyActions: false,
   rgb: false,
   fnKeys: false,
+  macroActions: false,
+  wheelClickAction: false,
   battery: false,
   logs: false,
   reset: false,
+  explicitSave: false,
+  wireless: false,
 });
 
 // ============================================================================
@@ -371,9 +386,15 @@ export interface RgbConfig {
 export interface DeviceInfo {
   vendorId: number;
   productId: number;
+  chipFamily: string;
   versionMajor: number;
   versionMinor: number;
   versionPatch: number;
+  protocolFamily: string;
+  protocolVersionMajor: number;
+  protocolVersionMinor: number;
+  storageVersionMajor: number;
+  storageVersionMinor: number;
   maxLayers: number;
   maxKeys: number;
   macroSlots: number;
@@ -381,6 +402,7 @@ export interface DeviceInfo {
   actualKeyCount: number;
   fnKeyCount: number;
   protocol: DeviceProtocol;
+  protocolLabel: string;
   capabilities: DeviceCapabilities;
 }
 

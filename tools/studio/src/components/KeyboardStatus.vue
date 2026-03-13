@@ -58,7 +58,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { DeviceProtocol } from '@/types/protocol';
 
 const deviceStore = useDeviceStore();
 const supportsBattery = computed(() => deviceStore.supportsBattery);
@@ -85,7 +84,7 @@ const batteryIcon = computed(() => {
 
 // 连接模式
 const connectionMode = computed(() => {
-  if (deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552) return 'USB Wired';
+  if (!deviceStore.supportsWireless) return 'USB Wired';
   const mode = deviceStore.deviceStatus?.workMode ?? 0;
   return mode === 1 ? 'BLE' : 'USB';
 });

@@ -302,7 +302,9 @@ async function saveLogConfig() {
   if (!deviceStore.supportsLogs) return;
   try {
     await hidService.setLogConfig(logConfig);
-    await hidService.saveConfig();
+    if (deviceStore.supportsExplicitSave) {
+      await hidService.saveConfig();
+    }
   } catch { /* ignore */ }
 }
 

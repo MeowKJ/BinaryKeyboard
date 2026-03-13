@@ -3,6 +3,7 @@
 #include "EncoderHandler.h"
 
 #include "CustomUSBHID.h"
+#include "KeyScanner.h"
 #include "KeysDataHandler.h"
 #include "config.h"
 
@@ -52,12 +53,19 @@ void EncoderHandler_init(void)
 void EncoderHandler_process(void)
 {
 #ifdef USE_KNOB
+  // FUNC 按住时不处理旋钮
+  if (funcActive) {
+    encoderLeftPrev = digitalRead(ENCODER_LEFT);
+    return;
+  }
+
   bool encoderLeft = digitalRead(ENCODER_LEFT);
 
   if (encoderLeftPrev && !encoderLeft)
   {
     uint8_t encoderIndex =
       digitalRead(ENCODER_RIGHT) ? ENCODER_LEFT_INDEX : ENCODER_RIGHT_INDEX;
+    // 从当前层读取旋钮映射
     handleEncoderAction(getKeyType(encoderIndex), getKeyValue(encoderIndex));
   }
 

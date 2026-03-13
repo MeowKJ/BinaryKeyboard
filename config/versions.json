@@ -1,0 +1,20 @@
+{
+  "product": {
+    "version": "3.0.0"
+  },
+  "firmware": {
+    "CH592F": {
+      "firmware_version": "3.0.0",
+      "protocol_family": "BKHID64",
+      "protocol_version": "1.2",
+      "storage_version": "1.2"
+    },
+    "CH552G": {
+      "firmware_version": "2.0.12",
+      "protocol_family": "BKHID31",
+      "protocol_version": "1.1",
+      "storage_version": "1.0",
+      "legacy_compat_version": 12
+    }
+  }
+}

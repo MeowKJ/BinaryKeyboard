@@ -1,18 +1,15 @@
 /**
  * BinaryKeyboard HID 通讯服务
- * 统一管理 CH592F / CH552G 两套协议适配器
+ * 统一管理已注册的设备适配器插件
  */
 
 import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig } from '@/types/protocol';
 import { showToast } from '@/services/toastService';
-import { Ch592HidAdapter } from './hid/Ch592HidAdapter';
-import { Ch552HidAdapter } from './hid/Ch552HidAdapter';
-import type { BatteryInfo, HidAdapter } from './hid/types';
+import { createHidAdapters } from './hid/registry';
+import type { BatteryInfo, HidAdapter, HidOptionalOperations } from './hid/common/types';
+import { OPTIONAL_OPERATION_LABELS } from './hid/common/types';
 
-const ADAPTERS: HidAdapter[] = [
-  new Ch592HidAdapter(),
-  new Ch552HidAdapter(),
-];
+const ADAPTERS: HidAdapter[] = createHidAdapters();
 
 export const KEYBOARD_FILTERS: HIDDeviceFilter[] = ADAPTERS.flatMap((adapter) => adapter.filters);
 
@@ -33,6 +30,15 @@ export class HidService {
       throw new Error('设备未连接');
     }
     return adapter;
+  }
+
+  private requireOptionalOperation<K extends keyof HidOptionalOperations>(name: K): NonNullable<HidOptionalOperations[K]> {
+    const adapter = this.requireAdapter();
+    const operation = adapter.optional[name];
+    if (!operation) {
+      throw new Error(`当前设备不支持${OPTIONAL_OPERATION_LABELS[name]}`);
+    }
+    return operation as NonNullable<HidOptionalOperations[K]>;
   }
 
   async requestDevice(): Promise<HIDDevice | null> {
@@ -109,43 +115,43 @@ export class HidService {
   }
 
   async getRgbConfig(): Promise<RgbConfig> {
-    return this.requireAdapter().getRgbConfig();
+    return this.requireOptionalOperation('getRgbConfig')();
   }
 
   async setRgbConfig(config: RgbConfig): Promise<void> {
-    await this.requireAdapter().setRgbConfig(config);
+    await this.requireOptionalOperation('setRgbConfig')(config);
   }
 
   async getFnKeyConfig(): Promise<FnKeyConfig> {
-    return this.requireAdapter().getFnKeyConfig();
+    return this.requireOptionalOperation('getFnKeyConfig')();
   }
 
   async setFnKeyConfig(config: FnKeyConfig): Promise<void> {
-    await this.requireAdapter().setFnKeyConfig(config);
+    await this.requireOptionalOperation('setFnKeyConfig')(config);
   }
 
   async saveConfig(): Promise<void> {
-    await this.requireAdapter().saveConfig();
+    await this.requireOptionalOperation('saveConfig')();
   }
 
   async loadConfig(): Promise<void> {
-    await this.requireAdapter().loadConfig();
+    await this.requireOptionalOperation('loadConfig')();
   }
 
   async resetConfig(): Promise<void> {
-    await this.requireAdapter().resetConfig();
+    await this.requireOptionalOperation('resetConfig')();
   }
 
   async getBattery(): Promise<BatteryInfo> {
-    return this.requireAdapter().getBattery();
+    return this.requireOptionalOperation('getBattery')();
   }
 
   async getLogConfig(): Promise<LogConfig> {
-    return this.requireAdapter().getLogConfig();
+    return this.requireOptionalOperation('getLogConfig')();
   }
 
   async setLogConfig(config: LogConfig): Promise<void> {
-    await this.requireAdapter().setLogConfig(config);
+    await this.requireOptionalOperation('setLogConfig')(config);
   }
 }
 

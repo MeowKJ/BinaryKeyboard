@@ -76,6 +76,8 @@ coverage
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/tasks.json
+firmware/CH552G/.clangd
+firmware/CH552G/.clangd_intellisense.h
 
 # .idea/*
 # !.idea/runConfigurations/

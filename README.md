@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300">
+  <img src="https://github.com/MeowKJ/BinaryKeyboard/releases/download/readme-assets/console-tui.png" width="960" alt="BinaryKeyboard console.py TUI">
 </p>
 
 <p align="center">
@@ -33,7 +33,21 @@
 # 快速开始
 
 - 在线文档：https://meowkj.github.io/BinaryKeyboard/
-- PY 终端控制台：`python tools/scripts/console.py`
+- 统一终端控制台：`python tools/scripts/console.py`
+
+## 推荐入口
+
+仓库根目录下直接运行：
+
+```bash
+python tools/scripts/console.py
+```
+
+如果当前终端不适合 curses TUI，也可以使用文本模式：
+
+```bash
+python tools/scripts/console.py --text
+```
 
 # 许可
 

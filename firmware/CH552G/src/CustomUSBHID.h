@@ -117,6 +117,7 @@ extern "C" {
 
   uint8_t Mouse_press(__data uint8_t k);
   uint8_t Mouse_release(__data uint8_t k);
+  void Mouse_releaseAll(void);
   uint8_t Mouse_click(__data uint8_t k);
   uint8_t Mouse_move(__data int8_t x, __xdata int8_t y);
   uint8_t Mouse_scroll(__data int8_t tilt);

@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync-versions": "node ./scripts/sync-versions.mjs",
+    "predev": "pnpm run sync-versions",
+    "prebuild": "pnpm run sync-versions",
+    "pretype-check": "pnpm run sync-versions",
     "dev": "vite --host 0.0.0.0",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview --host 0.0.0.0",

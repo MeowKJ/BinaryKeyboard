@@ -148,7 +148,7 @@ STATIC_ASSERT ((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_b
  * @brief 普通按键引脚表。
  * @details
  * 该表由板级宏（kbd_config.h）决定具体端口与引脚。
- * 根据不同键盘布局定义不同的引脚映射。
+ * 根据不同键盘型号定义不同的引脚映射。
  */
 #if defined(KBD_LAYOUT_5KEY)
 /*---------------------------------------------------------------------------*/
@@ -174,7 +174,7 @@ static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
 };
 
 #else
-#error "请通过 CMake 或 MRS 预处理宏选择一个键盘布局"
+#error "请通过 CMake 或 MRS 预处理宏选择一个键盘型号"
 #endif
 
 /**
