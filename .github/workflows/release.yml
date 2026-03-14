@@ -49,6 +49,9 @@ jobs:
           apt-get update -q
           apt-get install -y --no-install-recommends python3
 
+      - name: Fix git ownership
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build
         run: python3 tools/scripts/ch592f.py build --keyboard ${{ matrix.keyboard }} --profile release
 
@@ -174,7 +177,7 @@ jobs:
           echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
           echo "name=BinaryKeyboard · Studio v${STUDIO_VERSION} · CH552 v${CH552_VERSION} · CH592 v${CH592_VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Build file table with sizes and SHA-256
+          # Build file table with sizes
           {
             echo "## 🐱 BinaryKeyboard 自动发布"
             echo
@@ -182,31 +185,36 @@ jobs:
             echo
             echo "### 📋 版本信息"
             echo
-            echo "| 组件 | 版本 |"
-            echo "|------|------|"
-            echo "| Studio（改键工具） | v${STUDIO_VERSION} |"
-            echo "| CH592F（无线固件） | v${CH592_VERSION} |"
-            echo "| CH552G（有线固件） | v${CH552_VERSION} |"
+            echo "| 组件 | 版本 | 说明 |"
+            echo "|------|------|------|"
+            echo "| 🎹 Studio | v${STUDIO_VERSION} | 改键工具（Web） |"
+            echo "| 📡 CH592F | v${CH592_VERSION} | 无线固件（BLE） |"
+            echo "| 🔌 CH552G | v${CH552_VERSION} | 有线固件（USB） |"
             echo
             echo "### 📦 固件文件"
             echo
-            echo "| 文件 | 大小 | SHA-256 |"
-            echo "|------|------|---------|"
+            echo "| 文件 | 大小 | 说明 |"
+            echo "|------|------|------|"
             for f in dist/*.bin dist/*.hex; do
               [ -f "$f" ] || continue
               fname=$(basename "$f")
               fsize=$(du -h "$f" | cut -f1)
-              fsha=$(sha256sum "$f" | cut -d' ' -f1)
-              echo "| \`${fname}\` | ${fsize} | \`${fsha:0:16}…\` |"
+              desc=""
+              case "$fname" in CH592F*) desc="📡 无线" ;; CH552G*) desc="🔌 有线" ;; esac
+              case "$fname" in *-5KEY-*) desc="${desc} · 五键" ;; *-KNOB-*) desc="${desc} · 旋钮" ;; *-BASIC-*) desc="${desc} · 基础" ;; esac
+              case "$fname" in *.bin) desc="${desc} · BIN" ;; *.hex) desc="${desc} · HEX" ;; esac
+              echo "| \`${fname}\` | ${fsize} | ${desc} |"
             done
             echo
             echo "### ℹ️ 构建环境"
             echo
-            echo "- **构建日期**: ${DATE_DISPLAY}"
-            echo "- **Commit**: [\`${SHA}\`](https://github.com/${{ github.repository }}/commit/${SHA})"
-            echo "- **工具链**: ${{ env.TOOLCHAIN_VERSION }}"
+            echo "| 属性 | 值 |"
+            echo "|------|------|"
+            echo "| 构建日期 | ${DATE_DISPLAY} |"
+            echo "| Commit | [\`${SHA}\`](https://github.com/${{ github.repository }}/commit/${SHA}) |"
+            echo "| 工具链 | \`${{ env.TOOLCHAIN_VERSION }}\` |"
             echo
-            echo "<details><summary>SHA-256 完整校验值</summary>"
+            echo "<details><summary>🔒 SHA-256 校验值</summary>"
             echo
             echo '```'
             for f in dist/*.bin dist/*.hex; do

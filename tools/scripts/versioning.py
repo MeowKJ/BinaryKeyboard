@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -46,7 +47,8 @@ def _git_output(args: list[str]) -> str:
             cwd=PROJECT_ROOT,
         )
         return result.stdout.strip()
-    except subprocess.SubprocessError:
+    except subprocess.SubprocessError as exc:
+        print(f"WARNING: git command failed: {' '.join(args)}: {exc}", file=sys.stderr)
         return ""
 
 
