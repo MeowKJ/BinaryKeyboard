@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/MeowKJ/BinaryKeyboard/releases/download/readme-assets/console-tui.png" width="960" alt="BinaryKeyboard console.py TUI">
+  <img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300" alt="BinaryKeyboard keyboard">
 </p>
 
 <p align="center">
@@ -48,6 +48,10 @@ python tools/scripts/console.py
 ```bash
 python tools/scripts/console.py --text
 ```
+
+<p align="center">
+  <img src="https://github.com/MeowKJ/BinaryKeyboard/releases/download/readme-assets/console-tui.png" width="960" alt="BinaryKeyboard console.py TUI">
+</p>
 
 # 许可
 
