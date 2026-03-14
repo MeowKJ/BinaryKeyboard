@@ -28,7 +28,11 @@
   <a href="#许可">许可</a>
 </p>
 
----
+<hr>
+
+# 概述
+
+**BinaryKeyboard** 可爱二进制键盘
 
 # 快速开始
 
@@ -64,5 +68,10 @@ python tools/scripts/console.py --text
   </a>
 </p>
 
-- 代码（Code）：[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html)
-- 文档与素材（Docs & Assets）：[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans)
+- **代码（Code）**：遵循 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html)  
+  适用范围：`/firmware/**`、`/tools/studio/**`、脚本与示例代码等。
+
+- **文档与素材（Docs & Assets）**：遵循 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-Hans)  
+  适用范围：`/Hardware/**`、`/Models/**`
+
+---
