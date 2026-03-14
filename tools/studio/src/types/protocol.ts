@@ -42,18 +42,19 @@ export const KeyboardTypeInfo: Record<
 > = {
   [KeyboardType.BASIC]: { name: "基础款", keys: 4, physical: 4, layers: 4 },
   [KeyboardType.FIVE_KEYS]: { name: "五键款", keys: 5, physical: 5, layers: 5 },
-  [KeyboardType.KNOB]: { name: "旋钮款", keys: 7, physical: 4, layers: 5 },
+  [KeyboardType.KNOB]: { name: "旋钮款", keys: 7, physical: 4, layers: 4 },
 };
 
 export enum DeviceProtocol {
-  CH592 = 'ch592',
-  CH552 = 'ch552',
+  CH592 = "ch592",
+  CH552 = "ch552",
 }
 
 export interface DeviceCapabilities {
   multiLayer: boolean;
   layerKeyActions: boolean;
   rgb: boolean;
+  rgbOverlay: boolean;
   fnKeys: boolean;
   macroActions: boolean;
   wheelClickAction: boolean;
@@ -71,6 +72,7 @@ export function createDeviceCapabilities(
     multiLayer: true,
     layerKeyActions: true,
     rgb: true,
+    rgbOverlay: false,
     fnKeys: true,
     macroActions: true,
     wheelClickAction: true,
@@ -87,7 +89,8 @@ export const CH592_CAPABILITIES = createDeviceCapabilities();
 export const CH552_CAPABILITIES = createDeviceCapabilities({
   multiLayer: true,
   layerKeyActions: false,
-  rgb: false,
+  rgb: true,
+  rgbOverlay: true,
   fnKeys: false,
   macroActions: false,
   wheelClickAction: false,
@@ -167,25 +170,25 @@ export enum SystemLogEvent {
 
 /** 日志类别掩码常量 */
 export const LOG_MASK = {
-  KEY:   0x01,
-  FN:    0x02,
+  KEY: 0x01,
+  FN: 0x02,
   LAYER: 0x04,
-  MODE:  0x08,
-  BLE:   0x10,
-  RGB:   0x20,
-  SYS:   0x40,
-  ALL:   0x7F,
+  MODE: 0x08,
+  BLE: 0x10,
+  RGB: 0x20,
+  SYS: 0x40,
+  ALL: 0x7f,
 } as const;
 
 /** 日志类别掩码标签 (用于 UI) */
 export const LOG_MASK_LABELS: { mask: number; label: string; key: string }[] = [
-  { mask: LOG_MASK.KEY,   label: '按键',  key: 'key' },
-  { mask: LOG_MASK.FN,    label: 'FN',    key: 'fn' },
-  { mask: LOG_MASK.LAYER, label: '层切换', key: 'layer' },
-  { mask: LOG_MASK.MODE,  label: '模式',  key: 'mode' },
-  { mask: LOG_MASK.BLE,   label: '蓝牙',  key: 'ble' },
-  { mask: LOG_MASK.RGB,   label: 'RGB',   key: 'rgb' },
-  { mask: LOG_MASK.SYS,   label: '系统',  key: 'sys' },
+  { mask: LOG_MASK.KEY, label: "按键", key: "key" },
+  { mask: LOG_MASK.FN, label: "FN", key: "fn" },
+  { mask: LOG_MASK.LAYER, label: "层切换", key: "layer" },
+  { mask: LOG_MASK.MODE, label: "模式", key: "mode" },
+  { mask: LOG_MASK.BLE, label: "蓝牙", key: "ble" },
+  { mask: LOG_MASK.RGB, label: "RGB", key: "rgb" },
+  { mask: LOG_MASK.SYS, label: "系统", key: "sys" },
 ];
 
 /** 固件端日志配置 (仅开关，类别过滤在 UI 端) */
@@ -310,6 +313,12 @@ export enum RgbMode {
   INDICATOR = 5,
 }
 
+export enum PressEffect {
+  NONE = 0,
+  PRESS_LIGHT_FADE = 1,
+  PRESS_DARK_FADE = 2,
+}
+
 // ============================================================================
 // 数据结构
 // ============================================================================
@@ -357,16 +366,22 @@ export const RGB_INDICATOR_MIN_BRIGHTNESS = 13;
 
 /** RGB(0-255) 转 hex 字符串，如 "#ffffff" */
 export function rgbToHex(r: number, g: number, b: number): string {
-  const pad = (n: number) => n.toString(16).padStart(2, '0');
-  return '#' + pad(r) + pad(g) + pad(b);
+  const pad = (n: number) => n.toString(16).padStart(2, "0");
+  return "#" + pad(r) + pad(g) + pad(b);
 }
 
 /** hex 字符串解析为 RGB，返回 {r,g,b} 或 null。支持 "#ffffff" 或 "ffffff" */
-export function hexToRgb(hex: string | unknown): { r: number; g: number; b: number } | null {
-  const s = typeof hex === 'string' ? hex.replace(/^#/, '') : '';
+export function hexToRgb(
+  hex: string | unknown,
+): { r: number; g: number; b: number } | null {
+  const s = typeof hex === "string" ? hex.replace(/^#/, "") : "";
   const m = s.match(/^([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
   if (!m) return null;
-  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+  return {
+    r: parseInt(m[1], 16),
+    g: parseInt(m[2], 16),
+    b: parseInt(m[3], 16),
+  };
 }
 
 /** RGB 配置 */
@@ -380,6 +395,7 @@ export interface RgbConfig {
   colorB: number;
   indicatorEnabled: boolean;
   indicatorBrightness: number; /**< 指示灯亮度 (0-255) */
+  pressEffect: PressEffect;
 }
 
 /** 设备信息 (SYS_INFO 响应) */
@@ -390,11 +406,6 @@ export interface DeviceInfo {
   versionMajor: number;
   versionMinor: number;
   versionPatch: number;
-  protocolFamily: string;
-  protocolVersionMajor: number;
-  protocolVersionMinor: number;
-  storageVersionMajor: number;
-  storageVersionMinor: number;
   maxLayers: number;
   maxKeys: number;
   macroSlots: number;
@@ -518,7 +529,7 @@ export function createEmptyFnKeyConfig(): FnKeyConfig {
 export function createDefaultRgbConfig(): RgbConfig {
   return {
     enabled: true,
-    mode: RgbMode.INDICATOR,
+    mode: RgbMode.RAINBOW,
     brightness: RGB_DEFAULT_BRIGHTNESS,
     speed: 128,
     colorR: 255,
@@ -526,5 +537,6 @@ export function createDefaultRgbConfig(): RgbConfig {
     colorB: 255,
     indicatorEnabled: true,
     indicatorBrightness: RGB_DEFAULT_BRIGHTNESS,
+    pressEffect: PressEffect.NONE,
   };
 }

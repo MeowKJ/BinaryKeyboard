@@ -6,6 +6,7 @@ export function getCh552UiDefinition(capabilities: DeviceCapabilities): DeviceUi
     'device-info',
     'keyboard-status',
     ...(capabilities.multiLayer ? ['layer-panel'] as const : []),
+    ...(capabilities.rgb ? ['rgb-panel'] as const : []),
     'actions-panel',
     'debug-terminal',
   ];

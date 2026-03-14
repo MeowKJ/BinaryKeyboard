@@ -70,10 +70,51 @@
 
         <p class="legacy-link-hint">
           使用旧版固件？
-          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank" rel="noopener" class="legacy-link">
+          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank"
+            rel="noopener" class="legacy-link">
             前往旧版改键工具 <i class="pi pi-external-link"></i>
           </a>
         </p>
+
+        <div class="welcome-version-card">
+          <div class="version-card-header">
+            <i class="pi pi-box"></i>
+            <span>版本信息</span>
+          </div>
+          <div class="version-badges">
+            <div class="version-badge studio-badge">
+              <div class="badge-icon">🐱</div>
+              <div class="badge-info">
+                <span class="badge-label">Studio</span>
+                <span class="badge-version">v{{ releaseStore.studioVersion }}</span>
+              </div>
+            </div>
+            <div class="version-badge chip-badge ch552-badge">
+              <div class="badge-chip-tag">CH552</div>
+              <div class="badge-info">
+                <span class="badge-label">固件</span>
+                <span class="badge-version">v{{ releaseStore.latestVersions.ch552 }}</span>
+              </div>
+            </div>
+            <div class="version-badge chip-badge ch592-badge">
+              <div class="badge-chip-tag">CH592</div>
+              <div class="badge-info">
+                <span class="badge-label">固件</span>
+                <span class="badge-version">v{{ releaseStore.latestVersions.ch592 }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="releaseStore.errorMessage" class="version-error-tip">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>版本信息获取失败，显示的是本地缓存版本</span>
+          </div>
+          <a class="version-release-link" :href="`https://github.com/${releaseStore.repository}/releases`"
+            target="_blank" rel="noopener">
+            <i class="pi pi-github"></i>
+            查看发布记录
+            <i class="pi pi-external-link"></i>
+          </a>
+        </div>
       </div>
     </div>
 
@@ -127,19 +168,15 @@
 
           <KeyboardStatus />
 
-          <LayerPanel v-if="showLayerPanel" :keyboard-type="currentKeyboardType" />
+          <LayerPanel v-if="showLayerPanel" :keyboard-type="currentKeyboardType"
+            :preview-mode="previewKeyboardType >= 0" />
 
           <FnPanel v-if="showFnPanel" />
 
           <RgbPanel v-if="showRgbPanel" />
 
-          <ActionsPanel
-            :show-reset-button="showResetButton"
-            :save-label="saveKeymapLabel"
-            @save="saveConfig"
-            @discard="discardChanges"
-            @reset="confirmReset"
-          />
+          <ActionsPanel :show-reset-button="showResetButton" :save-label="saveKeymapLabel" @save="saveConfig"
+            @discard="discardChanges" @reset="confirmReset" />
         </aside>
 
         <!-- 占位，保持布局 -->
@@ -236,12 +273,14 @@ import FnPanel from '@/components/FnPanel.vue';
 import RgbPanel from '@/components/RgbPanel.vue';
 import ActionsPanel from '@/components/ActionsPanel.vue';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useReleaseStore } from '@/stores/releaseStore';
 
 const toast = useToast();
 initToastService(toast);   // 注入全局 toast，供 Service 层使用
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
 const terminalStore = useTerminalStore();
+const releaseStore = useReleaseStore();
 
 // PWA 更新（Service Worker 检测到新版本时 needRefresh 为 true，用户点击后静默刷新）
 const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
@@ -485,6 +524,7 @@ function onDeviceDisconnected(event: HIDConnectionEvent) {
 
 onMounted(async () => {
   initTheme();
+  void releaseStore.loadLatestVersions();
   if (HidService.isSupported()) {
     navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
     await autoConnect();
@@ -535,7 +575,8 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-bottom: 32px; /* 底部状态栏高度 */
+  padding-bottom: 32px;
+  /* 底部状态栏高度 */
 }
 
 /* ==========================================
@@ -557,6 +598,7 @@ body {
   font-size: 0.9rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
+
 .pwa-update-btn {
   padding: 0.35rem 0.85rem;
   border: none;
@@ -566,6 +608,7 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
+
 .pwa-update-btn:hover {
   background: rgba(255, 255, 255, 0.35);
 }
@@ -764,6 +807,141 @@ body {
   color: var(--c-text-muted);
 }
 
+.welcome-version-card {
+  margin-top: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-secondary);
+  overflow: hidden;
+}
+
+.version-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+  letter-spacing: 0.03em;
+}
+
+.version-badges {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.version-badge {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border-light);
+  background: var(--c-bg-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.version-badge:hover {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 12px -4px var(--c-accent-soft);
+}
+
+.badge-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.badge-chip-tag {
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ch552-badge .badge-chip-tag {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.ch592-badge .badge-chip-tag {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.badge-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.badge-label {
+  font-size: 0.7rem;
+  color: var(--c-text-muted);
+  line-height: 1.2;
+}
+
+.badge-version {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--c-text-primary);
+  line-height: 1.2;
+}
+
+.studio-badge .badge-version {
+  color: var(--c-accent-light);
+}
+
+.version-error-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+  color: var(--c-warning, #e2a308);
+  background: rgba(226, 163, 8, 0.08);
+  border-top: 1px solid var(--c-border);
+}
+
+.version-error-tip .pi {
+  font-size: 0.75rem;
+}
+
+.version-release-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  border-top: 1px solid var(--c-border);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.version-release-link:hover {
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+
+.version-release-link .pi-external-link {
+  font-size: 0.65rem;
+}
+
 .legacy-link {
   color: var(--c-accent);
   text-decoration: none;
@@ -919,14 +1097,16 @@ body {
   flex: 1;
   display: flex;
   padding: 1.5rem;
-  padding-bottom: 50px; /* 默认只为状态栏留出空间 */
+  padding-bottom: 50px;
+  /* 默认只为状态栏留出空间 */
   gap: 1.5rem;
   transition: padding-bottom 0.3s ease;
 }
 
 /* 当终端打开时，增加底部间距 */
 .app-main.terminal-open {
-  padding-bottom: 340px; /* 为打开的终端留出空间 (280px 终端 + 32px 状态栏 + 余量) */
+  padding-bottom: 340px;
+  /* 为打开的终端留出空间 (280px 终端 + 32px 状态栏 + 余量) */
 }
 
 /* ==========================================

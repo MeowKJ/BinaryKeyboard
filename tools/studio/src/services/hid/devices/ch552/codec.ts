@@ -6,6 +6,8 @@ import {
   KeyboardType,
   KeyboardTypeInfo,
   MouseButton,
+  PressEffect,
+  type RgbConfig,
   WheelDirection,
   createDeviceCapabilities,
   createEmptyAction,
@@ -30,6 +32,8 @@ import type { HidOptionalOperations } from '../../common/types';
 const CH552_SLOT_COUNT = 8;
 const CH552_SLOT_SIZE = 3;
 const FW_VERSION_MULTILAYER = 0x0C;
+const FW_VERSION_RGB = 0x0D;
+const CH552_READ_RETRY_COUNT = 3;
 
 enum Ch552Command {
   READ_CONFIG = 0x01,
@@ -37,6 +41,8 @@ enum Ch552Command {
   READ_LAYER = 0x03,
   SET_LAYER = 0x04,
   READ_META = 0x05,
+  READ_RGB = 0x06,
+  WRITE_RGB = 0x07,
 }
 
 enum LegacyCh552KeyType {
@@ -58,21 +64,12 @@ export interface Ch552MetaInfo {
   firmwareMajor: number;
   firmwareMinor: number;
   firmwarePatch: number;
-  protocolMajor: number;
-  protocolMinor: number;
-  storageMajor: number;
-  storageMinor: number;
 }
 
 export class Ch552Codec implements DeviceCodec<Uint8Array> {
   readonly protocol = DeviceProtocol.CH552;
   readonly protocolLabel = 'CH552G USB';
   readonly chipFamily = FIRMWARE_VERSION_META.CH552G.chipFamily;
-  readonly protocolFamily = FIRMWARE_VERSION_META.CH552G.protocolFamily;
-  readonly protocolVersionMajor = FIRMWARE_VERSION_META.CH552G.protocolVersion.major;
-  readonly protocolVersionMinor = FIRMWARE_VERSION_META.CH552G.protocolVersion.minor;
-  readonly storageVersionMajor = FIRMWARE_VERSION_META.CH552G.storageVersion.major;
-  readonly storageVersionMinor = FIRMWARE_VERSION_META.CH552G.storageVersion.minor;
 
   private version = 0;
   private deviceType = 0;
@@ -80,6 +77,15 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private currentLayer = 0;
   private meta: Ch552MetaInfo | null = null;
   private metaReadSupported: boolean | null = null;
+
+  resetState(): void {
+    this.version = 0;
+    this.deviceType = 0;
+    this.maxLayers = 1;
+    this.currentLayer = 0;
+    this.meta = null;
+    this.metaReadSupported = null;
+  }
 
   get cachedVersion(): number {
     return this.version;
@@ -97,8 +103,11 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return this.metaReadSupported !== false;
   }
 
-  getOptionalOperations(_transport: CodecTransport<Uint8Array>): HidOptionalOperations {
-    return {};
+  getOptionalOperations(transport: CodecTransport<Uint8Array>): HidOptionalOperations {
+    return {
+      getRgbConfig: () => this.getRgbConfig(transport),
+      setRgbConfig: (config) => this.setRgbConfig(transport, config),
+    };
   }
 
   buildReadConfigFrame(): Uint8Array {
@@ -120,10 +129,32 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return frame;
   }
 
+  buildReadRgbFrame(): Uint8Array {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.READ_RGB;
+    return frame;
+  }
+
   buildSetLayerFrame(layerIndex: number): Uint8Array {
     const frame = new Uint8Array(CH552_FRAME_SIZE);
     frame[0] = Ch552Command.SET_LAYER;
     frame[1] = layerIndex;
+    return frame;
+  }
+
+  buildWriteRgbFrame(config: RgbConfig): Uint8Array {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.WRITE_RGB;
+    frame[1] = config.enabled ? 1 : 0;
+    frame[2] = config.mode;
+    frame[3] = config.brightness;
+    frame[4] = config.speed;
+    frame[5] = config.colorR;
+    frame[6] = config.colorG;
+    frame[7] = config.colorB;
+    frame[8] = config.indicatorEnabled ? 1 : 0;
+    frame[9] = config.indicatorBrightness ?? config.brightness;
+    frame[10] = config.pressEffect ?? PressEffect.NONE;
     return frame;
   }
 
@@ -229,14 +260,29 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       firmwareMajor: data[1] ?? FIRMWARE_VERSION_META.CH552G.firmwareVersion.major,
       firmwareMinor: data[2] ?? FIRMWARE_VERSION_META.CH552G.firmwareVersion.minor,
       firmwarePatch: data[3] ?? FIRMWARE_VERSION_META.CH552G.firmwareVersion.patch,
-      protocolMajor: data[4] ?? this.protocolVersionMajor,
-      protocolMinor: data[5] ?? this.protocolVersionMinor,
-      storageMajor: data[6] ?? this.storageVersionMajor,
-      storageMinor: data[7] ?? this.storageVersionMinor,
     };
     this.meta = meta;
     this.metaReadSupported = true;
     return meta;
+  }
+
+  parseRgbConfig(data: Uint8Array): RgbConfig {
+    if (data[0] !== Ch552Command.READ_RGB) {
+      throw new Error(`CH552G READ_RGB 返回了未知响应 ${this.hexByte(data[0] ?? 0)}`);
+    }
+
+    return {
+      enabled: (data[1] ?? 1) !== 0,
+      mode: data[2] ?? 0,
+      brightness: data[3] ?? 0,
+      speed: data[4] ?? 128,
+      colorR: data[5] ?? 255,
+      colorG: data[6] ?? 255,
+      colorB: data[7] ?? 255,
+      indicatorEnabled: (data[8] ?? 0) !== 0,
+      indicatorBrightness: data[9] ?? data[3] ?? 0,
+      pressEffect: data[10] ?? PressEffect.NONE,
+    };
   }
 
   toDeviceInfo(blob: Ch552ConfigBlob): DeviceInfo {
@@ -251,11 +297,6 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       versionMajor: meta?.firmwareMajor ?? semver.major,
       versionMinor: meta?.firmwareMinor ?? semver.minor,
       versionPatch: meta?.firmwarePatch ?? semver.patch,
-      protocolFamily: this.protocolFamily,
-      protocolVersionMajor: meta?.protocolMajor ?? this.protocolVersionMajor,
-      protocolVersionMinor: meta?.protocolMinor ?? this.protocolVersionMinor,
-      storageVersionMajor: meta?.storageMajor ?? this.storageVersionMajor,
-      storageVersionMinor: meta?.storageMinor ?? this.storageVersionMinor,
       maxLayers: blob.maxLayers,
       maxKeys: CH552_SLOT_COUNT,
       macroSlots: 0,
@@ -303,13 +344,14 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   }
 
   capabilitiesForVersion(version: number): DeviceCapabilities {
-    if (version >= FW_VERSION_MULTILAYER) {
+    if (version >= FW_VERSION_RGB) {
       return CH552_CAPABILITIES;
     }
     return createDeviceCapabilities({
-      multiLayer: false,
+      multiLayer: version >= FW_VERSION_MULTILAYER,
       layerKeyActions: false,
       rgb: false,
+      rgbOverlay: false,
       fnKeys: false,
       macroActions: false,
       wheelClickAction: false,
@@ -335,6 +377,8 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       case Ch552Command.READ_LAYER: return 'CH552_READ_LAYER';
       case Ch552Command.SET_LAYER: return 'CH552_SET_LAYER';
       case Ch552Command.READ_META: return 'CH552_READ_META';
+      case Ch552Command.READ_RGB: return 'CH552_READ_RGB';
+      case Ch552Command.WRITE_RGB: return 'CH552_WRITE_RGB';
       default: return `CH552_CMD_${cmd.toString(16)}`;
     }
   }
@@ -351,6 +395,10 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         return `切换当前层到 ${frame[1] ?? 0}`;
       case Ch552Command.READ_META:
         return '读取固件/协议/存储版本';
+      case Ch552Command.READ_RGB:
+        return '读取 RGB 配置';
+      case Ch552Command.WRITE_RGB:
+        return `写入 RGB: enabled=${frame[1] ?? 0} mode=${frame[2] ?? 0} press=${frame[10] ?? 0}`;
       default:
         return `cmd=${this.hexByte(frame[0] ?? 0)}`;
     }
@@ -371,17 +419,25 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     }
 
     if (frame[0] === Ch552Command.READ_META) {
-      return `FW ${frame[1] ?? 0}.${frame[2] ?? 0}.${frame[3] ?? 0}  Proto ${frame[4] ?? 0}.${frame[5] ?? 0}  Storage ${frame[6] ?? 0}.${frame[7] ?? 0}`;
+      return `FW ${frame[1] ?? 0}.${frame[2] ?? 0}.${frame[3] ?? 0}`;
+    }
+
+    if (frame[0] === Ch552Command.READ_RGB) {
+      return `RGB mode=${frame[2] ?? 0} bright=${frame[3] ?? 0} press=${frame[10] ?? 0}`;
     }
 
     return `cmd=${this.hexByte(frame[0] ?? 0)}`;
   }
 
-  private versionToSemver(versionByte: number): { major: number; minor: number; patch: number } {
+  private versionToSemver(featureLevel: number): { major: number; minor: number; patch: number } {
+    const legacyPatch = Number.isFinite(featureLevel) && featureLevel > 0 ? Math.trunc(featureLevel) : 0;
     return {
-      major: FIRMWARE_VERSION_META.CH552G.firmwareVersion.major,
-      minor: FIRMWARE_VERSION_META.CH552G.firmwareVersion.minor,
-      patch: versionByte & 0xff,
+      // Legacy CH552 firmware without READ_META only exposes a feature level byte,
+      // so keep the fallback clearly marked as non-semver-compatible instead of
+      // pretending it belongs to the current release line.
+      major: 0,
+      minor: 0,
+      patch: legacyPatch,
     };
   }
 
@@ -524,10 +580,10 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   }
 
   private async readConfigBlob(transport: CodecTransport<Uint8Array>): Promise<Ch552ConfigBlob> {
-    const data = await transport.sendAndWait(this.buildReadConfigFrame(), {
+    const data = await this.readWithRetry('CH552G 配置读取超时', () => transport.sendAndWait(this.buildReadConfigFrame(), {
       timeout: 1500,
       timeoutLabel: 'CH552G 配置读取超时',
-    });
+    }));
     return this.parseConfigBlob(data);
   }
 
@@ -535,18 +591,51 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     transport: CodecTransport<Uint8Array>,
     layerIndex: number,
   ): Promise<{ layerIndex: number; keys: KeyAction[] }> {
-    const data = await transport.sendAndWait(this.buildReadLayerFrame(layerIndex), {
+    const data = await this.readWithRetry('CH552G 层读取超时', () => transport.sendAndWait(this.buildReadLayerFrame(layerIndex), {
       timeout: 1500,
       timeoutLabel: 'CH552G 层读取超时',
-    });
+    }));
     return this.parseLayerData(data);
   }
 
   private async readMetaInfo(transport: CodecTransport<Uint8Array>): Promise<Ch552MetaInfo> {
-    const data = await transport.sendAndWait(this.buildReadMetaFrame(), {
+    const data = await this.readWithRetry('CH552G 元信息读取超时', () => transport.sendAndWait(this.buildReadMetaFrame(), {
       timeout: 1500,
       timeoutLabel: 'CH552G 元信息读取超时',
-    });
+    }));
     return this.parseMetaInfo(data);
+  }
+
+  private async getRgbConfig(transport: CodecTransport<Uint8Array>): Promise<RgbConfig> {
+    const data = await this.readWithRetry('CH552G RGB 配置读取超时', () => transport.sendAndWait(this.buildReadRgbFrame(), {
+      timeout: 1500,
+      timeoutLabel: 'CH552G RGB 配置读取超时',
+    }));
+    return this.parseRgbConfig(data);
+  }
+
+  private async setRgbConfig(transport: CodecTransport<Uint8Array>, config: RgbConfig): Promise<void> {
+    await transport.sendNoWait(this.buildWriteRgbFrame(config));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  private async readWithRetry<T>(label: string, task: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < CH552_READ_RETRY_COUNT; attempt++) {
+      try {
+        return await task();
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 >= CH552_READ_RETRY_COUNT) {
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+    throw new Error(label);
   }
 }

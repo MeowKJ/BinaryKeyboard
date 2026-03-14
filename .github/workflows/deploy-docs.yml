@@ -7,6 +7,10 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/deploy-docs.yml'
+  workflow_run:
+    workflows: ["Release Firmware"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +24,9 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -27,6 +34,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release manifest
+        run: |
+          mkdir -p docs/public/api
+          python3 tools/scripts/versioning.py emit-release-manifest --out docs/public/api/release-manifest.json
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

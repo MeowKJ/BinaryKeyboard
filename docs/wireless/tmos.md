@@ -52,7 +52,7 @@ uint16_t Task_ProcessEvent(uint8_t task_id, uint16_t events);
 
 ## 常用 API（项目里会用到）
 
-接口声明见 `firmware/CH592F/MeowBLE/lib/CH59xBLE_LIB.h`。
+接口声明见 `firmware/CH592F/ble/lib/CH59xBLE_LIB.h`。
 
 | API | 作用 | 备注 |
 | :-- | :-- | :-- |
@@ -72,7 +72,7 @@ uint16_t Task_ProcessEvent(uint8_t task_id, uint16_t events);
 
 ### 主循环驱动 TMOS
 
-`firmware/CH592F/User/Main.c`
+`firmware/CH592F/app/Main.c`
 
 ```c
 while (1) {
@@ -91,7 +91,7 @@ while (1) {
 
 ### 示例 1：RGB 周期更新（定时事件）
 
-`firmware/CH592F/MeowKeyboard/src/kbd_rgb.c`
+`firmware/CH592F/keyboard/src/kbd_rgb.c`
 
 - 注册任务：`TMOS_ProcessEventRegister(KBD_RGB_ProcessEvent)`
 - 启动定时：`tmos_start_task(..., RGB_UPDATE_EVT, ...)`
@@ -101,7 +101,7 @@ while (1) {
 
 ### 示例 2：BLE/HAL 消息事件（`SYS_EVENT_MSG`）
 
-`firmware/CH592F/MeowBLE/core/src/ble_mcu.c` 与 `firmware/CH592F/MeowBLE/hid/src/ble_hid.c`
+`firmware/CH592F/ble/core/src/ble_mcu.c` 与 `firmware/CH592F/ble/hid/src/ble_hid.c`
 
 典型模式：
 
@@ -236,7 +236,7 @@ void KBD_Storage_RequestRuntimeSave(uint8_t layer)
 
 ## TMOS 内存池（项目注意点）
 
-`firmware/CH592F/User/Main.c` 中定义了 TMOS/BLE 使用的内存池：
+`firmware/CH592F/app/Main.c` 中定义了 TMOS/BLE 使用的内存池：
 
 ```c
 __attribute__((aligned(4))) uint32_t MEM_BUF[BLE_MEMHEAP_SIZE / 4];

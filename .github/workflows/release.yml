@@ -7,10 +7,12 @@ on:
     paths:
       - "firmware/**"
       - "config/**"
+      - "tools/studio/**"
       - "tools/scripts/**"
       - ".github/workflows/firmware-build.yml"
       - ".github/workflows/release.yml"
       - ".github/release.yml"
+  workflow_dispatch:
 
 env:
   TOOLCHAIN_VERSION: MRS_Toolchain_Linux_x64_V230
@@ -40,6 +42,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Build
         run: python3 tools/scripts/ch592f.py build --keyboard ${{ matrix.keyboard }} --profile release
@@ -75,6 +78,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Install SDCC
         run: |
@@ -99,12 +103,42 @@ jobs:
             ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
 
+  build-studio:
+    name: Build Studio
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --dir tools/studio run build
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs:
       - build-ch592f
       - build-ch552g
+      - build-studio
     permissions:
       contents: write
 
@@ -128,22 +162,55 @@ jobs:
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
           SHA=$(git rev-parse --short HEAD)
-          PRODUCT_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import product_version; print(product_version())")
+          STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
           CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
           CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
-          echo "tag=binarykeyboard-v${PRODUCT_VERSION}-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "name=BinaryKeyboard v${PRODUCT_VERSION} · ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
+          echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "name=BinaryKeyboard · Studio v${STUDIO_VERSION} · CH552 v${CH552_VERSION} · CH592 v${CH592_VERSION}" >> "$GITHUB_OUTPUT"
+
+          # Build file table with sizes and SHA-256
           {
-            echo "## Release Summary"
+            echo "## 🐱 BinaryKeyboard 自动发布"
             echo
-            echo "- Product: v${PRODUCT_VERSION}"
-            echo "- CH592F: v${CH592_VERSION}"
-            echo "- CH552G: v${CH552_VERSION}"
-            echo "- Build date: ${DATE_DISPLAY}"
-            echo "- Commit: ${SHA}"
-            echo "- Toolchain: ${{ env.TOOLCHAIN_VERSION }}"
-            echo "- Artifacts: standard firmware package set for CH592F and CH552G"
+            echo "> 此 Release 由 GitHub Actions 自动构建并发布，基于 \`main\` 分支最新提交。"
+            echo
+            echo "### 📋 版本信息"
+            echo
+            echo "| 组件 | 版本 |"
+            echo "|------|------|"
+            echo "| Studio（改键工具） | v${STUDIO_VERSION} |"
+            echo "| CH592F（无线固件） | v${CH592_VERSION} |"
+            echo "| CH552G（有线固件） | v${CH552_VERSION} |"
+            echo
+            echo "### 📦 固件文件"
+            echo
+            echo "| 文件 | 大小 | SHA-256 |"
+            echo "|------|------|---------|"
+            for f in dist/*.bin dist/*.hex; do
+              [ -f "$f" ] || continue
+              fname=$(basename "$f")
+              fsize=$(du -h "$f" | cut -f1)
+              fsha=$(sha256sum "$f" | cut -d' ' -f1)
+              echo "| \`${fname}\` | ${fsize} | \`${fsha:0:16}…\` |"
+            done
+            echo
+            echo "### ℹ️ 构建环境"
+            echo
+            echo "- **构建日期**: ${DATE_DISPLAY}"
+            echo "- **Commit**: [\`${SHA}\`](https://github.com/${{ github.repository }}/commit/${SHA})"
+            echo "- **工具链**: ${{ env.TOOLCHAIN_VERSION }}"
+            echo
+            echo "<details><summary>SHA-256 完整校验值</summary>"
+            echo
+            echo '```'
+            for f in dist/*.bin dist/*.hex; do
+              [ -f "$f" ] || continue
+              sha256sum "$f" | sed 's|dist/||'
+            done
+            echo '```'
+            echo
+            echo "</details>"
           } > release-notes-header.md
 
       - name: Create GitHub Release
@@ -153,7 +220,7 @@ jobs:
           name: ${{ steps.version.outputs.name }}
           generate_release_notes: true
           body_path: release-notes-header.md
-          prerelease: true
+          prerelease: false
           files: |
             dist/*.bin
             dist/*.hex

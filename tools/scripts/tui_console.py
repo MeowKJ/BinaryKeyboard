@@ -4,10 +4,10 @@
 from __future__ import annotations
 
 import argparse
-import glob as globmod
 import json
 import locale
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -22,9 +22,11 @@ try:
 except ImportError:  # pragma: no cover - Windows fallback
     curses = None
 
-from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
+from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS, find_cmake, find_sdcc
 from targets.ch592 import CH592_USER_PRESETS, CH592_USER_PRESETS_EXAMPLE
+from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
+from tool_cache import resolve_tool_path
 
 # ── Line cache for expensive calls (git, doctor, etc.) ────────────────────────
 _line_cache: dict[str, tuple[float, list[str]]] = {}
@@ -36,10 +38,87 @@ except locale.Error:
 
 
 _USE_COLOR = sys.stdout.isatty()
+ACTION_PANEL_MIN_ITEMS = 9
+TEXT_BADGE_CODES = ("1;95", "1;93", "1;96", "1;92", "1;91")
+_SPINNER = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_spinner_tick = 0
 
 
 def _c(code: str, text: str) -> str:
     return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
+
+
+def _text_badge(badge: str, index: int) -> str:
+    color = TEXT_BADGE_CODES[index % len(TEXT_BADGE_CODES)]
+    return _c(color, f"[{badge}]")
+
+
+def _text_hint(text: str) -> str:
+    return _c("2;94", f"tip: {text}")
+
+
+def _menu_tokens(label: str) -> list[str]:
+    normalized = re.sub(r"\[[^\]]*\]", " ", label)
+    return [token.upper() for token in re.findall(r"[A-Za-z0-9]+", normalized)]
+
+
+def _badge_candidates(label: str) -> list[str]:
+    tokens = _menu_tokens(label)
+    if not tokens:
+        return []
+
+    candidates: list[str] = []
+
+    def add(value: str) -> None:
+        value = value.strip().upper()
+        if value and value not in candidates:
+            candidates.append(value)
+
+    add("".join(token[0] for token in tokens[:2]))
+    add(tokens[0][0])
+    if len(tokens[0]) >= 2:
+        add(tokens[0][:2])
+    if len(tokens) >= 2:
+        add(tokens[0][0] + tokens[-1][0])
+    if len(tokens) >= 3:
+        add("".join(token[0] for token in tokens[:3]))
+    if len(tokens[0]) >= 3:
+        add(tokens[0][:3])
+    if len(tokens) >= 2 and len(tokens[1]) >= 2:
+        add(tokens[0][0] + tokens[1][:2])
+
+    return candidates
+
+
+def _menu_badges(labels: list[str]) -> list[str]:
+    used: set[str] = set()
+    badges: list[str] = []
+    for index, label in enumerate(labels):
+        badge = ""
+        for candidate in _badge_candidates(label):
+            if candidate not in used:
+                badge = candidate
+                break
+        if not badge:
+            badge = str(index + 1)
+            while badge in used:
+                badge += "X"
+        used.add(badge)
+        badges.append(badge)
+    return badges
+
+
+def _resolve_text_choice(choice: str, badges: list[str], count: int) -> int | None:
+    if choice.isdigit():
+        idx = int(choice) - 1
+        return idx if 0 <= idx < count else None
+
+    upper = choice.upper()
+    for idx, badge in enumerate(badges):
+        if upper == badge:
+            return idx
+
+    return None
 
 
 def _stylize_text_line(line: str) -> str:
@@ -81,6 +160,11 @@ FLASH_SCRIPT = SCRIPT_DIR / "flash.py"
 SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
 LEGACY_STATE_FILE = SCRIPT_DIR / ".ch592f_console_state.json"
+VSCODE_DIR = PROJECT_ROOT / ".vscode"
+VSCODE_SETTINGS = VSCODE_DIR / "settings.json"
+VSCODE_CPP_PROPERTIES = VSCODE_DIR / "c_cpp_properties.json"
+VSCODE_SDCC_COMPAT = VSCODE_DIR / "binarykeyboard_sdcc_compat.h"
+ROOT_COMPILE_COMMANDS = PROJECT_ROOT / "compile_commands.json"
 
 DOC_URLS = {
     "MRS download": "http://www.mounriver.com/download",
@@ -97,14 +181,19 @@ DEFAULT_STATE = {
 }
 
 
-def load_state() -> dict:
+def _read_state_blob() -> dict:
     state_path = STATE_FILE if STATE_FILE.is_file() else LEGACY_STATE_FILE
     if not state_path.is_file():
-        return dict(DEFAULT_STATE)
+        return {}
     try:
         data = json.loads(state_path.read_text())
     except Exception:
-        return dict(DEFAULT_STATE)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_state() -> dict:
+    data = _read_state_blob()
     state = dict(DEFAULT_STATE)
     state.update({k: v for k, v in data.items() if k in state})
     if state["target"] not in TARGET_PROFILES:
@@ -115,7 +204,10 @@ def load_state() -> dict:
 
 
 def save_state(state: dict) -> None:
-    STATE_FILE.write_text(json.dumps(state, indent=2, ensure_ascii=True) + "\n")
+    data = _read_state_blob()
+    for key, default in DEFAULT_STATE.items():
+        data[key] = state.get(key, default)
+    STATE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n")
 
 
 def current_target_profile(state: dict):
@@ -325,6 +417,7 @@ def resume_curses(stdscr) -> None:
     if curses is None or stdscr is None:
         return
     curses.reset_prog_mode()
+    curses.halfdelay(10)
     stdscr.refresh()
 
 
@@ -450,72 +543,370 @@ def write_user_presets(toolchain_root: str) -> str:
     return f"Wrote {CH592_USER_PRESETS}"
 
 
+def _read_json_file(path: Path, default):
+    if not path.is_file():
+        return default
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return default
+    return data if isinstance(data, type(default)) else default
+
+
+def _write_json_file(path: Path, data) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n")
+
+
+def _workspace_path(path: Path) -> str:
+    try:
+        rel = path.resolve().relative_to(PROJECT_ROOT.resolve())
+        rel_str = str(rel).replace("\\", "/")
+        return f"${{workspaceFolder}}/{rel_str}" if rel_str else "${workspaceFolder}"
+    except ValueError:
+        return str(path.resolve()).replace("\\", "/")
+
+
+def _normalize_json_path(value: str) -> str:
+    return value.replace("\\", "/")
+
+
+def _strip_token_quotes(value: str) -> str:
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
+def _parse_compile_tokens(entry: dict) -> list[str]:
+    arguments = entry.get("arguments")
+    if isinstance(arguments, list):
+        return [str(part) for part in arguments]
+    command = entry.get("command")
+    if not isinstance(command, str) or not command.strip():
+        return []
+    try:
+        return shlex.split(command, posix=False)
+    except ValueError:
+        return command.split()
+
+
+def _extract_compile_context(entries: list[dict]) -> tuple[list[str], list[str], str]:
+    include_paths: list[str] = []
+    defines: list[str] = []
+    compiler_path = ""
+    seen_includes: set[str] = set()
+    seen_defines: set[str] = set()
+
+    for entry in entries:
+        tokens = _parse_compile_tokens(entry)
+        if not tokens:
+            continue
+        if not compiler_path:
+            compiler_path = _normalize_json_path(_strip_token_quotes(tokens[0]))
+        idx = 1
+        while idx < len(tokens):
+            token = tokens[idx]
+            value = ""
+            advance = 1
+            if token == "-I" and idx + 1 < len(tokens):
+                value = tokens[idx + 1]
+                advance = 2
+            elif token.startswith("-I"):
+                value = token[2:]
+            elif token == "-D" and idx + 1 < len(tokens):
+                value = tokens[idx + 1]
+                advance = 2
+                key = _strip_token_quotes(value)
+                if key not in seen_defines:
+                    seen_defines.add(key)
+                    defines.append(key)
+                idx += advance
+                continue
+            elif token.startswith("-D"):
+                value = token[2:]
+                key = _strip_token_quotes(value)
+                if key not in seen_defines:
+                    seen_defines.add(key)
+                    defines.append(key)
+                idx += advance
+                continue
+
+            if value:
+                candidate = _normalize_json_path(_strip_token_quotes(value))
+                dedupe_key = candidate.lower() if os.name == "nt" else candidate
+                if dedupe_key not in seen_includes:
+                    seen_includes.add(dedupe_key)
+                    include_paths.append(candidate)
+            idx += advance
+
+    return include_paths, defines, compiler_path
+
+
+def _selected_target_fallback(state: dict) -> tuple[list[str], list[str]]:
+    if is_ch592_target(state):
+        include_paths = [
+            PROJECT_ROOT / "firmware" / "CH592F" / "SDK" / "StdPeriphDriver" / "inc",
+            PROJECT_ROOT / "firmware" / "CH592F" / "SDK" / "RVMSIS",
+            PROJECT_ROOT / "firmware" / "CH592F" / "hal" / "include",
+            PROJECT_ROOT / "firmware" / "CH592F" / "usb" / "include",
+            PROJECT_ROOT / "firmware" / "CH592F" / "ble" / "lib",
+            PROJECT_ROOT / "firmware" / "CH592F" / "ble" / "hid" / "include",
+            PROJECT_ROOT / "firmware" / "CH592F" / "ble" / "profile" / "include",
+            PROJECT_ROOT / "firmware" / "CH592F" / "ble" / "core" / "include",
+            PROJECT_ROOT / "firmware" / "CH592F" / "keyboard" / "include",
+            current_build_dir(state) / "generated",
+        ]
+        layout_define = "KBD_LAYOUT_KNOB" if state["keyboard"] == "KNOB" else "KBD_LAYOUT_5KEY"
+        return [str(path.resolve()).replace("\\", "/") for path in include_paths], ["DEBUG=1", layout_define]
+
+    keyboard_define = {
+        "BASIC": "USE_BASIC",
+        "KNOB": "USE_KNOB",
+        "5KEY": "USE_5KEYS",
+    }.get(state["keyboard"], "USE_BASIC")
+    include_paths = [
+        PROJECT_ROOT / "firmware" / "CH552G" / "SDK" / "cores",
+        PROJECT_ROOT / "firmware" / "CH552G" / "SDK" / "variants" / "ch552",
+        PROJECT_ROOT / "firmware" / "CH552G" / "SDK" / "libraries" / "WS2812",
+        PROJECT_ROOT / "firmware" / "CH552G" / "SDK" / "libraries" / "WS2812" / "template",
+        PROJECT_ROOT / "firmware" / "CH552G" / "app",
+        PROJECT_ROOT / "firmware" / "CH552G" / "hal",
+        PROJECT_ROOT / "firmware" / "CH552G" / "keyboard",
+        PROJECT_ROOT / "firmware" / "CH552G" / "usb",
+        current_build_dir(state) / "generated",
+    ]
+    return [str(path.resolve()).replace("\\", "/") for path in include_paths], ["CH552=1", "F_CPU=24000000", keyboard_define]
+
+
+def _compile_database_paths(state: dict) -> list[Path]:
+    candidates = [current_build_dir(state) / "compile_commands.json"]
+    candidates.extend(sorted((PROJECT_ROOT / "firmware" / "CH552G" / "build").glob("*/compile_commands.json")))
+    candidates.extend(sorted((PROJECT_ROOT / "firmware" / "CH592F" / "build").glob("*/compile_commands.json")))
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        if not path.is_file():
+            continue
+        resolved = str(path.resolve()).lower() if os.name == "nt" else str(path.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(path.resolve())
+    return unique
+
+
+def _read_compile_database(path: Path) -> list[dict]:
+    data = _read_json_file(path, [])
+    if not isinstance(data, list):
+        return []
+    entries: list[dict] = []
+    for entry in data:
+        if isinstance(entry, dict) and isinstance(entry.get("file"), str):
+            entries.append(entry)
+    return entries
+
+
+def _merge_compile_databases(state: dict) -> tuple[list[dict], list[dict], list[Path]]:
+    db_paths = _compile_database_paths(state)
+    selected_path = (current_build_dir(state) / "compile_commands.json").resolve()
+    merged: list[dict] = []
+    selected_entries: list[dict] = []
+    seen_files: set[str] = set()
+
+    ordered_paths = sorted(
+        db_paths,
+        key=lambda path: 0 if path.resolve() == selected_path else 1,
+    )
+
+    for path in ordered_paths:
+        entries = _read_compile_database(path)
+        if path.resolve() == selected_path:
+            selected_entries = entries
+        for entry in entries:
+            file_path = entry.get("file")
+            if not isinstance(file_path, str):
+                continue
+            resolved = str(Path(file_path).resolve()).lower() if os.name == "nt" else str(Path(file_path).resolve())
+            if resolved in seen_files:
+                continue
+            seen_files.add(resolved)
+            merged.append(entry)
+    return merged, selected_entries, ordered_paths
+
+
+def _sorted_workspace_paths(paths: list[str]) -> list[str]:
+    workspace_paths = [_workspace_path(Path(path)) for path in paths]
+    unique: list[str] = []
+    seen: set[str] = set()
+    for path in workspace_paths:
+        key = path.lower() if os.name == "nt" else path
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return sorted(unique, key=str.lower)
+
+
+def _update_vscode_settings(settings_path: Path, include_paths: list[str]) -> None:
+    data = _read_json_file(settings_path, {})
+    data["C_Cpp.default.compileCommands"] = _workspace_path(ROOT_COMPILE_COMMANDS)
+    data["C_Cpp.default.includePath"] = include_paths
+    data["C_Cpp.default.forcedInclude"] = [_workspace_path(VSCODE_SDCC_COMPAT)]
+    data["C_Cpp.default.cStandard"] = "c11"
+    _write_json_file(settings_path, data)
+
+
+def _update_vscode_cpp_properties(cpp_path: Path, include_paths: list[str], defines: list[str]) -> None:
+    data = _read_json_file(cpp_path, {})
+    if not isinstance(data, dict):
+        data = {}
+    configurations = data.get("configurations")
+    if not isinstance(configurations, list):
+        configurations = []
+
+    config_name = "BinaryKeyboard Auto"
+    config_payload = {
+        "name": config_name,
+        "compileCommands": _workspace_path(ROOT_COMPILE_COMMANDS),
+        "includePath": include_paths,
+        "defines": defines,
+        "forcedInclude": [_workspace_path(VSCODE_SDCC_COMPAT)],
+        "cStandard": "c11",
+        "browse": {
+            "path": include_paths,
+            "limitSymbolsToIncludedHeaders": True,
+        },
+    }
+
+    updated = False
+    for index, item in enumerate(configurations):
+        if isinstance(item, dict) and item.get("name") == config_name:
+            configurations[index] = config_payload
+            updated = True
+            break
+    if not updated:
+        configurations.append(config_payload)
+
+    data["version"] = 4
+    data["configurations"] = configurations
+    _write_json_file(cpp_path, data)
+
+
+def _write_sdcc_compat_header(path: Path) -> None:
+    contents = """#ifndef BINARYKEYBOARD_SDCC_COMPAT_H
+#define BINARYKEYBOARD_SDCC_COMPAT_H
+
+#include <stdbool.h>
+
+#ifndef __SDCC
+#ifndef __STDC_VERSION_STDINT_H__
+#define __STDC_VERSION_STDINT_H__ 201112L
+typedef signed char int8_t;
+typedef unsigned char uint8_t;
+typedef short int int16_t;
+typedef unsigned short int uint16_t;
+typedef long int int32_t;
+typedef unsigned long int uint32_t;
+#endif
+
+#define __data
+#define __xdata
+#define __code
+#define __idata
+#define __pdata
+#define __near
+#define __reentrant
+#define __critical
+#define __nonbanked
+#define __interrupt(...)
+#define __using(...)
+#define __at(...)
+#define __sbit bool
+#define __sfr volatile unsigned char
+#define __sfr16 volatile unsigned short
+#define __sfr32 volatile unsigned long
+#endif
+
+#endif
+"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(contents)
+
+
+def generate_ide_config(state: dict, editor: str = "all") -> list[str]:
+    merged_entries, selected_entries, db_paths = _merge_compile_databases(state)
+    selected_includes, selected_defines, _ = _extract_compile_context(selected_entries)
+    merged_includes, _, _ = _extract_compile_context(merged_entries)
+
+    if not merged_includes:
+        fallback_includes, fallback_defines = _selected_target_fallback(state)
+        merged_includes = fallback_includes
+        if not selected_defines:
+            selected_defines = fallback_defines
+    elif not selected_defines:
+        _, fallback_defines = _selected_target_fallback(state)
+        selected_defines = fallback_defines
+
+    include_paths = _sorted_workspace_paths(selected_includes + merged_includes)
+    if not include_paths:
+        fallback_includes, _ = _selected_target_fallback(state)
+        include_paths = _sorted_workspace_paths(fallback_includes)
+
+    lines = [
+        f"Target: {state['target']}",
+        f"Build config: {current_build_label(state)}",
+        f"Selected build dir: {current_build_dir_label(state)}",
+        f"Compile databases merged: {len(db_paths)}",
+        f"Entries written: {len(merged_entries)}",
+    ]
+
+    ROOT_COMPILE_COMMANDS.write_text(json.dumps(merged_entries, indent=2, ensure_ascii=True) + "\n")
+    lines.append(f"[OK] Wrote {display_path(ROOT_COMPILE_COMMANDS)}")
+
+    if editor in ("vscode", "all"):
+        _write_sdcc_compat_header(VSCODE_SDCC_COMPAT)
+        _update_vscode_settings(VSCODE_SETTINGS, include_paths)
+        _update_vscode_cpp_properties(VSCODE_CPP_PROPERTIES, include_paths, selected_defines)
+        lines.append(f"[OK] Wrote {display_path(VSCODE_SETTINGS)}")
+        lines.append(f"[OK] Wrote {display_path(VSCODE_CPP_PROPERTIES)}")
+        lines.append(f"[OK] Wrote {display_path(VSCODE_SDCC_COMPAT)}")
+    else:
+        lines.append("[OK] CLion/clangd support written via root compile_commands.json")
+
+    if not selected_entries:
+        lines.append("[WARN] Selected build has no compile_commands.json yet; using fallback include paths where needed.")
+    elif not selected_includes:
+        lines.append("[WARN] Selected build compile_commands.json was found, but include flags could not be parsed.")
+
+    lines.append("")
+    lines.append("CLion note: open the firmware CMake project directly, or point it at compile_commands.json in the repo root.")
+    return lines
+
+
 # ── Tool validation helpers ───────────────────────────────────────────────────
 
-def _find_gcc_in_toolchain(toolchain_root: str) -> str | None:
-    """Find riscv-*-elf-gcc under the toolchain root, or None."""
-    if not toolchain_root or not Path(toolchain_root).is_dir():
-        return None
-    pattern = str(Path(toolchain_root) / "**" / "bin" / "riscv-*-elf-gcc")
-    hits = globmod.glob(pattern, recursive=True)
-    return hits[0] if hits else None
 
-
-def _candidate_windows_cmake_paths() -> list[Path]:
-    return [
-        Path(r"C:\Program Files\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files (x86)\CMake\bin\cmake.exe"),
-        Path(r"C:\ProgramData\chocolatey\bin\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\shims\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\apps\cmake\current\bin\cmake.exe"),
-        Path(r"C:\msys64\ucrt64\bin\cmake.exe"),
-        Path(r"C:\msys64\mingw64\bin\cmake.exe"),
-        Path(r"C:\msys64\usr\bin\cmake.exe"),
-        Path(r"C:\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\App\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-    ]
-
-
-def _candidate_windows_sdcc_paths() -> list[Path]:
-    return [
-        Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
-        Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),
-        Path(r"C:\tools\sdcc\bin\sdcc.exe"),
-        Path(r"C:\Users\KJ\scoop\apps\sdcc\current\bin\sdcc.exe"),
-        Path(r"C:\msys64\ucrt64\bin\sdcc.exe"),
-        Path(r"C:\msys64\mingw64\bin\sdcc.exe"),
-    ]
-
-
-def find_cmake_binary() -> str | None:
-    found = shutil.which("cmake")
-    if found:
-        return found
-    if os.name == "nt":
-        for candidate in _candidate_windows_cmake_paths():
-            if candidate.is_file():
-                return str(candidate)
-    return None
-
-
-def find_sdcc_binary() -> str | None:
-    found = shutil.which("sdcc")
-    if found:
-        return found
-    if os.name == "nt":
-        for candidate in _candidate_windows_sdcc_paths():
-            if candidate.is_file():
-                return str(candidate)
-    return None
+def _param_bar(state: dict, compact: bool = False, ascii_safe: bool = False) -> str:
+    """Build the live parameter summary shown below the title."""
+    target = state["target"]
+    keyboard = state["keyboard"]
+    art = current_artifact_path(state)
+    art_ok = ("OK" if ascii_safe else "✓") if art.is_file() else ("--" if ascii_safe else "✗")
+    sep = " | " if compact else "  │  " if not ascii_safe else "  |  "
+    if is_ch592_target(state):
+        profile = state["build_type"]
+        parts = [f"Target: {target}", f"Keyboard: {keyboard}", f"Profile: {profile}", f"Artifact: {art_ok}"]
+    else:
+        parts = [f"Target: {target}", f"Keyboard: {keyboard}", f"Artifact: {art_ok}"]
+    return sep.join(parts)
 
 
 def find_wchisp_binary() -> str | None:
     local = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
-    if local.is_file():
-        return str(local)
-    return shutil.which("wchisp")
+    binary = "wchisp.exe" if os.name == "nt" else "wchisp"
+    path = resolve_tool_path("wchisp", binary, env_name="WCHISP_PATH", preferred_candidates=[local])
+    return str(path) if path else None
 
 
 def _tool_version(cmd: list[str]) -> str:
@@ -530,7 +921,7 @@ def detect_tools(state: dict) -> list[str]:
     items = [
         f"target: {state['target']}",
         f"python: {sys.executable}",
-        f"cmake: {find_cmake_binary() or 'missing'}",
+        f"cmake: {find_cmake() or 'missing'}",
         f"wchisp: {find_wchisp_binary() or 'missing'}",
     ]
     items.extend(current_target_profile(state).detect_tool_lines(state))
@@ -548,9 +939,9 @@ def doctor_lines(state: dict) -> list[str]:
     git_is_dirty = git_dirty()
 
     # 1. Required tools — existence + version
-    cmake_path = find_cmake_binary()
+    cmake_path = find_cmake()
     if cmake_path:
-        ver = _tool_version([cmake_path, "--version"])
+        ver = _tool_version([str(cmake_path), "--version"])
         items.append(f"[OK] cmake: {cmake_path} ({ver})")
     else:
         items.append("[WARN] cmake: missing")
@@ -676,6 +1067,10 @@ def action_show_commands(state: dict, stdscr) -> None:
         f"  {current_verify_command_display(state)}",
     ]
     show_text(stdscr, "Commands", lines)
+
+
+def action_generate_ide_config(state: dict, stdscr) -> None:
+    show_text(stdscr, "IDE Config", generate_ide_config(state, "all"))
 
 
 def target_details_lines(state: dict) -> list[str]:
@@ -881,6 +1276,7 @@ ACTION_HANDLERS = {
     "build": action_build,
     "flash": action_flash,
     "show_commands": action_show_commands,
+    "generate_ide_config": action_generate_ide_config,
     "install_wchisp": action_install_wchisp,
     "probe": action_probe,
 }
@@ -900,12 +1296,14 @@ def resolve_target_actions(state: dict) -> list[dict]:
     return actions
 
 def build_tabs(state: dict) -> list[dict]:
+    art = current_artifact_path(state)
+    art_status = "Ready" if art.is_file() else "Not built"
     common_home_lines = [
-        "BinaryKeyboard project console",
+        "Welcome to BinaryKeyboard Console",
         "",
-        f"Target: {state['target']}",
         f"Build config: {current_build_label(state)}",
-        f"Artifact: {current_artifact_label(state)}",
+        f"Artifact: {current_artifact_label(state)}  ({art_status})",
+        f"Build dir: {current_build_dir_label(state)}",
     ]
 
     return [
@@ -919,6 +1317,7 @@ def build_tabs(state: dict) -> list[dict]:
             "lines": target_details_lines(state),
             "actions": [
                 {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
+                {"label": "Generate IDE config", "hint": "Write VSCode C/C++ settings and a root compile_commands.json.", "fn": action_generate_ide_config},
                 {"label": "Check tools", "hint": "Show cmake/ninja/wchisp/toolchain detection.", "fn": action_check_tools},
             ],
         },
@@ -992,7 +1391,12 @@ def _content_attr(line: str) -> int:
     return curses.A_NORMAL
 
 
+def _badge_attr(index: int) -> int:
+    return curses.color_pair(8 + (index % 5)) | curses.A_BOLD
+
+
 def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_index: int) -> tuple[list[tuple[int, int, int]], list[tuple[int, int]]]:
+    global _spinner_tick
     stdscr.erase()
     height, width = stdscr.getmaxyx()
     tab_regions: list[tuple[int, int, int]] = []
@@ -1001,10 +1405,14 @@ def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_in
     show_hints = not compact and width >= 96 and height >= 26
 
     # ── Title ─────────────────────────────────────────────────────────────────
-    title = "BK Console" if compact else "BinaryKeyboard Console"
-    subline = "Arrows/Enter  click select  dbl-click run  q quit" if compact else "Mouse click selects, double-click runs. Arrow keys + Enter also work. Press q to quit."
+    spin = _SPINNER[_spinner_tick % len(_SPINNER)]
+    _spinner_tick += 1
+    title = f"{spin} BK Console" if compact else f"{spin} BinaryKeyboard Console"
     safe_addnstr(stdscr, 0, 2, title, max(0, width - 4), curses.color_pair(1) | curses.A_BOLD)
-    safe_addnstr(stdscr, 1, 2, subline, max(0, width - 4), curses.A_DIM)
+
+    # ── Live parameter bar ────────────────────────────────────────────────────
+    bar = _param_bar(state, compact)
+    safe_addnstr(stdscr, 1, 2, bar, max(0, width - 4), curses.color_pair(13))
 
     # ── Tab bar ───────────────────────────────────────────────────────────────
     tab_labels = [f"[ {tab['name']} ]" for tab in tabs]
@@ -1046,7 +1454,8 @@ def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_in
     body = tabs[tab_index]
     safe_hline(stdscr, 4, 1, curses.ACS_HLINE, max(0, width - 2))
     action_row_height = 2 if show_hints else 1
-    action_block_height = max(1, len(body["actions"]) * action_row_height)
+    action_slot_count = max(ACTION_PANEL_MIN_ITEMS, max((len(tab["actions"]) for tab in tabs), default=0))
+    action_block_height = max(1, action_slot_count * action_row_height)
     content_top = 5 if compact else 6
     content_limit = max(content_top, height - action_block_height - 3)
     for offset, line in enumerate(body["lines"]):
@@ -1063,21 +1472,22 @@ def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_in
         if y >= height - 2:
             break
         action_rows.append((y, idx))
+        badge = f"[{idx + 1}]"
         if idx == action_index:
-            safe_addnstr(stdscr, y, 2, f" {idx + 1}. {action['label']} ", max(0, width - 4), curses.color_pair(4) | curses.A_BOLD)
+            safe_addnstr(stdscr, y, 2, f" {badge} {action['label']} ", max(0, width - 4), curses.color_pair(4) | curses.A_BOLD)
         else:
-            num_str = f" {idx + 1}."
-            safe_addnstr(stdscr, y, 2, num_str, text_cells(num_str), curses.color_pair(3))
-            safe_addnstr(stdscr, y, 2 + text_cells(num_str), f" {action['label']}", max(0, width - 4 - text_cells(num_str)), curses.A_NORMAL)
+            badge_width = text_cells(badge)
+            safe_addnstr(stdscr, y, 2, badge, badge_width, _badge_attr(idx))
+            safe_addnstr(stdscr, y, 3 + badge_width, f" {action['label']}", max(0, width - 5 - badge_width), curses.A_BOLD)
         if show_hints and y + 1 < height - 2:
-            safe_addnstr(stdscr, y + 1, 5, action["hint"], max(0, width - 7), curses.A_DIM)
+            safe_addnstr(stdscr, y + 1, 6, f"tip: {action['hint']}", max(0, width - 8), curses.color_pair(13) | curses.A_DIM)
 
     # ── Status bar ────────────────────────────────────────────────────────────
     if height > 2:
         status = (
-            f" {tabs[tab_index]['name']} | \u2190\u2192 tabs \u2191\u2193 select Enter run click select dbl-click run q quit "
+            f" {tabs[tab_index]['name']} | ←→ tab  ↑↓ select  Enter run  q quit "
             if compact
-            else f" {tabs[tab_index]['name']}  |  \u2190\u2192 tabs  \u2191\u2193 select  Enter run  click select  double-click run  r refresh  q quit "
+            else f" {tabs[tab_index]['name']}  │  ←→ switch tab  ↑↓ select  Enter run  click+dbl-click  1-9 quick run  r refresh  q quit "
         )
         try:
             stdscr.addstr(height - 1, 0, trim_to_cells(status.ljust(width), width), curses.color_pair(6))
@@ -1104,6 +1514,12 @@ def run_curses(stdscr) -> None:
     curses.init_pair(5, curses.COLOR_GREEN, bg)      # [OK]
     curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)  # status bar
     curses.init_pair(7, curses.COLOR_YELLOW, bg)     # [WARN]
+    curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_MAGENTA)
+    curses.init_pair(9, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_CYAN)
+    curses.init_pair(11, curses.COLOR_BLACK, curses.COLOR_GREEN)
+    curses.init_pair(12, curses.COLOR_BLACK, curses.COLOR_RED)
+    curses.init_pair(13, curses.COLOR_CYAN, bg)
     curses.mouseinterval(180)
     curses.mousemask(
         curses.BUTTON1_CLICKED
@@ -1111,6 +1527,7 @@ def run_curses(stdscr) -> None:
         | curses.BUTTON1_RELEASED
     )
     stdscr.keypad(True)
+    curses.halfdelay(10)  # 1 second timeout for spinner animation
 
     while True:
         global _invalidate_cache_after_action
@@ -1123,6 +1540,8 @@ def run_curses(stdscr) -> None:
         tab_regions, action_rows = draw_screen(stdscr, state, tabs, tab_index, action_index)
         key = stdscr.getch()
 
+        if key == -1:  # halfdelay timeout — just redraw for spinner
+            continue
         if key in (ord("q"), ord("Q")):
             save_state(state)
             return
@@ -1181,13 +1600,13 @@ def run_text_mode() -> None:
     state = load_state()
     while True:
         tabs = build_tabs(state)
-        summary = f"{state['target']}  ·  {current_build_label(state)}  ·  {current_artifact_label(state)}"
+        tab_badges = _menu_badges([tab["name"] for tab in tabs])
         print(f"\n{_c('1;36', 'BinaryKeyboard Console')}")
-        print(_c("2", summary))
+        print(_c("36", _param_bar(state, ascii_safe=True)))
         print(_c("2", "-" * 44))
         for i, tab in enumerate(tabs, start=1):
-            print(f"  {_c('36', str(i))}. {tab['name']}")
-        print(f"  {_c('31', 'q')}. Quit")
+            print(f"  {_text_badge(tab_badges[i - 1], i - 1)} {_c('1', tab['name'])}")
+        print(f"  {_c('1;31', '[Q]')} Quit")
         try:
             choice = input(_c("32", "> ")).strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -1197,20 +1616,22 @@ def run_text_mode() -> None:
         if choice == "q":
             save_state(state)
             return
-        if not choice.isdigit():
+        tab_idx = _resolve_text_choice(choice, tab_badges, len(tabs))
+        if tab_idx is None:
             continue
-        tab_idx = int(choice) - 1
         if not 0 <= tab_idx < len(tabs):
             continue
         tab = tabs[tab_idx]
+        action_badges = _menu_badges([action["label"] for action in tab["actions"]])
         print(f"\n{_c('1;36', tab['name'])}")
         print(_c("2", "-" * 44))
         for line in tab["lines"]:
             print(f"  {_stylize_text_line(line)}")
         print(_c("2", "-" * 44))
         for i, action in enumerate(tab["actions"], start=1):
-            print(f"  {_c('36', str(i))}. {_c('1', action['label'])}  {_c('2', action['hint'])}")
-        print(f"  {_c('2', 'b. Back')}")
+            print(f"  {_text_badge(action_badges[i - 1], i - 1)} {_c('1', action['label'])}")
+            print(f"      {_text_hint(action['hint'])}")
+        print(f"  {_c('2', '[B]')} Back")
         try:
             action_choice = input(_c("32", "> ")).strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -1219,10 +1640,9 @@ def run_text_mode() -> None:
             return
         if action_choice == "b":
             continue
-        if action_choice.isdigit():
-            idx = int(action_choice) - 1
-            if 0 <= idx < len(tab["actions"]):
-                tab["actions"][idx]["fn"](state, None)
+        idx = _resolve_text_choice(action_choice, action_badges, len(tab["actions"]))
+        if idx is not None and 0 <= idx < len(tab["actions"]):
+            tab["actions"][idx]["fn"](state, None)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -1237,12 +1657,47 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Force the plain text fallback menu instead of the curses-based TUI.",
     )
+    parser.add_argument(
+        "--ide-config",
+        choices=("vscode", "clion", "all"),
+        help="Generate local IDE support files for the current or overridden target state.",
+    )
+    parser.add_argument(
+        "--target",
+        choices=tuple(TARGET_ORDER),
+        help="Override the target used by --ide-config.",
+    )
+    parser.add_argument(
+        "--keyboard",
+        help="Override the keyboard used by --ide-config.",
+    )
+    parser.add_argument(
+        "--profile",
+        choices=("release", "debug"),
+        help="Override the CH592F build profile used by --ide-config.",
+    )
     return parser
+
+
+def apply_cli_overrides(state: dict, args) -> None:
+    if args.target:
+        state["target"] = args.target
+    if args.keyboard:
+        state["keyboard"] = args.keyboard.upper()
+    if args.profile:
+        state["build_type"] = args.profile
+    current_target_profile(state).normalize_state(state)
 
 
 def main() -> None:
     args = build_parser().parse_args()
     try:
+        if args.ide_config:
+            state = load_state()
+            apply_cli_overrides(state, args)
+            for line in generate_ide_config(state, args.ide_config):
+                print(_stylize_text_line(line))
+            return
         if args.text or curses is None:
             run_text_mode()
             return

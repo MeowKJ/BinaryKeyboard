@@ -2,6 +2,7 @@
 node_modules/
 
 # VitePress 构建输出和缓存
+.vitepress/.temp/
 .vitepress/dist/
 .vitepress/cache/
 

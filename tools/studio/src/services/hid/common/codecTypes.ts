@@ -30,6 +30,7 @@ export interface DeviceCodec<TResponse> {
   readonly protocol: DeviceProtocol;
   readonly protocolLabel: string;
 
+  resetState?(): void;
   getOptionalOperations(transport: CodecTransport<TResponse>): HidOptionalOperations;
   getSysInfo(transport: CodecTransport<TResponse>): Promise<DeviceInfo>;
   getSysStatus(transport: CodecTransport<TResponse>): Promise<DeviceStatus>;

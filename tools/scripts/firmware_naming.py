@@ -3,15 +3,19 @@
 
 from __future__ import annotations
 
-from versioning import firmware_version
+from versioning import firmware_version, studio_version
 
 
-def ch592_version() -> str:
-    return firmware_version("CH592F")
+def ch592_version(build_number: int | None = None) -> str:
+    return firmware_version("CH592F", build_number)
 
 
-def ch552_version() -> str:
-    return firmware_version("CH552G")
+def ch552_version(build_number: int | None = None) -> str:
+    return firmware_version("CH552G", build_number)
+
+
+def studio_component_version(build_number: int | None = None) -> str:
+    return studio_version(build_number)
 
 
 def normalize_keyboard_name(keyboard: str) -> str:

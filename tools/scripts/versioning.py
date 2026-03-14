@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""
-Central version metadata helpers for BinaryKeyboard.
-"""
+"""Component-scoped version helpers for BinaryKeyboard."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -15,64 +15,144 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 VERSIONS_FILE = PROJECT_ROOT / "config" / "versions.json"
 
+COMPONENT_ALIASES = {
+    "studio": "studio",
+    "ch552": "ch552",
+    "ch552g": "ch552",
+    "ch592": "ch592",
+    "ch592f": "ch592",
+}
 
-def _split_semver(value: str) -> tuple[int, int, int]:
-    parts = [int(part, 10) for part in value.strip().split(".")]
-    if len(parts) != 3:
-        raise ValueError(f"Expected semver 'x.y.z', got: {value}")
-    return (parts[0], parts[1], parts[2])
+CHIP_TO_COMPONENT = {
+    "CH552G": "ch552",
+    "CH592F": "ch592",
+}
 
 
-def _split_minor_version(value: str) -> tuple[int, int]:
+def _split_base_version(value: str) -> tuple[int, int]:
     parts = [int(part, 10) for part in value.strip().split(".")]
     if len(parts) != 2:
-        raise ValueError(f"Expected minor version 'x.y', got: {value}")
-    return (parts[0], parts[1])
+        raise ValueError(f"Expected base version 'x.y', got: {value}")
+    return parts[0], parts[1]
+
+
+def _git_output(args: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=PROJECT_ROOT,
+        )
+        return result.stdout.strip()
+    except subprocess.SubprocessError:
+        return ""
+
+
+def _git_commit_count_for_paths(paths: list[str]) -> int:
+    if not paths:
+        return 0
+    output = _git_output(["git", "rev-list", "--count", "HEAD", "--", *paths])
+    try:
+        return int(output)
+    except ValueError:
+        return 0
+
+
+def _git_short_sha() -> str:
+    sha = _git_output(["git", "rev-parse", "--short", "HEAD"])
+    return sha or "unknown"
 
 
 def load_versions() -> dict[str, Any]:
     return json.loads(VERSIONS_FILE.read_text(encoding="utf-8"))
 
 
-def product_version() -> str:
-    return str(load_versions()["product"]["version"])
+def _normalize_component(component: str) -> str:
+    key = component.strip().lower()
+    try:
+        return COMPONENT_ALIASES[key]
+    except KeyError as exc:
+        raise KeyError(f"Unknown component: {component}") from exc
+
+
+def component_meta(component: str) -> dict[str, Any]:
+    component_key = _normalize_component(component)
+    data = load_versions()
+    try:
+        return data["components"][component_key]
+    except KeyError as exc:
+        raise KeyError(f"Missing component metadata: {component}") from exc
+
+
+def component_version(component: str, build_number: int | None = None) -> str:
+    meta = component_meta(component)
+    major, minor = _split_base_version(str(meta["base_version"]))
+    patch = build_number if build_number is not None else _git_commit_count_for_paths(list(meta.get("paths", [])))
+    return f"{major}.{minor}.{patch}"
+
+
+def studio_version(build_number: int | None = None) -> str:
+    return component_version("studio", build_number)
 
 
 def firmware_meta(chip: str) -> dict[str, Any]:
     chip_key = chip.strip().upper()
     try:
-        return load_versions()["firmware"][chip_key]
+        component_key = CHIP_TO_COMPONENT[chip_key]
     except KeyError as exc:
         raise KeyError(f"Unknown firmware chip family: {chip}") from exc
+    meta = dict(component_meta(component_key))
+    meta["component"] = component_key
+    meta["chip_family"] = meta["chip_family"].upper()
+    return meta
 
 
-def firmware_version(chip: str) -> str:
-    return str(firmware_meta(chip)["firmware_version"])
+def firmware_version(chip: str, build_number: int | None = None) -> str:
+    chip_key = chip.strip().upper()
+    try:
+        component_key = CHIP_TO_COMPONENT[chip_key]
+    except KeyError as exc:
+        raise KeyError(f"Unknown firmware chip family: {chip}") from exc
+    return component_version(component_key, build_number)
 
 
 def protocol_family(chip: str) -> str:
     return str(firmware_meta(chip)["protocol_family"])
 
 
-def protocol_version(chip: str) -> str:
-    return str(firmware_meta(chip)["protocol_version"])
+def current_component_versions(build_number: int | None = None) -> dict[str, str]:
+    return {
+        "studio": studio_version(build_number),
+        "ch552": component_version("ch552", build_number),
+        "ch592": component_version("ch592", build_number),
+    }
 
 
-def storage_version(chip: str) -> str:
-    return str(firmware_meta(chip)["storage_version"])
+def release_settings() -> dict[str, str]:
+    data = load_versions()
+    return {
+        "repository": str(data["release"]["repository"]),
+        "manifest_url": str(data["release"]["manifest_url"]),
+    }
 
 
-def legacy_compat_version(chip: str) -> int:
-    meta = firmware_meta(chip)
-    return int(meta.get("legacy_compat_version", 0))
+def release_manifest_payload(build_number: int | None = None) -> dict[str, Any]:
+    versions = current_component_versions(build_number)
+    settings = release_settings()
+    return {
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "commit": _git_short_sha(),
+        "repository": settings["repository"],
+        "versions": versions,
+    }
 
 
-def emit_c_header(chip: str, out: Path) -> None:
+def emit_c_header(chip: str, out: Path, build_number: int | None = None) -> None:
     chip_key = chip.strip().upper()
-    fw_major, fw_minor, fw_patch = _split_semver(firmware_version(chip_key))
-    proto_major, proto_minor = _split_minor_version(protocol_version(chip_key))
-    storage_major, storage_minor = _split_minor_version(storage_version(chip_key))
-    compat_version = legacy_compat_version(chip_key)
+    fw_ver = firmware_version(chip_key, build_number)
+    fw_major, fw_minor, fw_patch = [int(part) for part in fw_ver.split(".")]
 
     lines = [
         "/* Auto-generated by tools/scripts/versioning.py. Do not edit manually. */",
@@ -83,12 +163,6 @@ def emit_c_header(chip: str, out: Path) -> None:
         f"#define BK_FIRMWARE_VERSION_MAJOR {fw_major}",
         f"#define BK_FIRMWARE_VERSION_MINOR {fw_minor}",
         f"#define BK_FIRMWARE_VERSION_PATCH {fw_patch}",
-        f"#define BK_PROTOCOL_FAMILY \"{protocol_family(chip_key)}\"",
-        f"#define BK_PROTOCOL_VERSION_MAJOR {proto_major}",
-        f"#define BK_PROTOCOL_VERSION_MINOR {proto_minor}",
-        f"#define BK_STORAGE_VERSION_MAJOR {storage_major}",
-        f"#define BK_STORAGE_VERSION_MINOR {storage_minor}",
-        f"#define BK_LEGACY_COMPAT_VERSION {compat_version}",
         "",
         "#endif",
         "",
@@ -98,34 +172,45 @@ def emit_c_header(chip: str, out: Path) -> None:
     out.write_text("\n".join(lines), encoding="utf-8")
 
 
-def emit_ts_module(out: Path) -> None:
-    versions = load_versions()
-    product = str(versions["product"]["version"])
-    firmware = versions["firmware"]
+def emit_ts_module(out: Path, build_number: int | None = None) -> None:
+    versions = current_component_versions(build_number)
+    settings = release_settings()
 
-    def to_ts_meta(chip_key: str) -> str:
-        meta = firmware[chip_key]
-        fw_major, fw_minor, fw_patch = _split_semver(str(meta["firmware_version"]))
-        proto_major, proto_minor = _split_minor_version(str(meta["protocol_version"]))
-        storage_major, storage_minor = _split_minor_version(str(meta["storage_version"]))
+    def firmware_meta_block(component_key: str) -> str:
+        meta = component_meta(component_key)
+        version = versions[component_key]
+        major, minor, patch = [int(part) for part in version.split(".")]
+        chip_key = str(meta["chip_family"]).upper()
         return (
             f"  {chip_key}: {{\n"
             f"    chipFamily: '{chip_key}',\n"
-            f"    firmwareVersion: {{ major: {fw_major}, minor: {fw_minor}, patch: {fw_patch} }},\n"
             f"    protocolFamily: '{meta['protocol_family']}',\n"
-            f"    protocolVersion: {{ major: {proto_major}, minor: {proto_minor} }},\n"
-            f"    storageVersion: {{ major: {storage_major}, minor: {storage_minor} }},\n"
+            f"    firmwareVersion: {{ major: {major}, minor: {minor}, patch: {patch} }},\n"
             f"  }},"
         )
 
+    local_manifest = {
+        **release_manifest_payload(build_number),
+        "manifestUrl": settings["manifest_url"],
+    }
+
     lines = [
         "/* Auto-generated by tools/scripts/versioning.py. Do not edit manually. */",
-        "export const PRODUCT_VERSION = " + json.dumps(product) + ";",
+        "export const COMPONENT_VERSIONS = " + json.dumps(versions, ensure_ascii=True) + " as const;",
+        "",
+        "export const STUDIO_VERSION = COMPONENT_VERSIONS.studio;",
         "",
         "export const FIRMWARE_VERSION_META = {",
-        to_ts_meta("CH592F"),
-        to_ts_meta("CH552G"),
+        firmware_meta_block("ch592"),
+        firmware_meta_block("ch552"),
         "} as const;",
+        "",
+        "export const RELEASE_FEED = " + json.dumps({
+            "repository": settings["repository"],
+            "manifestUrl": settings["manifest_url"],
+        }, ensure_ascii=True) + " as const;",
+        "",
+        "export const LOCAL_RELEASE_MANIFEST = " + json.dumps(local_manifest, ensure_ascii=True) + " as const;",
         "",
         "export type FirmwareChipFamily = keyof typeof FIRMWARE_VERSION_META;",
         "",
@@ -135,19 +220,36 @@ def emit_ts_module(out: Path) -> None:
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def emit_release_manifest(out: Path, build_number: int | None = None) -> None:
+    payload = release_manifest_payload(build_number)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tools/scripts/versioning.py")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_show = sub.add_parser("show", help="Print version metadata")
-    p_show.add_argument("--chip", choices=("CH592F", "CH552G"))
+    p_show = sub.add_parser("show", help="Print component version metadata")
+    p_show.add_argument("--component", choices=("studio", "ch552", "ch592", "CH552G", "CH592F"))
+    p_show.add_argument("--build-number", type=int, default=None,
+                        help="Override patch number instead of git history")
 
     p_emit = sub.add_parser("emit-c-header", help="Generate a C header for a chip family")
     p_emit.add_argument("--chip", required=True, choices=("CH592F", "CH552G"))
     p_emit.add_argument("--out", required=True)
+    p_emit.add_argument("--build-number", type=int, default=None,
+                        help="Override patch number instead of git history")
 
     p_emit_ts = sub.add_parser("emit-ts", help="Generate a TypeScript version module")
     p_emit_ts.add_argument("--out", required=True)
+    p_emit_ts.add_argument("--build-number", type=int, default=None,
+                           help="Override patch number instead of git history")
+
+    p_emit_manifest = sub.add_parser("emit-release-manifest", help="Generate the release manifest JSON")
+    p_emit_manifest.add_argument("--out", required=True)
+    p_emit_manifest.add_argument("--build-number", type=int, default=None,
+                                 help="Override patch number instead of git history")
 
     return parser
 
@@ -156,18 +258,32 @@ def main() -> int:
     args = build_parser().parse_args()
 
     if args.command == "show":
-        if args.chip:
-            print(json.dumps(firmware_meta(args.chip), indent=2, ensure_ascii=True))
+        build_number = getattr(args, "build_number", None)
+        if args.component:
+            key = args.component
+            if key.upper() in CHIP_TO_COMPONENT:
+                key = CHIP_TO_COMPONENT[key.upper()]
+            meta = dict(component_meta(key))
+            meta["version"] = component_version(key, build_number)
+            print(json.dumps(meta, indent=2, ensure_ascii=True))
         else:
-            print(json.dumps(load_versions(), indent=2, ensure_ascii=True))
+            data = load_versions()
+            for component_key in data.get("components", {}):
+                data["components"][component_key]["version"] = component_version(component_key, build_number)
+            data["release_manifest"] = release_manifest_payload(build_number)
+            print(json.dumps(data, indent=2, ensure_ascii=True))
         return 0
 
     if args.command == "emit-c-header":
-        emit_c_header(args.chip, Path(args.out))
+        emit_c_header(args.chip, Path(args.out), args.build_number)
         return 0
 
     if args.command == "emit-ts":
-        emit_ts_module(Path(args.out))
+        emit_ts_module(Path(args.out), args.build_number)
+        return 0
+
+    if args.command == "emit-release-manifest":
+        emit_release_manifest(Path(args.out), args.build_number)
         return 0
 
     raise SystemExit(f"Unsupported command: {args.command}")

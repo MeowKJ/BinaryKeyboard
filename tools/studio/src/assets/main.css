@@ -16,22 +16,22 @@
   --c-bg-primary: #0d0a12;
   --c-bg-secondary: #16121d;
   --c-bg-tertiary: #1e1828;
-  --c-bg-hover: #251e32;
+  --c-bg-hover: #2e1a2a;
   
   /* 边框色 */
-  --c-border: #3d2f50;
-  --c-border-light: #2d2340;
+  --c-border: #4a2d45;
+  --c-border-light: #3a2238;
   
   /* 文字色 */
-  --c-text-primary: #f5f0fa;
-  --c-text-secondary: #c9bfdb;
-  --c-text-muted: #8a7da0;
+  --c-text-primary: #faf0f5;
+  --c-text-secondary: #d4b8cb;
+  --c-text-muted: #9a7d90;
   
-  /* 主色调 - 粉紫色 */
-  --c-accent: #e879f9;
-  --c-accent-light: #f0abfc;
-  --c-accent-soft: rgba(232, 121, 249, 0.15);
-  --c-accent-gradient: linear-gradient(135deg, #e879f9 0%, #a855f7 100%);
+  /* 主色调 - 粉色 */
+  --c-accent: #f472b6;
+  --c-accent-light: #f9a8d4;
+  --c-accent-soft: rgba(244, 114, 182, 0.15);
+  --c-accent-gradient: linear-gradient(135deg, #f9a8d4 0%, #f472b6 100%);
   
   /* 功能色 */
   --c-success: #4ade80;
@@ -41,15 +41,15 @@
   
   /* 按键色 */
   --c-key-bg: #1e1828;
-  --c-key-border: #3d2f50;
-  --c-key-active-bg: rgba(232, 121, 249, 0.2);
-  --c-key-active-border: #e879f9;
-  --c-key-shadow: rgba(232, 121, 249, 0.25);
+  --c-key-border: #4a2d45;
+  --c-key-active-bg: rgba(244, 114, 182, 0.2);
+  --c-key-active-border: #f472b6;
+  --c-key-shadow: rgba(244, 114, 182, 0.25);
   
   /* 尺寸 */
   --header-height: 60px;
   --sidebar-width: 280px;
-  --key-unit: 72px;
+  --key-unit: 80px;
   --key-gap: 10px;
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -485,7 +485,7 @@ body {
 @media (max-width: 1024px) {
   :root {
     --sidebar-width: 240px;
-    --key-unit: 64px;
+    --key-unit: 72px;
     --key-gap: 8px;
   }
   
@@ -516,7 +516,7 @@ body {
   :root {
     --sidebar-width: 100%;
     --header-height: 54px;
-    --key-unit: 56px;
+    --key-unit: 64px;
     --key-gap: 6px;
   }
   
@@ -586,7 +586,7 @@ body {
 /* 手机竖屏 (< 480px) */
 @media (max-width: 480px) {
   :root {
-    --key-unit: 48px;
+    --key-unit: 56px;
     --key-gap: 5px;
   }
   

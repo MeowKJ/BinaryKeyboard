@@ -19,11 +19,13 @@ from typing import Optional
 
 from build_report import UsageRow, fmt_bytes, pct_color_code, render_usage_report, rpad, usage_bar
 from firmware_naming import ch592_filename_for_keyboard, normalize_keyboard_name
+from tool_cache import resolve_tool_path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.resolve()
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
+LINKER_SCRIPT = FIRMWARE_DIR / "SDK" / "Ld" / "Link.ld"
 DEFAULT_KEYBOARD = "5KEY"
 DEFAULT_PROFILE = "release"
 
@@ -85,16 +87,8 @@ def _candidate_windows_cmake_paths() -> list[Path]:
 
 def find_cmake() -> Optional[Path]:
     binary = "cmake.exe" if platform.system() == "Windows" else "cmake"
-    found = shutil.which(binary)
-    if found:
-        return Path(found).resolve()
-
-    if platform.system() == "Windows":
-        for candidate in _candidate_windows_cmake_paths():
-            if candidate.is_file():
-                return candidate.resolve()
-
-    return None
+    candidates = _candidate_windows_cmake_paths() if platform.system() == "Windows" else []
+    return resolve_tool_path("cmake", binary, env_name="CMAKE_PATH", candidates=candidates)
 
 
 def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
@@ -178,7 +172,7 @@ def _artifact_region_usage_from_objdump(build_dir: Path) -> Optional[dict[str, i
     if not cross_objdump:
         return None
 
-    regions = _read_memory_regions_from_linker(FIRMWARE_DIR / "Ld" / "Link.ld")
+    regions = _read_memory_regions_from_linker(LINKER_SCRIPT)
     if "FLASH" not in regions or "RAM" not in regions:
         return None
 
@@ -375,7 +369,7 @@ def _build_report(lines: list[str], preset: str, build_dir: Path, elapsed: float
         report_source = "cached-elf"
 
     if not regions and size_row is not None:
-        mem = _read_memory_lengths_from_linker(FIRMWARE_DIR / "Ld" / "Link.ld")
+        mem = _read_memory_lengths_from_linker(LINKER_SCRIPT)
         flash_total = mem.get("FLASH")
         ram_total = mem.get("RAM")
         text, data, bss = size_row
@@ -433,8 +427,6 @@ def configure(keyboard: str, profile: str) -> tuple[str, Path]:
             str(cmake),
             "--preset",
             actual,
-            f"-DKEYBOARD={keyboard}",
-            f"-DKBD_MODEL={keyboard}",
         ],
         cwd=FIRMWARE_DIR,
     )

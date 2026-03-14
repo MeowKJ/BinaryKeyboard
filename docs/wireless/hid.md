@@ -21,7 +21,7 @@ MeowKeyboard 无线版通过 USB HID 配置通道与 Studio（WebHID）通信。
 
 ### 主机 → 设备（命令帧）
 
-对应固件 `kbd_cmd_frame_t`（`firmware/CH592F/MeowKeyboard/include/kbd_types.h`）。
+对应固件 `kbd_cmd_frame_t`（`firmware/CH592F/keyboard/include/kbd_types.h`）。
 
 | 偏移 | 大小 | 字段 | 说明 |
 | :--- | :--- | :--- | :--- |

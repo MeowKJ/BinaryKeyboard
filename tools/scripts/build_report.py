@@ -38,9 +38,23 @@ def pct_color_code(pct: float) -> str:
     return "31" if pct >= 90 else "33" if pct >= 70 else "32"
 
 
+def _can_encode(ch: str) -> bool:
+    import sys
+    enc = getattr(sys.stdout, "encoding", "utf-8") or "utf-8"
+    try:
+        ch.encode(enc)
+        return True
+    except (UnicodeEncodeError, LookupError):
+        return False
+
+
+_BAR_FILLED = "█" if _can_encode("█") else "#"
+_BAR_EMPTY  = "░" if _can_encode("░") else "-"
+
+
 def usage_bar(pct: float, colorize: ColorizeFn, width: int = 15) -> str:
     filled = round(pct / 100 * width)
-    bar = "█" * filled + "░" * (width - filled)
+    bar = _BAR_FILLED * filled + _BAR_EMPTY * (width - filled)
     return colorize(pct_color_code(pct), bar)
 
 

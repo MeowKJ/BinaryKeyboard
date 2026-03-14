@@ -5,6 +5,7 @@ import {
   FRAME_SIZE,
   MAX_FN_KEYS,
   MAX_KEYS,
+  PressEffect,
   ResponseCode,
   createEmptyAction,
   createEmptyKeymap,
@@ -35,11 +36,6 @@ export class Ch592Codec implements DeviceCodec<DataView> {
   readonly protocolLabel = 'CH592F HID';
   readonly capabilities = CH592_CAPABILITIES;
   readonly chipFamily = FIRMWARE_VERSION_META.CH592F.chipFamily;
-  readonly protocolFamily = FIRMWARE_VERSION_META.CH592F.protocolFamily;
-  readonly protocolVersionMajor = FIRMWARE_VERSION_META.CH592F.protocolVersion.major;
-  readonly protocolVersionMinor = FIRMWARE_VERSION_META.CH592F.protocolVersion.minor;
-  readonly storageVersionMajor = FIRMWARE_VERSION_META.CH592F.storageVersion.major;
-  readonly storageVersionMinor = FIRMWARE_VERSION_META.CH592F.storageVersion.minor;
 
   getOptionalOperations(transport: CodecTransport<DataView>): HidOptionalOperations {
     return {
@@ -129,11 +125,6 @@ export class Ch592Codec implements DeviceCodec<DataView> {
       versionMajor: resp.getUint8(d + 5),
       versionMinor: resp.getUint8(d + 6),
       versionPatch: resp.getUint8(d + 7),
-      protocolFamily: this.protocolFamily,
-      protocolVersionMajor: resp.byteLength >= d + 15 ? resp.getUint8(d + 14) : this.protocolVersionMajor,
-      protocolVersionMinor: resp.byteLength >= d + 16 ? resp.getUint8(d + 15) : this.protocolVersionMinor,
-      storageVersionMajor: resp.byteLength >= d + 17 ? resp.getUint8(d + 16) : this.storageVersionMajor,
-      storageVersionMinor: resp.byteLength >= d + 18 ? resp.getUint8(d + 17) : this.storageVersionMinor,
       maxLayers: resp.getUint8(d + 8),
       maxKeys: resp.getUint8(d + 9),
       macroSlots: resp.getUint8(d + 10),
@@ -207,11 +198,12 @@ export class Ch592Codec implements DeviceCodec<DataView> {
       colorB: resp.getUint8(d + 7),
       indicatorEnabled: resp.getUint8(d + 8) !== 0,
       indicatorBrightness: resp.byteLength >= d + 10 ? resp.getUint8(d + 9) : resp.getUint8(d + 3),
+      pressEffect: resp.byteLength >= d + 11 ? resp.getUint8(d + 10) : PressEffect.NONE,
     };
   }
 
   buildSetRgbPayload(config: RgbConfig): Uint8Array {
-    const data = new Uint8Array(9);
+    const data = new Uint8Array(10);
     data[0] = config.enabled ? 1 : 0;
     data[1] = config.mode;
     data[2] = config.brightness;
@@ -221,6 +213,7 @@ export class Ch592Codec implements DeviceCodec<DataView> {
     data[6] = config.colorB;
     data[7] = config.indicatorEnabled ? 1 : 0;
     data[8] = config.indicatorBrightness ?? config.brightness;
+    data[9] = config.pressEffect ?? PressEffect.NONE;
     return data;
   }
 

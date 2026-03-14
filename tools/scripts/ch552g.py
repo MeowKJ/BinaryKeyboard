@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import filecmp
 import os
 import platform
 import re
@@ -19,6 +20,7 @@ from typing import Optional
 
 from build_report import UsageRow, fmt_bytes, render_usage_report
 from firmware_naming import ch552_filename_for_keyboard, normalize_keyboard_name
+from tool_cache import resolve_tool_path
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -95,6 +97,7 @@ def _candidate_windows_cmake_paths() -> list[Path]:
 
 def _candidate_windows_sdcc_paths() -> list[Path]:
     return [
+        Path(r"C:\App\Environment\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),
         Path(r"C:\tools\sdcc\bin\sdcc.exe"),
@@ -104,36 +107,38 @@ def _candidate_windows_sdcc_paths() -> list[Path]:
     ]
 
 
-def _find_tool(env_name: str, binary_name: str, win_candidates: list[Path]) -> Optional[Path]:
-    env_path = os.environ.get(env_name)
-    if env_path:
-        p = Path(env_path)
-        if p.is_file():
-            return p.resolve()
-        candidate = p / binary_name
-        if candidate.is_file():
-            return candidate.resolve()
-
-    found = shutil.which(binary_name)
-    if found:
-        return Path(found).resolve()
-
-    if platform.system() == "Windows":
-        for candidate in win_candidates:
-            if candidate.is_file():
-                return candidate.resolve()
-
-    return None
+def _candidate_windows_ninja_paths() -> list[Path]:
+    candidates = [
+        Path(r"C:\Program Files\CMake\bin\ninja.exe"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
+        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
+        Path(r"C:\App\IDE\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
+        Path(r"C:\App\IDE\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
+    ]
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        winget_root = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
+        if winget_root.is_dir():
+            candidates.extend(sorted(winget_root.glob("Ninja-build.Ninja_*/ninja.exe")))
+    return candidates
 
 
 def find_cmake() -> Optional[Path]:
     binary = "cmake.exe" if platform.system() == "Windows" else "cmake"
-    return _find_tool("CMAKE_PATH", binary, _candidate_windows_cmake_paths())
+    candidates = _candidate_windows_cmake_paths() if platform.system() == "Windows" else []
+    return resolve_tool_path("cmake", binary, env_name="CMAKE_PATH", candidates=candidates)
 
 
 def find_sdcc() -> Optional[Path]:
     binary = "sdcc.exe" if platform.system() == "Windows" else "sdcc"
-    return _find_tool("SDCC_PATH", binary, _candidate_windows_sdcc_paths())
+    candidates = _candidate_windows_sdcc_paths() if platform.system() == "Windows" else []
+    return resolve_tool_path("sdcc", binary, env_name="SDCC_PATH", candidates=candidates)
+
+
+def find_ninja() -> Optional[Path]:
+    binary = "ninja.exe" if platform.system() == "Windows" else "ninja"
+    candidates = _candidate_windows_ninja_paths() if platform.system() == "Windows" else []
+    return resolve_tool_path("ninja", binary, env_name="NINJA_PATH", candidates=candidates)
 
 
 def build_dir_for(keyboard: str) -> Path:
@@ -143,7 +148,7 @@ def build_dir_for(keyboard: str) -> Path:
 
 def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
     return {
-        "ihx": build_dir / "CH552G.ihx",
+        "ihx": build_dir / "CH552G.ihx.ihx",
         "hex": build_dir / "CH552G.hex",
         "bin": build_dir / "CH552G.bin",
     }
@@ -157,19 +162,52 @@ def artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
     }
 
 
+def _cleanup_stale_named_artifacts(build_dir: Path, keyboard: str, ext: str, keep: Path) -> None:
+    pattern = f"CH552G-{normalize_keyboard_name(keyboard)}-*.{ext}"
+    for candidate in build_dir.glob(pattern):
+        if candidate != keep and candidate.is_file():
+            candidate.unlink()
+
+
+def _promote_artifact(build_dir: Path, keyboard: str, ext: str, src: Path, dst: Path) -> None:
+    if not src.is_file():
+        return
+
+    if dst.is_file():
+        if filecmp.cmp(src, dst, shallow=False):
+            src.unlink()
+        else:
+            dst.unlink()
+            shutil.move(src, dst)
+    else:
+        shutil.move(src, dst)
+
+    _cleanup_stale_named_artifacts(build_dir, keyboard, ext, dst)
+
+
 def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
     raw = raw_artifact_paths(build_dir)
     exported = artifact_paths(build_dir, keyboard)
     for name in ("bin", "hex"):
-        src = raw[name]
-        dst = exported[name]
-        if src.is_file():
-            shutil.copy2(src, dst)
+        _promote_artifact(build_dir, keyboard, name, raw[name], exported[name])
     return exported
 
 
+def _build_env() -> dict[str, str]:
+    env = os.environ.copy()
+    sdcc = find_sdcc()
+    if sdcc:
+        sdcc_bin = str(sdcc.parent.resolve())
+        env["COMPILER_PATH"] = sdcc_bin
+        path_value = env.get("PATH", "")
+        path_parts = path_value.split(os.pathsep) if path_value else []
+        if sdcc_bin not in path_parts:
+            env["PATH"] = os.pathsep.join([sdcc_bin, *path_parts]) if path_parts else sdcc_bin
+    return env
+
+
 def run(cmd: list[str], cwd: Optional[Path] = None) -> None:
-    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True)
+    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True, env=_build_env())
 
 
 def run_and_capture(cmd: list[str], cwd: Optional[Path] = None) -> tuple[list[str], float]:
@@ -184,6 +222,7 @@ def run_and_capture(cmd: list[str], cwd: Optional[Path] = None) -> tuple[list[st
         bufsize=1,
         encoding="utf-8",
         errors="replace",
+        env=_build_env(),
     )
     assert proc.stdout is not None
     for line in proc.stdout:
@@ -208,6 +247,48 @@ def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
     except Exception:
         return None
     return None
+
+
+def _expected_generator() -> Optional[str]:
+    if platform.system() == "Windows":
+        return "Ninja"
+    return None
+
+
+def _generator_configure_args() -> list[str]:
+    expected = _expected_generator()
+    if expected != "Ninja":
+        return []
+
+    ninja = find_ninja()
+    if not ninja:
+        die(
+            "Ninja not found. CH552G on Windows must use Ninja to drive SDCC.\n"
+            "Visual Studio/MSBuild will invoke cl.exe and break the 8051 build.\n"
+            "Install Ninja or set NINJA_PATH to ninja.exe."
+        )
+
+    return ["-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}"]
+
+
+def _configured_generator(build_dir: Path) -> Optional[str]:
+    return _parse_cmake_cache_var(build_dir / "CMakeCache.txt", "CMAKE_GENERATOR")
+
+
+def _generator_outputs_ready(build_dir: Path) -> bool:
+    generator = _configured_generator(build_dir) or _expected_generator()
+    if generator == "Ninja":
+        return (build_dir / "build.ninja").is_file()
+    return True
+
+
+def _ensure_compatible_build_dir(build_dir: Path) -> None:
+    expected = _expected_generator()
+    configured = _configured_generator(build_dir)
+    if expected and configured and configured != expected:
+        sep()
+        warn(f"Removing incompatible build directory ({configured} -> {expected})")
+        shutil.rmtree(build_dir)
 
 
 def _parse_mem_report(mem_file: Path) -> tuple[list[UsageRow], str]:
@@ -295,6 +376,7 @@ def cmake_configure_args(keyboard: str, build_dir: Path) -> list[str]:
         str(FIRMWARE_DIR),
         "-B",
         str(build_dir),
+        *_generator_configure_args(),
         f"-DKEYBOARD={keyboard}",
     ]
 
@@ -307,6 +389,7 @@ def cmake_configure_args(keyboard: str, build_dir: Path) -> list[str]:
 
 def configure(keyboard: str) -> Path:
     build_dir = build_dir_for(keyboard)
+    _ensure_compatible_build_dir(build_dir)
     build_dir.mkdir(parents=True, exist_ok=True)
     sep()
     info(f"Configuring CH552G ({keyboard})")
@@ -319,7 +402,14 @@ def build(keyboard: str) -> Path:
     build_dir = build_dir_for(keyboard)
     cache_file = build_dir / "CMakeCache.txt"
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
-    if (not cache_file.is_file()) or (cached_keyboard and _normalize_keyboard(cached_keyboard) != keyboard):
+    configured_generator = _configured_generator(build_dir)
+    expected_generator = _expected_generator()
+    if (
+        (not cache_file.is_file())
+        or (cached_keyboard and _normalize_keyboard(cached_keyboard) != keyboard)
+        or (expected_generator and configured_generator and configured_generator != expected_generator)
+        or (cache_file.is_file() and not _generator_outputs_ready(build_dir))
+    ):
         configure(keyboard)
 
     cmake = find_cmake()

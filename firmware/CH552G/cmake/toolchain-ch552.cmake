@@ -63,14 +63,20 @@ unset(_sdcc_found CACHE)
 
 message(STATUS "SDCC toolchain: ${SDCC_BIN_DIR}/sdcc")
 
+if(CMAKE_HOST_WIN32)
+    set(_sdcc_exe_suffix ".exe")
+else()
+    set(_sdcc_exe_suffix "")
+endif()
+
 # ---------------------------------------------------------------------------
 # Tool paths
 # ---------------------------------------------------------------------------
-set(CMAKE_C_COMPILER   "${SDCC_BIN_DIR}/sdcc"    CACHE FILEPATH "" FORCE)
-set(CMAKE_ASM_COMPILER "${SDCC_BIN_DIR}/sdas8051" CACHE FILEPATH "" FORCE)
-set(SDCC_PACKIHX       "${SDCC_BIN_DIR}/packihx"  CACHE FILEPATH "" FORCE)
-set(SDCC_MAKEBIN       "${SDCC_BIN_DIR}/makebin"   CACHE FILEPATH "" FORCE)
-set(SDCC_SDOBJCOPY     "${SDCC_BIN_DIR}/sdobjcopy" CACHE FILEPATH "" FORCE)
+set(CMAKE_C_COMPILER   "${SDCC_BIN_DIR}/sdcc${_sdcc_exe_suffix}"      CACHE FILEPATH "" FORCE)
+set(CMAKE_ASM_COMPILER "${SDCC_BIN_DIR}/sdas8051${_sdcc_exe_suffix}"  CACHE FILEPATH "" FORCE)
+set(SDCC_PACKIHX       "${SDCC_BIN_DIR}/packihx${_sdcc_exe_suffix}"   CACHE FILEPATH "" FORCE)
+set(SDCC_MAKEBIN       "${SDCC_BIN_DIR}/makebin${_sdcc_exe_suffix}"   CACHE FILEPATH "" FORCE)
+set(SDCC_SDOBJCOPY     "${SDCC_BIN_DIR}/sdobjcopy${_sdcc_exe_suffix}" CACHE FILEPATH "" FORCE)
 
 # Forward toolchain variables into try_compile subprojects
 list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES
@@ -82,6 +88,14 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_C_COMPILER_WORKS TRUE CACHE INTERNAL "")
+set(CMAKE_C_COMPILER_FORCED TRUE CACHE INTERNAL "")
+set(CMAKE_ASM_COMPILER_WORKS TRUE CACHE INTERNAL "")
+set(CMAKE_ASM_COMPILER_FORCED TRUE CACHE INTERNAL "")
+set(CMAKE_C_OUTPUT_EXTENSION ".rel")
+set(CMAKE_C_OUTPUT_EXTENSION_REPLACE 1)
+set(CMAKE_ASM_OUTPUT_EXTENSION ".rel")
+set(CMAKE_ASM_OUTPUT_EXTENSION_REPLACE 1)
 
 # ---------------------------------------------------------------------------
 # CH552G memory layout

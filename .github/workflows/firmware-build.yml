@@ -7,6 +7,7 @@ on:
     paths:
       - "firmware/**"
       - "config/**"
+      - "tools/studio/**"
       - "tools/scripts/**"
       - ".github/workflows/firmware-build.yml"
       - ".github/workflows/release.yml"
@@ -37,6 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Build
         run: python3 tools/scripts/ch592f.py build --keyboard ${{ matrix.keyboard }} --profile release
@@ -72,6 +74,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Install SDCC
         run: |
@@ -95,3 +98,32 @@ jobs:
             ${{ steps.artifacts.outputs.bin }}
             ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
+
+  build-studio:
+    name: Build Studio
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --dir tools/studio run build

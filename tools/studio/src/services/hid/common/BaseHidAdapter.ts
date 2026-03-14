@@ -37,6 +37,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       if (this.device && this.device !== device) {
         this.device.removeEventListener('inputreport', this.inputReportHandler);
       }
+      this.codec.resetState?.();
       if (!device.opened) {
         await device.open();
       }
@@ -59,6 +60,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       }
       this.device = null;
     }
+    this.codec.resetState?.();
     this.clearPendingResponse();
   }
 

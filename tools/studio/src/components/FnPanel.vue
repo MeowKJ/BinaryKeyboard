@@ -76,7 +76,7 @@ async function saveFn() {
 .fn-group-title {
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--primary-color);
+  color: var(--c-accent);
 }
 
 .fn-item {
@@ -87,7 +87,7 @@ async function saveFn() {
 
 .fn-label {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: var(--c-text-secondary);
   min-width: 32px;
 }
 
@@ -95,9 +95,9 @@ async function saveFn() {
   flex: 1;
   padding: 5px 8px;
   border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: var(--surface-card);
-  color: var(--text-primary);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-primary);
   font-size: 0.8rem;
 }
 

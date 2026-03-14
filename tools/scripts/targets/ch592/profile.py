@@ -9,6 +9,7 @@ from pathlib import Path
 from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, preset_for, _resolve_preset
 from firmware_naming import ch592_filename_for_keyboard
 from targets.common import FLASH_SCRIPT, PROJECT_ROOT, SCRIPT_DIR, TargetActionSpec, TargetProfile
+from tool_cache import resolve_tool_path
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
@@ -44,7 +45,7 @@ def _artifact_path(state: dict) -> Path:
 
 
 def _build_label(state: dict) -> str:
-    return f"keyboard {state['keyboard']}  ·  profile {state['build_type']}"
+    return f"keyboard {state['keyboard']}  |  profile {state['build_type']}"
 
 
 def _build_command(state: dict) -> list[str]:
@@ -80,12 +81,15 @@ def _find_gcc_in_toolchain(toolchain_root: str) -> str | None:
     root = Path(toolchain_root)
     if not root.is_dir():
         return None
-    candidates = list(root.rglob("riscv-none-embed-gcc"))
-    if not candidates:
-        candidates = list(root.rglob("riscv-none-elf-gcc"))
-    if os.name == "nt" and not candidates:
-        candidates = list(root.rglob("riscv-none-embed-gcc.exe")) + list(root.rglob("riscv-none-elf-gcc.exe"))
-    return str(candidates[0]) if candidates else None
+    patterns = ["**/bin/riscv-none-embed-gcc", "**/bin/riscv-none-elf-gcc"]
+    if os.name == "nt":
+        patterns = [f"{pattern}.exe" for pattern in patterns] + patterns
+    candidates: list[Path] = []
+    for pattern in patterns:
+        candidates.extend(sorted(root.glob(pattern)))
+    binary = "riscv-none-embed-gcc.exe" if os.name == "nt" else "riscv-none-embed-gcc"
+    resolved = resolve_tool_path("riscv_gcc", binary, candidates=candidates)
+    return str(resolved) if resolved else None
 
 
 def _target_details_lines(state: dict) -> list[str]:
@@ -147,6 +151,7 @@ def _home_actions(state: dict) -> list[TargetActionSpec]:
         TargetActionSpec("build", "Build selected target", "Run tools/scripts/ch592f.py build."),
         TargetActionSpec("flash", "Flash selected target", "Build, then flash the resolved CH592F artifact."),
         TargetActionSpec("show_commands", "Show build commands", "Print the resolved build / flash / verify commands."),
+        TargetActionSpec("generate_ide_config", "Generate IDE config", "Write VSCode C/C++ settings and a root compile_commands.json."),
         TargetActionSpec("install_wchisp", "Install or update wchisp", "Run tools/scripts/setup.py."),
         TargetActionSpec("probe", "Probe ISP devices", "List connected WCH ISP devices."),
     ]

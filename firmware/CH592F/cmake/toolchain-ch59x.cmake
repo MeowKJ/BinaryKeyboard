@@ -103,15 +103,21 @@ endif()
 
 message(STATUS "Toolchain: ${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc")
 
+if(CMAKE_HOST_WIN32)
+    set(_tool_exe_suffix ".exe")
+else()
+    set(_tool_exe_suffix "")
+endif()
+
 # ---------------------------------------------------------------------------
 # Tool paths
 # ---------------------------------------------------------------------------
-set(CMAKE_C_COMPILER   "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc"     CACHE FILEPATH "" FORCE)
-set(CMAKE_CXX_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}g++"     CACHE FILEPATH "" FORCE)
-set(CMAKE_ASM_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc"     CACHE FILEPATH "" FORCE)
-set(CROSS_OBJDUMP      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objdump" CACHE FILEPATH "" FORCE)
-set(CROSS_OBJCOPY      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objcopy" CACHE FILEPATH "" FORCE)
-set(CROSS_SIZE         "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}size"    CACHE FILEPATH "" FORCE)
+set(CMAKE_C_COMPILER   "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
+set(CMAKE_CXX_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}g++${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
+set(CMAKE_ASM_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
+set(CROSS_OBJDUMP      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objdump${_tool_exe_suffix}" CACHE FILEPATH "" FORCE)
+set(CROSS_OBJCOPY      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objcopy${_tool_exe_suffix}" CACHE FILEPATH "" FORCE)
+set(CROSS_SIZE         "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}size${_tool_exe_suffix}"    CACHE FILEPATH "" FORCE)
 
 # Forward toolchain variables into try_compile subprojects so the
 # find_program search above succeeds even during ABI-detection builds.

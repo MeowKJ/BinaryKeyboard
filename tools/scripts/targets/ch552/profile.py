@@ -84,6 +84,7 @@ def _home_actions(state: dict) -> list[TargetActionSpec]:
         TargetActionSpec("build", "Build selected target", "Run tools/scripts/ch552g.py build."),
         TargetActionSpec("flash", "Flash selected target", "Build, then flash the resolved CH552G artifact."),
         TargetActionSpec("show_commands", "Show build commands", "Print the resolved build / flash / verify commands."),
+        TargetActionSpec("generate_ide_config", "Generate IDE config", "Write VSCode C/C++ settings and a root compile_commands.json."),
         TargetActionSpec("install_wchisp", "Install or update wchisp", "Run tools/scripts/setup.py."),
         TargetActionSpec("probe", "Probe ISP devices", "List connected WCH ISP devices."),
     ]

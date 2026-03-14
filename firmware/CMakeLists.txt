@@ -18,35 +18,37 @@ function(add_script_build_target TARGET_NAME)
         WORKING_DIRECTORY ${PROJECT_ROOT}
         USES_TERMINAL
         COMMENT "Building ${TARGET_NAME}"
+        VERBATIM
     )
 endfunction()
 
-add_script_build_target(
-    ch552_basic
-    SCRIPT ${SCRIPT_ROOT}/ch552g.py
-    SCRIPT_ARGS build --keyboard BASIC
-)
+set(CH552_BUILD_TARGETS)
+foreach(keyboard IN ITEMS BASIC KNOB 5KEY)
+    string(TOLOWER "${keyboard}" keyboard_slug)
+    if(keyboard STREQUAL "5KEY")
+        set(target_name "ch552_5keys")
+    else()
+        set(target_name "ch552_${keyboard_slug}")
+    endif()
+    add_script_build_target(
+        ${target_name}
+        SCRIPT ${SCRIPT_ROOT}/ch552g.py
+        SCRIPT_ARGS build --keyboard ${keyboard}
+    )
+    list(APPEND CH552_BUILD_TARGETS ${target_name})
+endforeach()
 
-add_script_build_target(
-    ch552_knob
-    SCRIPT ${SCRIPT_ROOT}/ch552g.py
-    SCRIPT_ARGS build --keyboard KNOB
-)
+set(CH592_BUILD_TARGETS)
+foreach(keyboard IN ITEMS 5KEY KNOB)
+    string(TOLOWER "${keyboard}" keyboard_slug)
+    add_script_build_target(
+        ch592_${keyboard_slug}
+        SCRIPT ${SCRIPT_ROOT}/ch592f.py
+        SCRIPT_ARGS build --keyboard ${keyboard} --profile release
+    )
+    list(APPEND CH592_BUILD_TARGETS ch592_${keyboard_slug})
+endforeach()
 
-add_script_build_target(
-    ch552_5keys
-    SCRIPT ${SCRIPT_ROOT}/ch552g.py
-    SCRIPT_ARGS build --keyboard 5KEY
-)
-
-add_script_build_target(
-    ch592_5key
-    SCRIPT ${SCRIPT_ROOT}/ch592f.py
-    SCRIPT_ARGS build --keyboard 5KEY --profile release
-)
-
-add_script_build_target(
-    ch592_knob
-    SCRIPT ${SCRIPT_ROOT}/ch592f.py
-    SCRIPT_ARGS build --keyboard KNOB --profile release
-)
+add_custom_target(ch552_all DEPENDS ${CH552_BUILD_TARGETS})
+add_custom_target(ch592_all DEPENDS ${CH592_BUILD_TARGETS})
+add_custom_target(firmware_all DEPENDS ch552_all ch592_all)

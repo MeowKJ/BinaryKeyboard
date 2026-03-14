@@ -1,20 +1,39 @@
 {
-  "product": {
-    "version": "3.0.0"
-  },
-  "firmware": {
-    "CH592F": {
-      "firmware_version": "3.0.0",
-      "protocol_family": "BKHID64",
-      "protocol_version": "1.2",
-      "storage_version": "1.2"
+  "components": {
+    "studio": {
+      "base_version": "3.0",
+      "paths": [
+        "tools/studio",
+        "tools/scripts/versioning.py"
+      ]
     },
-    "CH552G": {
-      "firmware_version": "2.0.12",
+    "ch592": {
+      "base_version": "3.0",
+      "chip_family": "CH592F",
+      "protocol_family": "BKHID64",
+      "paths": [
+        "firmware/CH592F",
+        "firmware/cmake",
+        "tools/scripts/ch592f.py",
+        "tools/scripts/firmware_naming.py",
+        "tools/scripts/versioning.py"
+      ]
+    },
+    "ch552": {
+      "base_version": "3.0",
+      "chip_family": "CH552G",
       "protocol_family": "BKHID31",
-      "protocol_version": "1.1",
-      "storage_version": "1.0",
-      "legacy_compat_version": 12
+      "paths": [
+        "firmware/CH552G",
+        "firmware/cmake",
+        "tools/scripts/ch552g.py",
+        "tools/scripts/firmware_naming.py",
+        "tools/scripts/versioning.py"
+      ]
     }
+  },
+  "release": {
+    "repository": "MeowKJ/BinaryKeyboard",
+    "manifest_url": "https://meowkj.github.io/BinaryKeyboard/api/release-manifest.json"
   }
 }
