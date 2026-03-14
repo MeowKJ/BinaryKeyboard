@@ -76,6 +76,9 @@ coverage
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/tasks.json
+compile_commands.json
+firmware/CH552G/.clangd
+firmware/CH552G/.clangd_intellisense.h
 
 # .idea/*
 # !.idea/runConfigurations/
@@ -96,6 +99,7 @@ build/
 # Downloaded wchisp binaries (run setup.py to fetch)
 tools/scripts/wchisp
 tools/scripts/wchisp.exe
+tools/scripts/.binarykeyboard_console_state.json
 eeprom_dump.bin
 
 # Windows reserved name (accidental create)
@@ -126,3 +130,11 @@ model/
 
 # Python虚拟环境
 .venv/
+
+# Python cache
+__pycache__/
+
+# Auto-generated (rebuilt by CI / dev scripts)
+tools/studio/src/generated/
+tools/studio/components.d.ts
+docs/public/api/

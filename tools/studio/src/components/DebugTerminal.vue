@@ -36,6 +36,7 @@
 
       <div class="glow-header-right">
         <button
+          v-if="deviceStore.supportsLogs"
           class="glow-action-btn"
           :class="{ active: showSettings }"
           @click="showSettings = !showSettings"
@@ -62,7 +63,7 @@
 
     <!-- 日志配置面板 -->
     <Transition name="glow-settings">
-      <div v-if="showSettings" class="glow-settings-panel">
+      <div v-if="showSettings && deviceStore.supportsLogs" class="glow-settings-panel">
         <div class="glow-settings-row">
           <label class="glow-settings-label">HID 日志</label>
           <button
@@ -234,10 +235,12 @@
 import { ref, reactive, watch, nextTick, computed } from 'vue';
 import { useTerminalStore, type FilterMode } from '@/stores/terminalStore';
 import type { TerminalEntry } from '@/stores/terminalStore';
+import { useDeviceStore } from '@/stores/deviceStore';
 import { hidService } from '@/services/HidService';
 import { LOG_MASK_LABELS, createDefaultLogConfig, type LogConfig } from '@/types/protocol';
 
 const terminalStore = useTerminalStore();
+const deviceStore = useDeviceStore();
 const terminalBodyRef = ref<HTMLElement | null>(null);
 const showSettings = ref(false);
 const logConfig = reactive<LogConfig>(createDefaultLogConfig());
@@ -282,6 +285,7 @@ function briefHex(rawHex: string): string {
 
 // 日志配置操作 (固件端只控制开关)
 async function loadLogConfig() {
+  if (!deviceStore.supportsLogs) return;
   try {
     const cfg = await hidService.getLogConfig();
     Object.assign(logConfig, cfg);
@@ -289,14 +293,18 @@ async function loadLogConfig() {
 }
 
 function toggleLogEnabled() {
+  if (!deviceStore.supportsLogs) return;
   logConfig.enabled = !logConfig.enabled;
   hidService.setLogConfig(logConfig).catch(() => {});
 }
 
 async function saveLogConfig() {
+  if (!deviceStore.supportsLogs) return;
   try {
     await hidService.setLogConfig(logConfig);
-    await hidService.saveConfig();
+    if (deviceStore.supportsExplicitSave) {
+      await hidService.saveConfig();
+    }
   } catch { /* ignore */ }
 }
 

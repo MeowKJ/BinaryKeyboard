@@ -2,26 +2,110 @@
 
 基于 **CH592F** 芯片的 USB/蓝牙双模键盘固件开发指南。
 
+::: warning
+如果你使用 `MounRiver Studio` 开发，导入工程配置下编译目录和include即可，这一页的CMake环境配置可以直接跳过。
+
+// TODO: 未来补充 MRS 导入配置说明，主要是几个include，还有个.a文件和几个宏需要配一下（欢迎各路大神COMMIT这个）
+:::
+
 **仓库流程**：开发在 `dev` 分支进行，完成后 PR 到 `main`。
 
 ## 开发环境
 
-### 推荐工具链
+> 推荐使用 CMake 构建，可以用 VSCode 或 Clion 这种功能更强大的 IDE。Debug？我不知道。
+
+> 换成 CMake 其实主要目的就是 CI-CD。之前每次发布还得在 IDE 里面切换宏定义然后手动编译导出上传 Github，非常麻烦，还特别容易污染 git。现在改成 CMake 之后，Github 直接调用 Docker CMake 构建不同版本的固件，自动化发布，爽歪歪。还能做代码分析验证，AI 自动化编译测试等等。
+
+### 常用环境
 
 | 工具 | 说明 |
 | :--- | :--- |
-| CMake ≥ 3.16 + Ninja | 构建系统 |
+| CMake ≥ 3.21 + Ninja | 构建系统（使用 Presets） |
 | MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
-| Python 3 | 烧录脚本 (`flash.py`) |
-| wchisp | 底层烧录工具（`setup.py` 自动下载） |
+| Python 3 | 构建 / 烧录 / console 脚本入口 |
+| Node.js | Studio 环境 |
+| wchisp | 底层烧录工具（`tools/scripts/setup.py` 自动下载） |
 
-> VSCode 用户可直接使用状态栏按钮（Build / Flash）触发构建与烧录，无需手动执行命令。
+> `CMakeUserPresets.json` 只在你走 `CMake` 工作流时需要。
 
 ### 配置开发环境
 
-1. 安装 [MounRiver Studio](http://www.mounriver.com/)（获取 RISC-V 工具链）
-2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`，填写工具链路径
-3. 下载烧录工具：`python setup.py`
+## Windows
+
+1. 安装 [MounRiver Studio](http://www.mounriver.com/)（主要是拿工具链）
+2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
+3. 填好工具链路径，一般可以在 `MounRiver Studio` 安装目录附近找到
+4. 下载烧录工具：`python tools/scripts/setup.py`
+5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
+
+## MacOS/Linux
+> MacOS 目前只支持 M 系列芯片，Linux 只支持 x64 架构。
+> 树莓派, 香橙派, 泰山派等 ARM 设备，目前无法原生编译 CH592F 固件 - WCH没有发布对应工具链。
+
+1. 安装 [MounRiver Studio](http://www.mounriver.com/) 。
+
+1. 下载 [RISC-V 工具链](http://www.mounriver.com/)
+2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
+3. 填写工具链路径
+4. 下载烧录工具：`python tools/scripts/setup.py`
+5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
+
+## 通用
+如果你想用一些顺手的小工具，可以再看一页：
+
+- [便捷开发工具](./dev-tools.md)
+
+如果你不走 `CMake`，这一段可以直接跳过。
+
+可选工具链配置方式（`cmake/toolchain-ch59x.cmake` 已支持）：
+- `MRS_TOOLCHAIN_ROOT`（推荐，填 MounRiver Toolchain 根目录）
+- `RISCV_TOOLCHAIN_DIR` / `TOOLCHAIN_DIR`（直接指定 `bin` 目录）
+- 将 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 加入系统 `PATH`
+
+### 首次推荐流程
+
+```bash
+# 1. 先探测工具链与缓存路径
+python tools/scripts/ch592f.py status --keyboard KNOB --profile release
+
+# 2. 构建
+python tools/scripts/ch592f.py build --keyboard KNOB --profile release
+
+# 3. 查看导出产物
+python tools/scripts/ch592f.py artifact --keyboard KNOB --profile release --type bin
+
+# 4. 烧录
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin
+```
+
+### 工具缓存
+
+脚本层现在会把常用工具路径缓存到：
+
+- `tools/scripts/.binarykeyboard_console_state.json`
+
+当前缓存项包括：
+
+- `cmake`
+- `ninja`
+- `sdcc`
+- `wchisp`
+- `riscv_gcc`
+
+这意味着第一次探测完之后，后续 `console.py`、`ch592f.py`、`ch552g.py` 不需要每次重新扫磁盘。
+
+### CMake 构建结构
+
+当前固件构建已经整理成共享结构：
+
+- `firmware/cmake/BinaryKeyboardFirmware.cmake`
+  共享版本头生成 helper，`CH552G` / `CH592F` 复用
+- `firmware/CH592F/CMakeLists.txt`
+  CH592F 固件目标本体，按 hal / ble / keyboard / usb / SDK 分组
+- `firmware/CH592F/cmake/toolchain-ch59x.cmake`
+  MRS RISC-V toolchain 检测与平台参数
+- `firmware/CMakeLists.txt`
+  顶层 superbuild，可统一触发 `ch592_5key`、`ch592_knob`、`ch592_all`
 
 ## 代码架构
 
@@ -29,7 +113,7 @@
 
 ```
 Firmware/CH592F/
-├── Board/              # 板级支持包 (BSP)
+├── hal/                # 板级支持包 (BSP)
 │   ├── include/
 │   │   ├── kbd_config.h    # GPIO 引脚配置
 │   │   ├── key.h           # 按键驱动接口
@@ -42,13 +126,13 @@ Firmware/CH592F/
 │       ├── debug.c         # 串口调试
 │       └── hal_utils.c     # 工具函数
 │
-├── MeowBLE/            # 蓝牙协议栈
-│   ├── hal/            # 硬件抽象层
+├── ble/                # 蓝牙协议栈
+│   ├── core/           # BLE 核心
 │   │   └── ble_mcu.c       # BLE 库初始化
 │   ├── lib/            # WCH BLE 库 (预编译)
 │   │   ├── CH59xBLE_LIB.h
 │   │   └── libCH59xBLE.a
-│   ├── meow/           # 自定义 BLE HID
+│   ├── hid/            # BLE HID
 │   │   ├── ble_hid.c/h         # BLE HID 实现
 │   │   ├── ble_hid_service.c/h # HID 服务
 │   │   ├── kbd_mode.c/h        # 模式管理器
@@ -58,7 +142,7 @@ Firmware/CH592F/
 │       ├── battservice.c/h     # 电池服务
 │       └── devinfoservice.c/h  # 设备信息服务
 │
-├── MeowKeyboard/       # 键盘核心逻辑
+├── keyboard/           # 键盘核心逻辑
 │   ├── include/
 │   │   ├── kbd_core.h      # 核心处理接口
 │   │   ├── kbd_types.h     # 数据类型定义
@@ -71,7 +155,7 @@ Firmware/CH592F/
 │       ├── kbd_command.c   # 改键命令解析
 │       └── kbd_rgb.c       # 灯效实现
 │
-├── MeowUSB/            # USB HID 模块
+├── usb/                # USB HID 模块
 │   ├── include/
 │   │   ├── usb_hid.h       # USB HID 接口
 │   │   ├── usb_device.h    # USB 设备管理
@@ -81,18 +165,19 @@ Firmware/CH592F/
 │       ├── usb_device.c    # USB 设备初始化
 │       └── usb_descriptors.c
 │
-├── StdPeriphDriver/    # CH592 外设驱动
-├── RVMSIS/             # RISC-V 核心支持
-├── Startup/            # 启动文件
-├── Ld/                 # 链接脚本
+├── SDK/                # 厂商SDK (只读)
+│   ├── StdPeriphDriver/    # CH592 外设驱动
+│   ├── RVMSIS/             # RISC-V 核心支持
+│   ├── Startup/            # 启动文件
+│   └── Ld/                 # 链接脚本
 │
-└── User/
+└── app/
     └── Main.c          # 主程序入口
 ```
 
 ### 核心模块说明
 
-#### 1. Board - 板级支持
+#### 1. hal - 板级支持
 
 | 文件           | 功能                                 |
 | :------------- | :----------------------------------- |
@@ -100,7 +185,7 @@ Firmware/CH592F/
 | `key.c/h`      | 中断驱动按键，lockout 去抖，事件队列 |
 | `ws2812.c/h`   | PWM+DMA 驱动 WS2812，支持亮度调节    |
 
-#### 2. MeowKeyboard - 键盘核心
+#### 2. keyboard - 键盘核心
 
 | 文件            | 功能                                  |
 | :-------------- | :------------------------------------ |
@@ -109,7 +194,7 @@ Firmware/CH592F/
 | `kbd_storage.c` | DataFlash 读写、配置持久化            |
 | `kbd_rgb.c`     | RGB 灯效：静态/呼吸/彩虹/状态指示     |
 
-#### 3. MeowBLE - 蓝牙模块
+#### 3. ble - 蓝牙模块
 
 | 文件                | 功能                           |
 | :------------------ | :----------------------------- |
@@ -117,7 +202,7 @@ Firmware/CH592F/
 | `ble_hid.c`         | 蓝牙 HID 报告发送              |
 | `ble_hid_service.c` | HID GATT 服务实现              |
 
-#### 4. MeowUSB - USB 模块
+#### 4. usb - USB 模块
 
 | 文件           | 功能                     |
 | :------------- | :----------------------- |
@@ -130,7 +215,6 @@ Firmware/CH592F/
 
 | 类型   | 枚举值 | 物理按键 | 虚拟键位 | 说明                   |
 | :----- | :----- | :------- | :------- | :--------------------- |
-| 基础款 | 0      | 4 键     | 4        | 标准 4 键布局          |
 | 五键款 | 1      | 5 键     | 5        | 扩展 5 键布局          |
 | 旋钮款 | 2      | 4 键     | 7        | 4 键 + 旋钮 (3 虚拟键) |
 
@@ -144,26 +228,43 @@ Firmware/CH592F/
 
 ### 选择键盘布局
 
-在 `Board/include/kbd_config.h` 中取消注释对应的布局：
+CH592F 当前只保留 `5KEY` 与 `KNOB` 两种发布布局。推荐通过 CMake 选择：
+
+```bash
+# 五键款
+cmake --preset local-release-5key
+cmake --build --preset local-release-5key
+
+# 旋钮款
+cmake --preset local-release-knob
+cmake --build --preset local-release-knob
+```
+
+也可以直接传 CMake 变量：
+
+```bash
+cmake --preset local-release -DKEYBOARD=KNOB -DKBD_MODEL=KNOB
+cmake --build --preset local-release
+```
+
+如果不走 CMake，而是使用 MRS 或其他 IDE，请在预处理宏中定义其一：
 
 ```c
-// 选择一个键盘布局 (只能启用一个)
-// #define KBD_LAYOUT_BASIC    // 基础款: 4 键
-#define KBD_LAYOUT_5KEY       // 五键款: 5 键
-// #define KBD_LAYOUT_KNOB     // 旋钮款: 4 键 + 旋钮
+KBD_LAYOUT_5KEY
+KBD_LAYOUT_KNOB
 ```
 
 ### 获取键盘信息
 
 ```c
 // 获取当前键盘类型
-kbd_type_t type = KBD_GetType();          // KBD_TYPE_BASIC / 5KEYS / KNOB
+kbd_type_t type = KBD_GetType();          // KBD_TYPE_5KEYS / KBD_TYPE_KNOB
 
 // 获取总键位数 (用于映射)
-uint8_t total = KBD_GetTotalKeyCount();   // 4 / 5 / 7
+uint8_t total = KBD_GetTotalKeyCount();   // 5 / 7
 
 // 获取物理按键数
-uint8_t physical = KBD_GetPhysicalKeyCount();  // 4 / 5 / 4
+uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 ```
 
 ### GPIO 引脚映射
@@ -198,29 +299,145 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 4 / 5 / 4
 
 ```bash
 # 首次使用：下载 wchisp 烧录工具
-python setup.py
+python tools/scripts/setup.py
 
 # 仅构建
-python flash.py build --preset release
+python tools/scripts/ch592f.py build --keyboard 5KEY --profile release
 
-# 构建并烧录
-python flash.py flash --preset release
+# 查看产物
+python tools/scripts/ch592f.py artifact --keyboard 5KEY --profile release --type bin
 ```
 
 ### 手动 CMake 构建
 
 ```bash
 cd firmware/CH592F
-cmake --preset release          # 首次配置
-cmake --build --preset release  # 编译
-# 产物：build/release/CH592F.bin
+cmake --preset release-5key
+cmake --build --preset release-5key
 ```
+
+常用预设：
+- `release`：体积优先（`MinSizeRel`）
+- `debug`：调试优先（`-Og -g3`）
+- `release-5key` / `debug-5key`：五键款共享预设
+- `release-knob` / `debug-knob`：旋钮款共享预设
+- `local-release` / `local-debug`：本机通用预设（在 `CMakeUserPresets.json` 中定义）
+- `local-release-5key` / `local-debug-5key`：本机五键款预设
+- `local-release-knob` / `local-debug-knob`：本机旋钮款预设
+
+推荐（本机开发）：
+
+```bash
+cd firmware/CH592F
+cmake --preset local-release-5key
+cmake --build --preset local-release-5key
+```
+
+### CMake 变量总览
+
+共享构建变量：
+
+| 变量 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `KEYBOARD` | `5KEY` | 键盘型号，支持 `5KEY` / `KNOB` |
+| `KBD_MODEL` | `AUTO` | 设备名后缀；`AUTO` 时跟随 `KEYBOARD` |
+| `KBD_NAME_PREFIX` | `BinaryKeyboard` | 设备名前缀 |
+| `KBD_DEVICE_NAME_OVERRIDE` | 空 | 设备完整名称覆盖，优先级最高 |
+| `MRS_TOOLCHAIN_ROOT` | 空 | MRS Toolchain 根目录 |
+| `RISCV_TOOLCHAIN_DIR` | 空 | 工具链 `bin` 目录（环境变量） |
+| `TOOLCHAIN_DIR` | 空 | 工具链 `bin` 目录（环境变量或 cache） |
+| `CMAKE_BUILD_TYPE` | `MinSizeRel` | 构建类型，常见为 `Debug` / `MinSizeRel` |
+
+编译期布局宏：
+
+| 宏 | 说明 |
+| :--- | :--- |
+| `KBD_LAYOUT_5KEY` | 五键款布局 |
+| `KBD_LAYOUT_KNOB` | 旋钮款布局 |
+| `KBD_MODEL_NAME` | 由 CMake 注入的设备型号字符串 |
+| `KBD_DEVICE_NAME` | 由 CMake 注入的统一 USB/BLE 设备名 |
+
+### 常用 CMake 命令清单
+
+```bash
+cd firmware/CH592F
+
+# 1. 用共享 preset 配置和构建
+cmake --preset release-5key
+cmake --build --preset release-5key
+
+# 2. 用本地 preset 配置和构建
+cmake --preset local-release-knob
+cmake --build --preset local-release-knob
+
+# 3. 在通用 preset 上覆写布局和名称
+cmake --preset local-release -DKEYBOARD=KNOB -DKBD_MODEL=KNOB
+cmake --build --preset local-release
+
+# 4. 自定义完整设备名
+cmake --preset local-release -DKBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardLab
+cmake --build --preset local-release
+
+# 5. 不写 CMakeUserPresets.json 时，直接传工具链根目录
+cmake --preset release-5key -DMRS_TOOLCHAIN_ROOT=/path/to/MRS_Toolchain/Toolchain
+cmake --build --preset release-5key
+```
+
+### 顶层 Superbuild
+
+如果你想在仓库顶层统一管理多固件目标：
+
+```bash
+cmake -S firmware -B firmware/build/dev
+cmake --build firmware/build/dev --target ch592_knob
+cmake --build firmware/build/dev --target ch592_all
+```
+
+### CMake 常见问题
+
+**1. VS Code CMake Tools 报 `RISC-V cross-compiler not found`**
+
+- 优先检查当前 Configure Preset 是否为 `local-release` / `local-debug`
+- 若在做布局切换，也检查是否选择了 `*-5key` / `*-knob`
+- 执行 `CMake: Delete Cache and Reconfigure`
+- 检查 `CMakeUserPresets.json` 中 `MRS_TOOLCHAIN_ROOT` 路径
+- 或使用 `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
+
+说明：
+- 推荐将构建和烧录分离：
+  `tools/scripts/ch592f.py` 负责 preset 构建，`tools/scripts/flash.py` 负责烧录现成产物
+- VS Code CMake Tools 自带“生成/配置”直接使用当前选中的 preset，不会自动替换为 `local-*`
+
+**2. `CMAKE_C_COMPILER ... is not a full path to an existing compiler tool`**
+
+在 Windows 下如果 toolchain 路径里缺少 `.exe`，旧 cache 容易留下错误的编译器路径。
+
+处理方式：
+
+- 删除对应 build 目录后重新 configure
+- 或执行：
+
+```bash
+python tools/scripts/ch592f.py clean --keyboard KNOB --profile release
+python tools/scripts/ch592f.py build --keyboard KNOB --profile release
+```
+
+**3. `ninja --version` / `operation not permitted`**
+
+某些环境里 `cmake -G Ninja` 会捡到 `WinGet Links` 目录下那个不可执行的 `ninja.exe`。
+
+处理方式：
+
+- 优先用 `tools/scripts/ch592f.py`
+- 或显式指定 `CMAKE_MAKE_PROGRAM`
+- 或把可执行的 `ninja.exe` 写入 `NINJA_PATH`
 
 ### 进入 Bootloader 模式
 
 1. 断开键盘与电脑连接
 2. 按住 **BOOT** 按钮的同时连接 USB
-3. 运行 `python flash.py flash` 自动烧录
+3. 先运行 `python tools/scripts/ch592f.py build --keyboard KNOB --profile release`
+4. 再运行 `python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin`
 
 ## 按键映射系统
 
@@ -409,6 +626,8 @@ KBD_RGB_Flash(0, 255, 0, 200);  // 绿色闪烁 200ms
 
 ## HID 通讯协议
 
+> 当前准确协议定义（含 Studio/WebHID 逐字节格式、宏分包、日志异步帧）以 `docs/wireless/hid.md` 为准。本节保留为开发概览。
+
 ### Report ID 分配
 
 | Report ID | 功能        | 数据长度 | 说明                  |
@@ -497,11 +716,11 @@ KBD_RGB_Flash(0, 255, 0, 200);  // 绿色闪烁 200ms
 | 5      | 1    | 主版本         | 固件主版本号                 |
 | 6      | 1    | 次版本         | 固件次版本号                 |
 | 7      | 1    | 补丁版本       | 固件补丁版本                 |
-| 8      | 1    | 最大层数       | 支持的最大层数 (4)           |
+| 8      | 1    | 最大层数       | 支持的最大层数 (5)           |
 | 9      | 1    | 最大键数       | 单层最大键数 (8)             |
 | 10     | 1    | 宏槽位数       | 宏存储槽位数 (8)             |
-| **11** | 1    | **键盘类型**   | 0=基础款, 1=五键款, 2=旋钮款 |
-| **12** | 1    | **实际键位数** | 当前类型的虚拟键位数 (4/5/7) |
+| **11** | 1    | **键盘类型**   | 1=五键款, 2=旋钮款（0 保留） |
+| **12** | 1    | **实际键位数** | 当前类型的虚拟键位数 (5/7)   |
 | 13     | 1    | FN 键数量      | FN 功能键数量                |
 
 ::: tip 上位机适配
@@ -738,16 +957,24 @@ KBD_Mode_SendConsumerReport(0xCD);  // Play/Pause
 
 ### DataFlash 布局
 
-CH592F 内置 32KB DataFlash：
+CH592F 内置 32KB DataFlash，当前策略为“宏大擦写、配置小擦写”：
 
 | 地址范围        | 大小 | 用途      |
 | :-------------- | :--- | :-------- |
-| 0x00000-0x000FF | 256B | 配置头    |
-| 0x00100-0x001FF | 256B | 系统配置  |
-| 0x00200-0x002FF | 256B | 按键映射  |
-| 0x00300-0x0033F | 64B  | FN 键配置 |
-| 0x00340-0x003FF | 192B | RGB 配置  |
-| 0x04000-0x07FFF | 16KB | 宏数据区  |
+| 0x0000-0x0BFF | 3KB  | 配置槽轮转区（3 槽 × 1KB，按 256B 页差异擦写） |
+| 0x0C00-0x0FFF | 1KB  | runtime 热数据区（4 页 × 256B，保存高频层号） |
+| 0x1000-0x4FFF | 16KB | 宏数据区（按 4KB 块擦写） |
+| 0x7E00-0x7EFF | 256B | BLE SNV（配对信息） |
+
+说明：
+- `current_layer` 高频变化仅写 runtime 热数据页，不重写整份配置
+- 配置保存使用槽位轮转 + CRC 校验，降低磨损并提升掉电恢复能力
+- 宏区保持块级擦写，简化大数据写入逻辑
+- 高频状态建议通过 TMOS 延时事件合并写入，避免在按键路径直接擦写 Flash
+
+详细布局与字段定义见 `docs/wireless/dataflash.md`。
+如需进一步拆分为 `base/keymap/runtime` 分区日志页，可参考 `docs/wireless/dataflash.md` 末尾“推荐优化方案（规划）”。
+TMOS 事件/定时/消息使用方式见 `docs/wireless/tmos.md`。
 
 ### API 使用
 

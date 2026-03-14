@@ -2,6 +2,12 @@
   <div class="app-root" :data-theme="currentTheme">
     <Toast position="top-center" />
 
+    <!-- PWA 新版本提示 -->
+    <div v-if="pwaNeedRefresh" class="pwa-update-banner">
+      <span>发现新版本，点击更新</span>
+      <button class="pwa-update-btn" @click="onPwaUpdate">更新</button>
+    </div>
+
     <!-- 加载遮罩 -->
     <div v-if="deviceStore.isLoading" class="loading-overlay">
       <ProgressSpinner strokeWidth="4" />
@@ -11,7 +17,7 @@
     <!-- 未连接状态 - 欢迎页 -->
     <div v-if="!deviceStore.isConnected" class="welcome-screen">
       <!-- 主题切换按钮 -->
-      <button class="theme-toggle welcome-theme-toggle" @click="toggleTheme">
+      <button class="theme-toggle" @click="toggleTheme">
         <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
       </button>
 
@@ -64,10 +70,51 @@
 
         <p class="legacy-link-hint">
           使用旧版固件？
-          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank" rel="noopener" class="legacy-link">
+          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank"
+            rel="noopener" class="legacy-link">
             前往旧版改键工具 <i class="pi pi-external-link"></i>
           </a>
         </p>
+
+        <div class="welcome-version-card">
+          <div class="version-card-header">
+            <i class="pi pi-box"></i>
+            <span>版本信息</span>
+          </div>
+          <div class="version-badges">
+            <div class="version-badge studio-badge">
+              <div class="badge-icon">🐱</div>
+              <div class="badge-info">
+                <span class="badge-label">Studio</span>
+                <span class="badge-version">v{{ releaseStore.studioVersion }}</span>
+              </div>
+            </div>
+            <div class="version-badge chip-badge ch552-badge">
+              <div class="badge-chip-tag">CH552</div>
+              <div class="badge-info">
+                <span class="badge-label">固件</span>
+                <span class="badge-version">v{{ releaseStore.latestVersions.ch552 }}</span>
+              </div>
+            </div>
+            <div class="version-badge chip-badge ch592-badge">
+              <div class="badge-chip-tag">CH592</div>
+              <div class="badge-info">
+                <span class="badge-label">固件</span>
+                <span class="badge-version">v{{ releaseStore.latestVersions.ch592 }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="releaseStore.errorMessage" class="version-error-tip">
+            <i class="pi pi-exclamation-triangle"></i>
+            <span>版本信息获取失败，显示的是本地缓存版本</span>
+          </div>
+          <a class="version-release-link" :href="`https://github.com/${releaseStore.repository}/releases`"
+            target="_blank" rel="noopener">
+            <i class="pi pi-github"></i>
+            查看发布记录
+            <i class="pi pi-external-link"></i>
+          </a>
+        </div>
       </div>
     </div>
 
@@ -117,226 +164,19 @@
       <main class="app-main" :class="{ 'terminal-open': terminalStore.isOpen }">
         <!-- 左侧面板 -->
         <aside class="sidebar">
-          <div class="panel device-panel">
-            <h3 class="panel-title">
-              <i class="pi pi-info-circle"></i>
-              设备信息
-            </h3>
-            <div class="info-list">
-              <div v-for="item in deviceStore.deviceInfoList" :key="item.key" class="info-item">
-                <span class="info-label">{{ item.key }}</span>
-                <span class="info-value">{{ item.value }}</span>
-              </div>
-            </div>
-          </div>
+          <DeviceInfoPanel />
 
           <KeyboardStatus />
 
-          <div class="panel layer-panel">
-            <h3 class="panel-title">
-              <i class="pi pi-layer-group"></i>
-              层选择
-            </h3>
-            <div class="layer-hint">
-              <i class="pi pi-info-circle"></i>
-              <span>按住 FN + 按键N 在键盘上切换层</span>
-            </div>
-            <div class="layer-legend">
-              <div class="legend-item">
-                <span class="legend-dot current-dot"></span>
-                <span class="legend-text">当前层</span>
-              </div>
-              <div class="legend-item">
-                <span class="legend-dot edit-dot"></span>
-                <span class="legend-text">编辑层</span>
-              </div>
-            </div>
-            <!-- 缩小版键盘布局 -->
-            <div v-if="layerLayout" class="layer-keyboard-mini" :style="{
-              gridTemplateColumns: `repeat(${layerLayout.cols}, 1fr)`,
-              gridTemplateRows: `repeat(${layerLayout.rows}, 1fr)`,
-            }">
-              <div v-for="key in layerLayout.keys" :key="key.index" class="layer-key-mini" :class="{
-                'current-layer': deviceStore.deviceStatus?.currentLayer === getLayerIndexByKeyIndex(key.index, currentKeyboardType),
-                'edit-layer': deviceStore.currentEditLayer === getLayerIndexByKeyIndex(key.index, currentKeyboardType),
-                [`key-${key.size}`]: true,
-                'key-encoder-press': key.type === 'encoder-press',
-                'disabled': isLayerKeyDisabled(key, currentKeyboardType)
-              }" :style="getKeyStyle(key)"
-                @click="onLayerKeyClick(key, currentKeyboardType)"
-                :title="getLayerKeyTitle(key, currentKeyboardType)">
-                <span class="layer-key-number" v-if="!isLayerKeyDisabled(key, currentKeyboardType)">{{ getLayerIndexByKeyIndex(key.index, currentKeyboardType) + 1 }}</span>
-                <span class="layer-key-label" v-if="key.type !== 'encoder-press'">层{{ getLayerIndexByKeyIndex(key.index,
-                  currentKeyboardType) + 1 }}</span>
-                <span class="layer-key-label encoder-label" v-else>🎚️</span>
-              </div>
-            </div>
-            <div v-else class="layer-keyboard-mini-placeholder">
-              <span>未连接设备</span>
-            </div>
-          </div>
+          <LayerPanel v-if="showLayerPanel" :keyboard-type="currentKeyboardType"
+            :preview-mode="previewKeyboardType >= 0" />
 
-          <div class="panel fn-panel">
-            <h3 class="panel-title">
-              <i class="pi pi-bolt"></i>
-              FN 键设置
-            </h3>
-            <div class="fn-config">
-              <!-- FN1 -->
-              <div class="fn-group">
-                <span class="fn-group-title">FN1</span>
-                <div class="fn-item">
-                  <span class="fn-label">单击</span>
-                  <select v-model="deviceStore.fnKeyConfig.fnKeys[0].clickAction" class="fn-select">
-                    <option :value="0x00">无动作</option>
-                    <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
-                    <option :value="0x04">清除配对</option>
-                    <option :value="0x10">RGB 开关</option>
-                    <option :value="0x11">RGB 下一模式</option>
-                    <option :value="0x12">RGB 上一模式</option>
-                    <option :value="0x13">亮度+</option>
-                    <option :value="0x14">亮度-</option>
-                    <option :value="0x20">下一层</option>
-                    <option :value="0x21">上一层</option>
-                    <option :value="0x40">休眠</option>
-                  </select>
-                </div>
-                <div class="fn-item">
-                  <span class="fn-label">长按</span>
-                  <select v-model="deviceStore.fnKeyConfig.fnKeys[0].longAction" class="fn-select">
-                    <option :value="0x00">无动作</option>
-                    <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
-                    <option :value="0x04">清除配对</option>
-                    <option :value="0x10">RGB 开关</option>
-                    <option :value="0x11">RGB 下一模式</option>
-                    <option :value="0x12">RGB 上一模式</option>
-                    <option :value="0x13">亮度+</option>
-                    <option :value="0x14">亮度-</option>
-                    <option :value="0x20">下一层</option>
-                    <option :value="0x21">上一层</option>
-                    <option :value="0x40">休眠</option>
-                  </select>
-                </div>
-              </div>
-              <!-- FN2 -->
-              <div class="fn-group">
-                <span class="fn-group-title">FN2</span>
-                <div class="fn-item">
-                  <span class="fn-label">单击</span>
-                  <select v-model="deviceStore.fnKeyConfig.fnKeys[1].clickAction" class="fn-select">
-                    <option :value="0x00">无动作</option>
-                    <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
-                    <option :value="0x04">清除配对</option>
-                    <option :value="0x10">RGB 开关</option>
-                    <option :value="0x11">RGB 下一模式</option>
-                    <option :value="0x12">RGB 上一模式</option>
-                    <option :value="0x13">亮度+</option>
-                    <option :value="0x14">亮度-</option>
-                    <option :value="0x20">下一层</option>
-                    <option :value="0x21">上一层</option>
-                    <option :value="0x40">休眠</option>
-                  </select>
-                </div>
-                <div class="fn-item">
-                  <span class="fn-label">长按</span>
-                  <select v-model="deviceStore.fnKeyConfig.fnKeys[1].longAction" class="fn-select">
-                    <option :value="0x00">无动作</option>
-                    <option :value="0x01">切换模式</option>
-                    <option :value="0x02">蓝牙广播</option>
-                    <option :value="0x03">蓝牙断开</option>
-                    <option :value="0x04">清除配对</option>
-                    <option :value="0x10">RGB 开关</option>
-                    <option :value="0x11">RGB 下一模式</option>
-                    <option :value="0x12">RGB 上一模式</option>
-                    <option :value="0x13">亮度+</option>
-                    <option :value="0x14">亮度-</option>
-                    <option :value="0x20">下一层</option>
-                    <option :value="0x21">上一层</option>
-                    <option :value="0x40">休眠</option>
-                  </select>
-                </div>
-              </div>
-              <Button label="保存 FN" icon="pi pi-check" size="small" @click="saveFnConfig"
-                class="fn-save-btn btn-primary" />
-            </div>
-          </div>
+          <FnPanel v-if="showFnPanel" />
 
-          <div class="panel rgb-panel">
-            <h3 class="panel-title">
-              <i class="pi pi-palette"></i>
-              RGB 灯效
-            </h3>
-            <div class="rgb-config">
-              <div class="rgb-item">
-                <span class="rgb-label">RGB 开关（仅按键灯）</span>
-                <label class="rgb-switch">
-                  <input type="checkbox" v-model="deviceStore.rgbConfig.enabled" />
-                  <span>{{ deviceStore.rgbConfig.enabled ? '开启' : '关闭' }}</span>
-                </label>
-              </div>
-              <div class="rgb-item">
-                <span class="rgb-label">模式</span>
-                <select v-model="deviceStore.rgbConfig.mode" class="rgb-select">
-                  <option :value="0">关闭</option>
-                  <option :value="1">静态</option>
-                  <option :value="2">呼吸</option>
-                  <option :value="3">闪烁</option>
-                  <option :value="4">彩虹</option>
-                  <option :value="5">仅指示灯</option>
-                </select>
-              </div>
-              <div v-if="showRgbColorPicker" class="rgb-item rgb-color-row">
-                <span class="rgb-label">颜色</span>
-                <div class="rgb-color-controls">
-                  <ColorPicker
-                    v-model="rgbColorHex"
-                    format="hex"
-                    inline
-                    class="rgb-color-picker"
-                  />
-                  <input
-                    v-model="rgbColorHex"
-                    type="text"
-                    class="rgb-hex-input"
-                    placeholder="#ffffff"
-                    maxlength="7"
-                  />
-                </div>
-              </div>
-              <div class="rgb-item">
-                <span class="rgb-label">按键灯亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
-                <input type="range" v-model.number="deviceStore.rgbConfig.brightness" min="0" max="255" class="rgb-slider" />
-              </div>
-              <div class="rgb-item">
-                <span class="rgb-label">指示灯亮度 {{ Math.round(deviceStore.rgbConfig.indicatorBrightness * 100 / 255) }}%</span>
-                <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" :min="RGB_INDICATOR_MIN_BRIGHTNESS" max="255" class="rgb-slider" />
-              </div>
-              <Button label="保存 RGB" icon="pi pi-check" size="small" @click="saveRgbConfig"
-                class="rgb-save-btn btn-primary" />
-            </div>
-          </div>
+          <RgbPanel v-if="showRgbPanel" />
 
-          <div class="panel actions-panel">
-            <h3 class="panel-title">
-              <i class="pi pi-cog"></i>
-              操作
-            </h3>
-            <div class="action-buttons">
-              <Button label="保存配置" icon="pi pi-save" :disabled="!deviceStore.hasChanges" @click="saveConfig"
-                class="action-btn btn-primary" />
-              <Button label="放弃更改" icon="pi pi-undo" severity="secondary" :disabled="!deviceStore.hasChanges"
-                @click="discardChanges" class="action-btn btn-secondary" />
-              <Divider />
-              <Button label="恢复出厂" icon="pi pi-refresh" severity="danger" outlined @click="confirmReset"
-                class="action-btn btn-danger-outline" />
-            </div>
-          </div>
+          <ActionsPanel :show-reset-button="showResetButton" :save-label="saveKeymapLabel" @save="saveConfig"
+            @discard="discardChanges" @reset="confirmReset" />
         </aside>
 
         <!-- 占位，保持布局 -->
@@ -375,9 +215,9 @@
             <div class="card-header">
               <div class="card-title-section">
                 <span class="card-title">🎹 键盘布局</span>
-                <span class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
+                <span v-if="showLayerBadge" class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
               </div>
-              <span class="card-subtitle">点击按键进行编辑 · 按住 FN + 按键N 切换到层N</span>
+              <span class="card-subtitle">{{ keyboardCardSubtitle }}</span>
             </div>
             <div class="keyboard-container">
               <KeyboardLayout :keyboard-type="currentKeyboardType" :keys="currentLayerKeysForDisplay"
@@ -411,28 +251,47 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useDeviceStore } from '@/stores/deviceStore';
-import { hidService } from '@/services/HidService';
+import { useRegisterSW } from 'virtual:pwa-register/vue';
+import { HidService, hidService } from '@/services/HidService';
+import { initToastService, showToast } from '@/services/toastService';
 import type { KeyAction } from '@/types/protocol';
 import {
   createEmptyAction,
   KeyboardType,
   KeyboardTypeInfo,
-  RGB_INDICATOR_MIN_BRIGHTNESS,
-  rgbToHex,
-  hexToRgb,
 } from '@/types/protocol';
+import { createDeviceUiDefinition, hasUiSection } from '@/types/deviceUi';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
-import { getLayoutByType, getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
+import { getHidDevicePlugin } from '@/services/hid/registry';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
 import KeyboardStatus from '@/components/KeyboardStatus.vue';
+import DeviceInfoPanel from '@/components/DeviceInfoPanel.vue';
+import LayerPanel from '@/components/LayerPanel.vue';
+import FnPanel from '@/components/FnPanel.vue';
+import RgbPanel from '@/components/RgbPanel.vue';
+import ActionsPanel from '@/components/ActionsPanel.vue';
 import { useTerminalStore } from '@/stores/terminalStore';
+import { useReleaseStore } from '@/stores/releaseStore';
 
 const toast = useToast();
+initToastService(toast);   // 注入全局 toast，供 Service 层使用
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
 const terminalStore = useTerminalStore();
+const releaseStore = useReleaseStore();
+
+// PWA 更新（Service Worker 检测到新版本时 needRefresh 为 true，用户点击后静默刷新）
+const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
+  onRegistered(r: ServiceWorkerRegistration | undefined) {
+    if (r) r.update();
+  },
+});
+async function onPwaUpdate() {
+  await updateServiceWorker(true);
+  window.location.reload();
+}
 
 // 主题
 const currentTheme = ref<ThemeMode>('dark');
@@ -447,30 +306,6 @@ const selectedKeyIndex = ref(-1);
 const selectedAction = computed<KeyAction>(() => {
   if (selectedKeyIndex.value < 0) return createEmptyAction();
   return deviceStore.getKeyAction(selectedKeyIndex.value) || createEmptyAction();
-});
-
-// 静态/呼吸/闪烁模式使用的颜色 (调色盘 + hex)
-const showRgbColorPicker = computed(
-  () =>
-    deviceStore.rgbConfig.mode === 1 ||
-    deviceStore.rgbConfig.mode === 2 ||
-    deviceStore.rgbConfig.mode === 3,
-);
-const rgbColorHex = computed({
-  get: () =>
-    rgbToHex(
-      deviceStore.rgbConfig.colorR,
-      deviceStore.rgbConfig.colorG,
-      deviceStore.rgbConfig.colorB,
-    ),
-  set: (hex: string) => {
-    const rgb = hexToRgb(hex);
-    if (rgb) {
-      deviceStore.rgbConfig.colorR = rgb.r;
-      deviceStore.rgbConfig.colorG = rgb.g;
-      deviceStore.rgbConfig.colorB = rgb.b;
-    }
-  },
 });
 
 // 键盘区域底部偏移（为终端面板腾出空间）
@@ -490,6 +325,37 @@ const currentKeyboardType = computed(() => {
   return deviceStore.deviceInfo?.keyboardType ?? 0; // 实际设备
 });
 
+const currentUiDefinition = computed(() => {
+  if (previewKeyboardType.value >= 0) {
+    return createDeviceUiDefinition('preview', ['device-info', 'keyboard-status', 'layer-panel', 'actions-panel', 'debug-terminal']);
+  }
+  const protocol = deviceStore.deviceInfo?.protocol;
+  if (!protocol) {
+    return createDeviceUiDefinition('preview', ['device-info', 'keyboard-status', 'actions-panel', 'debug-terminal']);
+  }
+  const plugin = getHidDevicePlugin(protocol);
+  if (!plugin) {
+    return createDeviceUiDefinition(protocol, ['device-info', 'keyboard-status', 'actions-panel', 'debug-terminal']);
+  }
+  return plugin.getUiDefinition(deviceStore.capabilities);
+});
+
+const showLayerPanel = computed(() => hasUiSection(currentUiDefinition.value, 'layer-panel'));
+const showFnPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'fn-panel'));
+const showRgbPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'rgb-panel'));
+const showResetButton = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFactoryReset);
+const showLayerBadge = computed(() => previewKeyboardType.value >= 0 || deviceStore.supportsMultiLayer);
+const saveKeymapLabel = computed(() => deviceStore.supportsExplicitSave ? '保存配置' : '写入键位');
+const keyboardCardSubtitle = computed(() => {
+  if (previewKeyboardType.value >= 0) {
+    return '预览布局模式';
+  }
+  if (deviceStore.supportsMultiLayer) {
+    return '点击按键进行编辑 · 按住 FN + 按键N 切换到层N';
+  }
+  return '点击按键进行编辑 · 当前设备仅支持单层键位映射';
+});
+
 // 获取当前层的按键数据（预览模式或实际设备）
 const currentLayerKeysForDisplay = computed(() => {
   if (previewKeyboardType.value >= 0) {
@@ -500,73 +366,6 @@ const currentLayerKeysForDisplay = computed(() => {
   // 实际设备：使用实际数据
   return deviceStore.currentLayerKeys;
 });
-
-// 根据键盘类型获取应该显示的层数
-const availableLayers = computed(() => {
-  const keyboardType = currentKeyboardType.value;
-  return KeyboardTypeInfo[keyboardType as KeyboardType]?.layers || 4;
-});
-
-// 获取当前键盘的层选择布局
-const layerLayout = computed<LayoutDef | null>(() => {
-  const keyboardType = currentKeyboardType.value;
-  return getLayerLayoutByType(keyboardType);
-});
-
-// 将按键索引映射到层索引（用于层选择面板）
-function getLayerIndexByKeyIndex(keyIndex: number, keyboardType: number): number {
-  if (keyboardType === 2) { // 旋钮款
-    // 旋钮款的层选择布局：按键顺序对应层顺序
-    // index 6 (旋钮按下) -> 层 0
-    // index 0 -> 层 1
-    // index 2 -> 层 2
-    // index 1 -> 层 3
-    // index 3 -> 层 4
-    const mapping: Record<number, number> = {
-      6: 0, // 旋钮按下 -> 层 0
-      0: 1, // 按键0 -> 层 1
-      2: 2, // 按键2 -> 层 2
-      1: 3, // 按键1 -> 层 3
-      3: 4, // 按键3 -> 层 4
-    };
-    return mapping[keyIndex] ?? 0;
-  } else {
-    // 基础款和五键款：按键索引直接对应层索引
-    return keyIndex;
-  }
-}
-
-// 获取按键样式（用于缩小版键盘）
-function getKeyStyle(key: any) {
-  const style: Record<string, string> = {};
-  style.gridRow = `${key.row + 1} / span ${key.size === '2u-v' ? 2 : 1}`;
-  style.gridColumn = `${key.col + 1} / span ${key.size === '2u-h' ? 2 : 1}`;
-  return style;
-}
-
-// 判断层按键是否禁用（旋钮款的旋钮位置禁用）
-function isLayerKeyDisabled(key: any, keyboardType: number): boolean {
-  // 旋钮款（type 2）的旋钮按下位置（encoder-press）禁用
-  return keyboardType === 2 && key.type === 'encoder-press';
-}
-
-// 层按键点击处理
-function onLayerKeyClick(key: any, keyboardType: number): void {
-  if (isLayerKeyDisabled(key, keyboardType)) {
-    return; // 禁用的按键不响应点击
-  }
-  const layerIndex = getLayerIndexByKeyIndex(key.index, keyboardType);
-  deviceStore.setEditLayer(layerIndex);
-}
-
-// 获取层按键的提示文本
-function getLayerKeyTitle(key: any, keyboardType: number): string {
-  if (isLayerKeyDisabled(key, keyboardType)) {
-    return '旋钮位置无RGB，不可用作层切换';
-  }
-  const layerIndex = getLayerIndexByKeyIndex(key.index, keyboardType);
-  return `层 ${layerIndex + 1} - 点击编辑 | FN + ${layerIndex + 1} 切换`;
-}
 
 // ----------------------------------------
 // 主题切换
@@ -641,8 +440,12 @@ async function disconnect() {
 async function refreshAll() {
   try {
     await deviceStore.refreshKeymap();
-    await deviceStore.refreshRgbConfig();
-    await deviceStore.refreshFnKeyConfig();
+    if (deviceStore.supportsRgb) {
+      await deviceStore.refreshRgbConfig();
+    }
+    if (deviceStore.supportsFnKeys) {
+      await deviceStore.refreshFnKeyConfig();
+    }
     showToast('success', '刷新成功', '配置已从设备重新加载');
   } catch (error) {
     showToast('error', '刷新失败', error instanceof Error ? error.message : '未知错误');
@@ -656,25 +459,7 @@ async function refreshAll() {
 async function saveConfig() {
   try {
     await deviceStore.saveKeymap();
-    showToast('success', '保存成功', '配置已保存到设备');
-  } catch (error) {
-    showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
-  }
-}
-
-async function saveFnConfig() {
-  try {
-    await deviceStore.saveFnKeyConfig();
-    showToast('success', 'FN 键已保存', 'FN 键配置已保存到设备');
-  } catch (error) {
-    showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
-  }
-}
-
-async function saveRgbConfig() {
-  try {
-    await deviceStore.saveRgbConfig();
-    showToast('success', 'RGB 已保存', 'RGB 灯效配置已保存到设备');
+    showToast('success', '保存成功', deviceStore.supportsExplicitSave ? '配置已保存到设备' : '键位已写入设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
   }
@@ -724,9 +509,7 @@ function onActionSave(action: KeyAction) {
 // 工具函数
 // ----------------------------------------
 
-function showToast(severity: 'success' | 'info' | 'warn' | 'error', summary: string, detail: string) {
-  toast.add({ severity, summary, detail, life: 2500 });
-}
+// showToast 由 @/services/toastService 提供，已在上方导入
 
 // ----------------------------------------
 // 生命周期
@@ -741,13 +524,20 @@ function onDeviceDisconnected(event: HIDConnectionEvent) {
 
 onMounted(async () => {
   initTheme();
-  navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
-  await autoConnect();
+  void releaseStore.loadLatestVersions();
+  if (HidService.isSupported()) {
+    navigator.hid.addEventListener('disconnect', onDeviceDisconnected);
+    await autoConnect();
+  } else {
+    showToast('warn', '浏览器不支持', '请使用 Chrome / Edge 等支持 WebHID 的浏览器');
+  }
 });
 
 onUnmounted(() => {
   deviceStore.stopStatusPolling();
-  navigator.hid.removeEventListener('disconnect', onDeviceDisconnected);
+  if (HidService.isSupported()) {
+    navigator.hid.removeEventListener('disconnect', onDeviceDisconnected);
+  }
 });
 </script>
 
@@ -785,7 +575,42 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-bottom: 32px; /* 底部状态栏高度 */
+  padding-bottom: 32px;
+  /* 底部状态栏高度 */
+}
+
+/* ==========================================
+   PWA 新版本提示条
+========================================== */
+.pwa-update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: var(--c-accent);
+  color: #fff;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.pwa-update-btn {
+  padding: 0.35rem 0.85rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pwa-update-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* ==========================================
@@ -837,7 +662,7 @@ body {
   font-size: 1.1rem;
 }
 
-.welcome-theme-toggle {
+.welcome-screen .theme-toggle {
   position: absolute;
   top: 1.5rem;
   right: 1.5rem;
@@ -980,6 +805,141 @@ body {
   margin: 2rem 0 0;
   font-size: 0.8rem;
   color: var(--c-text-muted);
+}
+
+.welcome-version-card {
+  margin-top: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-secondary);
+  overflow: hidden;
+}
+
+.version-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--c-text-muted);
+  border-bottom: 1px solid var(--c-border);
+  letter-spacing: 0.03em;
+}
+
+.version-badges {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.version-badge {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border-light);
+  background: var(--c-bg-primary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.version-badge:hover {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 12px -4px var(--c-accent-soft);
+}
+
+.badge-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.badge-chip-tag {
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ch552-badge .badge-chip-tag {
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.ch592-badge .badge-chip-tag {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.badge-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.badge-label {
+  font-size: 0.7rem;
+  color: var(--c-text-muted);
+  line-height: 1.2;
+}
+
+.badge-version {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--c-text-primary);
+  line-height: 1.2;
+}
+
+.studio-badge .badge-version {
+  color: var(--c-accent-light);
+}
+
+.version-error-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.7rem;
+  color: var(--c-warning, #e2a308);
+  background: rgba(226, 163, 8, 0.08);
+  border-top: 1px solid var(--c-border);
+}
+
+.version-error-tip .pi {
+  font-size: 0.75rem;
+}
+
+.version-release-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+  text-decoration: none;
+  border-top: 1px solid var(--c-border);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.version-release-link:hover {
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+
+.version-release-link .pi-external-link {
+  font-size: 0.65rem;
 }
 
 .legacy-link {
@@ -1137,14 +1097,16 @@ body {
   flex: 1;
   display: flex;
   padding: 1.5rem;
-  padding-bottom: 50px; /* 默认只为状态栏留出空间 */
+  padding-bottom: 50px;
+  /* 默认只为状态栏留出空间 */
   gap: 1.5rem;
   transition: padding-bottom 0.3s ease;
 }
 
 /* 当终端打开时，增加底部间距 */
 .app-main.terminal-open {
-  padding-bottom: 340px; /* 为打开的终端留出空间 (280px 终端 + 32px 状态栏 + 余量) */
+  padding-bottom: 340px;
+  /* 为打开的终端留出空间 (280px 终端 + 32px 状态栏 + 余量) */
 }
 
 /* ==========================================

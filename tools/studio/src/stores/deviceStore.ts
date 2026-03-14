@@ -2,26 +2,40 @@
  * BinaryKeyboard 设备状态管理
  */
 
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { hidService } from '@/services/HidService';
+import { defineStore } from "pinia";
+import { ref, computed } from "vue";
+import { hidService } from "@/services/HidService";
 import {
+  type DeviceCapabilities,
   type DeviceInfo,
   type DeviceStatus,
   type KeymapConfig,
   type RgbConfig,
   type FnKeyConfig,
   type KeyAction,
-  KeyboardType,
   KeyboardTypeInfo,
-  ActionType,
   createEmptyKeymap,
   createEmptyFnKeyConfig,
   createDefaultRgbConfig,
   MAX_LAYERS,
-} from '@/types/protocol';
+} from "@/types/protocol";
 
-export const useDeviceStore = defineStore('device', () => {
+export const useDeviceStore = defineStore("device", () => {
+  const EMPTY_CAPABILITIES: DeviceCapabilities = {
+    multiLayer: false,
+    layerKeyActions: false,
+    rgb: false,
+    rgbOverlay: false,
+    fnKeys: false,
+    macroActions: false,
+    wheelClickAction: false,
+    battery: false,
+    logs: false,
+    reset: false,
+    explicitSave: false,
+    wireless: false,
+  };
+
   // ========================================
   // 状态
   // ========================================
@@ -69,12 +83,36 @@ export const useDeviceStore = defineStore('device', () => {
   // ========================================
 
   /** 是否已连接 */
-  const isConnected = computed(() => device.value !== null && device.value.opened);
+  const isConnected = computed(
+    () => device.value !== null && device.value.opened,
+  );
+
+  /** 当前设备能力 */
+  const capabilities = computed<DeviceCapabilities>(() => {
+    return deviceInfo.value?.capabilities ?? EMPTY_CAPABILITIES;
+  });
+
+  const supportsMultiLayer = computed(() => capabilities.value.multiLayer);
+  const supportsLayerKeyActions = computed(
+    () => capabilities.value.layerKeyActions,
+  );
+  const supportsRgb = computed(() => capabilities.value.rgb);
+  const supportsRgbOverlay = computed(() => capabilities.value.rgbOverlay);
+  const supportsFnKeys = computed(() => capabilities.value.fnKeys);
+  const supportsMacroActions = computed(() => capabilities.value.macroActions);
+  const supportsWheelClickAction = computed(
+    () => capabilities.value.wheelClickAction,
+  );
+  const supportsBattery = computed(() => capabilities.value.battery);
+  const supportsLogs = computed(() => capabilities.value.logs);
+  const supportsFactoryReset = computed(() => capabilities.value.reset);
+  const supportsExplicitSave = computed(() => capabilities.value.explicitSave);
+  const supportsWireless = computed(() => capabilities.value.wireless);
 
   /** 键盘类型名称 */
   const keyboardTypeName = computed(() => {
-    if (!deviceInfo.value) return '未知设备';
-    return KeyboardTypeInfo[deviceInfo.value.keyboardType]?.name || '未知型号';
+    if (!deviceInfo.value) return "未知设备";
+    return KeyboardTypeInfo[deviceInfo.value.keyboardType]?.name || "未知型号";
   });
 
   /** 实际可用键数 */
@@ -85,27 +123,35 @@ export const useDeviceStore = defineStore('device', () => {
 
   /** 固件版本字符串 */
   const firmwareVersion = computed(() => {
-    if (!deviceInfo.value) return '0.0.0';
+    if (!deviceInfo.value) return "0.0.0";
     return `${deviceInfo.value.versionMajor}.${deviceInfo.value.versionMinor}.${deviceInfo.value.versionPatch}`;
   });
 
   /** 当前层的按键列表 */
   const currentLayerKeys = computed(() => {
-    return keymap.value.layers[currentEditLayer.value]?.keys.slice(0, actualKeyCount.value) || [];
+    return (
+      keymap.value.layers[currentEditLayer.value]?.keys.slice(
+        0,
+        actualKeyCount.value,
+      ) || []
+    );
   });
 
   /** 是否有未保存的更改 */
   const hasChanges = computed(() => {
-    return JSON.stringify(keymap.value) !== JSON.stringify(keymapOriginal.value);
+    return (
+      JSON.stringify(keymap.value) !== JSON.stringify(keymapOriginal.value)
+    );
   });
 
   /** 设备信息列表 (用于 UI 显示) */
   const deviceInfoList = computed(() => {
     if (!deviceInfo.value) return [];
     return [
-      { key: '型号名称', value: keyboardTypeName.value },
-      { key: '按键数量', value: `${actualKeyCount.value} 键` },
-      { key: '固件版本', value: `v${firmwareVersion.value}` },
+      { key: "芯片家族", value: deviceInfo.value.chipFamily },
+      { key: "型号名称", value: keyboardTypeName.value },
+      { key: "按键数量", value: `${actualKeyCount.value} 键` },
+      { key: "固件版本", value: `v${firmwareVersion.value}` },
     ];
   });
 
@@ -121,18 +167,27 @@ export const useDeviceStore = defineStore('device', () => {
     try {
       const success = await hidService.connect(hidDevice);
       if (!success) {
-        throw new Error('无法打开设备');
+        throw new Error("无法打开设备");
       }
 
       device.value = hidDevice;
       await refreshDeviceInfo();
       await refreshKeymap();
-      await refreshRgbConfig();
-      await refreshFnKeyConfig();
+      if (supportsRgb.value) {
+        await refreshRgbConfig();
+      } else {
+        rgbConfig.value = createDefaultRgbConfig();
+      }
+      if (supportsFnKeys.value) {
+        await refreshFnKeyConfig();
+      } else {
+        fnKeyConfig.value = createEmptyFnKeyConfig();
+      }
+      currentEditLayer.value = 0;
 
       return true;
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '连接失败';
+      errorMessage.value = error instanceof Error ? error.message : "连接失败";
       device.value = null;
       return false;
     } finally {
@@ -150,6 +205,9 @@ export const useDeviceStore = defineStore('device', () => {
     batteryVoltage.value = 0;
     keymap.value = createEmptyKeymap();
     keymapOriginal.value = createEmptyKeymap();
+    rgbConfig.value = createDefaultRgbConfig();
+    fnKeyConfig.value = createEmptyFnKeyConfig();
+    currentEditLayer.value = 0;
   }
 
   /** 刷新设备信息 */
@@ -163,10 +221,15 @@ export const useDeviceStore = defineStore('device', () => {
     const config = await hidService.getFullKeymap();
     keymap.value = config;
     keymapOriginal.value = JSON.parse(JSON.stringify(config)); // 深拷贝
-    
-    // 根据键盘类型自动设置层数
-    if (deviceInfo.value) {
-      const expectedLayers = KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers || 4;
+
+    if (deviceInfo.value?.capabilities.multiLayer) {
+      // 以设备上报的 maxLayers 为准，避免不同协议/固件的层数能力不一致
+      const expectedLayers = Math.max(
+        1,
+        deviceInfo.value.maxLayers ||
+          KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers ||
+          1,
+      );
       if (keymap.value.numLayers !== expectedLayers) {
         keymap.value.numLayers = expectedLayers;
         // 确保当前层在有效范围内
@@ -178,16 +241,29 @@ export const useDeviceStore = defineStore('device', () => {
         }
         currentEditLayer.value = keymap.value.currentLayer;
       }
+    } else {
+      keymap.value.numLayers = 1;
+      keymap.value.currentLayer = 0;
+      keymap.value.defaultLayer = 0;
+      currentEditLayer.value = 0;
     }
   }
 
   /** 刷新 RGB 配置 */
   async function refreshRgbConfig(): Promise<void> {
+    if (!supportsRgb.value) {
+      rgbConfig.value = createDefaultRgbConfig();
+      return;
+    }
     rgbConfig.value = await hidService.getRgbConfig();
   }
 
   /** 刷新 FN 键配置 */
   async function refreshFnKeyConfig(): Promise<void> {
+    if (!supportsFnKeys.value) {
+      fnKeyConfig.value = createEmptyFnKeyConfig();
+      return;
+    }
     fnKeyConfig.value = await hidService.getFnKeyConfig();
   }
 
@@ -198,10 +274,12 @@ export const useDeviceStore = defineStore('device', () => {
 
     try {
       await hidService.setFullKeymap(keymap.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
       keymapOriginal.value = JSON.parse(JSON.stringify(keymap.value));
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '保存失败';
+      errorMessage.value = error instanceof Error ? error.message : "保存失败";
       throw error;
     } finally {
       isLoading.value = false;
@@ -210,14 +288,19 @@ export const useDeviceStore = defineStore('device', () => {
 
   /** 保存 RGB 配置到设备 */
   async function saveRgbConfig(): Promise<void> {
+    if (!supportsRgb.value) {
+      throw new Error("当前设备不支持 RGB 配置");
+    }
     isLoading.value = true;
     errorMessage.value = null;
 
     try {
       await hidService.setRgbConfig(rgbConfig.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '保存失败';
+      errorMessage.value = error instanceof Error ? error.message : "保存失败";
       throw error;
     } finally {
       isLoading.value = false;
@@ -226,14 +309,19 @@ export const useDeviceStore = defineStore('device', () => {
 
   /** 保存 FN 键配置到设备 */
   async function saveFnKeyConfig(): Promise<void> {
+    if (!supportsFnKeys.value) {
+      throw new Error("当前设备不支持 FN 键配置");
+    }
     isLoading.value = true;
     errorMessage.value = null;
 
     try {
       await hidService.setFnKeyConfig(fnKeyConfig.value);
-      await hidService.saveConfig();
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '保存失败';
+      errorMessage.value = error instanceof Error ? error.message : "保存失败";
       throw error;
     } finally {
       isLoading.value = false;
@@ -242,16 +330,23 @@ export const useDeviceStore = defineStore('device', () => {
 
   /** 重置为出厂设置 */
   async function resetToFactory(): Promise<void> {
+    if (!supportsFactoryReset.value) {
+      throw new Error("当前设备不支持恢复出厂");
+    }
     isLoading.value = true;
     errorMessage.value = null;
 
     try {
       await hidService.resetConfig();
       await refreshKeymap();
-      await refreshRgbConfig();
-      await refreshFnKeyConfig();
+      if (supportsRgb.value) {
+        await refreshRgbConfig();
+      }
+      if (supportsFnKeys.value) {
+        await refreshFnKeyConfig();
+      }
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '重置失败';
+      errorMessage.value = error instanceof Error ? error.message : "重置失败";
       throw error;
     } finally {
       isLoading.value = false;
@@ -259,17 +354,34 @@ export const useDeviceStore = defineStore('device', () => {
   }
 
   /** 设置某个键的动作 */
-  function setKeyAction(keyIndex: number, action: KeyAction, layerIndex?: number): void {
+  function setKeyAction(
+    keyIndex: number,
+    action: KeyAction,
+    layerIndex?: number,
+  ): void {
     const layer = layerIndex ?? currentEditLayer.value;
-    if (layer >= 0 && layer < MAX_LAYERS && keyIndex >= 0 && keyIndex < actualKeyCount.value) {
+    if (
+      layer >= 0 &&
+      layer < MAX_LAYERS &&
+      keyIndex >= 0 &&
+      keyIndex < actualKeyCount.value
+    ) {
       keymap.value.layers[layer].keys[keyIndex] = { ...action };
     }
   }
 
   /** 获取某个键的动作 */
-  function getKeyAction(keyIndex: number, layerIndex?: number): KeyAction | null {
+  function getKeyAction(
+    keyIndex: number,
+    layerIndex?: number,
+  ): KeyAction | null {
     const layer = layerIndex ?? currentEditLayer.value;
-    if (layer >= 0 && layer < MAX_LAYERS && keyIndex >= 0 && keyIndex < actualKeyCount.value) {
+    if (
+      layer >= 0 &&
+      layer < MAX_LAYERS &&
+      keyIndex >= 0 &&
+      keyIndex < actualKeyCount.value
+    ) {
       return keymap.value.layers[layer].keys[keyIndex];
     }
     return null;
@@ -326,7 +438,7 @@ export const useDeviceStore = defineStore('device', () => {
 
       // 每 5 个 tick (~10s) 采样电压
       _pollTick++;
-      if (_pollTick % 5 === 0) {
+      if (supportsBattery.value && _pollTick % 5 === 0) {
         const bat = await hidService.getBattery();
         batteryVoltage.value = bat.voltage;
       }
@@ -339,10 +451,16 @@ export const useDeviceStore = defineStore('device', () => {
   function startStatusPolling(): void {
     stopStatusPolling();
     _pollTick = 0;
-    // 立即采样一次电压
-    hidService.getBattery().then((bat) => {
-      batteryVoltage.value = bat.voltage;
-    }).catch(() => {});
+    if (supportsBattery.value) {
+      hidService
+        .getBattery()
+        .then((bat) => {
+          batteryVoltage.value = bat.voltage;
+        })
+        .catch(() => {});
+    } else {
+      batteryVoltage.value = 0;
+    }
     _pollTimer = setInterval(_pollStatus, 2000);
   }
 
@@ -370,6 +488,19 @@ export const useDeviceStore = defineStore('device', () => {
 
     // 计算属性
     isConnected,
+    capabilities,
+    supportsMultiLayer,
+    supportsLayerKeyActions,
+    supportsRgb,
+    supportsRgbOverlay,
+    supportsFnKeys,
+    supportsMacroActions,
+    supportsWheelClickAction,
+    supportsBattery,
+    supportsLogs,
+    supportsFactoryReset,
+    supportsExplicitSave,
+    supportsWireless,
     keyboardTypeName,
     actualKeyCount,
     firmwareVersion,

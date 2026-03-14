@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300">
+  <img src="https://github.com/user-attachments/assets/1fc84ca3-9192-4450-850b-dca9ef54fc58" width="300" alt="BinaryKeyboard keyboard">
 </p>
 
 <p align="center">
@@ -19,14 +19,12 @@
 </p>
 
 <p align="center">
-  <sub>Design by <b>KJ</b> · Made with ❤️</sub>
+  <sub>Design by <b>KJ</b> · Made with love</sub>
 </p>
 
 <p align="center">
-  <a href="#概述">概述</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#环境">环境</a> ·
-  <a href="#贡献">贡献</a> ·
+  <a href="#文档">文档</a> ·
   <a href="#许可">许可</a>
 </p>
 
@@ -38,19 +36,26 @@
 
 # 快速开始
 
-# 环境
+- 在线文档：https://meowkj.github.io/BinaryKeyboard/
+- 统一终端控制台：`python tools/scripts/console.py`
 
-## 有线款
+## 推荐入口
 
-[有线款](./firmware/CH552G/README.md)
+仓库根目录下直接运行：
 
-## 无线款
+```bash
+python tools/scripts/console.py
+```
 
-[无线款](./firmware/CH592F/README.md)
+如果当前终端不适合 curses TUI，也可以使用文本模式：
 
-# 贡献
+```bash
+python tools/scripts/console.py --text
+```
 
-[![Contributors](https://contrib.rocks/image?repo=MeowKJ/BinaryKeyboard)](https://github.com/MeowKJ/BinaryKeyboard/graphs/contributors)
+<p align="center">
+  <img src="https://github.com/MeowKJ/BinaryKeyboard/releases/download/readme-assets/console-tui.png" width="960" alt="BinaryKeyboard console.py TUI">
+</p>
 
 # 许可
 

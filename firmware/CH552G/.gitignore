@@ -1,0 +1,30 @@
+# Build outputs
+obj/
+build/
+
+# CMake – user-local presets (machine-specific toolchain path, never committed)
+CMakeUserPresets.json
+
+# CMake cache / generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# SDCC build artifacts
+*.ihx
+*.hex
+*.bin
+*.map
+*.lst
+*.rel
+*.rst
+*.sym
+*.asm
+*.lk
+*.mem
+*.noi
+
+# IDE/project metadata
+*.launch
+.template

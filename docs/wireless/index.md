@@ -21,7 +21,7 @@
 
 2. **外壳 STL** - 从 Releases 或 OSHWHub 下载（无线版专用，带电池仓）
 
-3. **烧录工具** - [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
+3. **刷写方式** - `python tools/scripts/console.py`
 
 ## 复刻流程
 
@@ -46,21 +46,23 @@
 
 #### 软件配置
 
-1. 打开 **WCHISPStudio**
-2. 顶部工具栏选择 **MCU系列视图** → **低功耗蓝牙系列**
-3. 芯片选择：芯片系列 **CH59xx**，芯片型号 **CH592**，下载接口 **USB**
-4. 下载文件：目标程序文件1 选择对应的 `.hex` 固件文件
+1. 在仓库根目录运行 `python tools/scripts/console.py`
+2. 进入 `Home`
+3. 点 `Install or update wchisp`
+4. 点 `Probe ISP devices`
+5. 五键款保持 `Layout = 5KEY`，旋钮款先点 `Toggle layout`
 
 #### 硬件操作
 
-5. **按住** PCB 上的 **BOOT** 按钮不松开
-6. 保持按住的同时，将 USB-C 插入电脑
-7. 松开 BOOT 按钮（此时软件应识别到设备）
+6. **按住** PCB 上的 **BOOT** 按钮不松开
+7. 保持按住的同时，将 USB-C 插入电脑
+8. 松开 BOOT 按钮（此时软件应识别到设备）
 
 #### 开始烧录
 
-8. 点击"下载"按钮
-9. 等待进度条完成，提示成功
+9. 回到 `PY` 终端控制台
+10. 点 `Flash selected preset`
+11. 等待刷写完成，提示成功
 
 详细步骤见 [刷写固件](./flash)
 

@@ -1,12 +1,16 @@
 {
   "name": "meowkeyboard-studio",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "sync-versions": "node ./scripts/sync-versions.mjs",
+    "predev": "pnpm run sync-versions",
+    "prebuild": "pnpm run sync-versions",
+    "pretype-check": "pnpm run sync-versions",
+    "dev": "vite --host 0.0.0.0",
     "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
+    "preview": "vite preview --host 0.0.0.0",
     "build-only": "vite build",
     "type-check": "vue-tsc --build"
   },
@@ -29,7 +33,9 @@
     "typescript": "~5.7.3",
     "unplugin-vue-components": "^28.4.1",
     "vite": "^6.1.0",
+    "vite-plugin-pwa": "^0.21.1",
     "vite-plugin-vue-devtools": "^7.7.2",
-    "vue-tsc": "^2.2.2"
+    "vue-tsc": "^2.2.2",
+    "workbox-window": "^7.4.0"
   }
 }

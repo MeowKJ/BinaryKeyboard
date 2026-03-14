@@ -16,10 +16,50 @@
       "cacheVariables": {
         "MRS_TOOLCHAIN_ROOT": "/path/to/MRS_Toolchain_MAC_V230/Toolchain"
       }
+    },
+    {
+      "name": "local-debug-5key",
+      "displayName": "Debug (local toolchain, 5KEY)",
+      "inherits": "local-debug",
+      "cacheVariables": {
+        "KEYBOARD": "5KEY",
+        "KBD_MODEL": "5KEY"
+      }
+    },
+    {
+      "name": "local-release-5key",
+      "displayName": "Release (local toolchain, 5KEY)",
+      "inherits": "local-release",
+      "cacheVariables": {
+        "KEYBOARD": "5KEY",
+        "KBD_MODEL": "5KEY"
+      }
+    },
+    {
+      "name": "local-debug-knob",
+      "displayName": "Debug (local toolchain, KNOB)",
+      "inherits": "local-debug",
+      "cacheVariables": {
+        "KEYBOARD": "KNOB",
+        "KBD_MODEL": "KNOB"
+      }
+    },
+    {
+      "name": "local-release-knob",
+      "displayName": "Release (local toolchain, KNOB)",
+      "inherits": "local-release",
+      "cacheVariables": {
+        "KEYBOARD": "KNOB",
+        "KBD_MODEL": "KNOB"
+      }
     }
   ],
   "buildPresets": [
     { "name": "local-debug",   "configurePreset": "local-debug" },
-    { "name": "local-release", "configurePreset": "local-release" }
+    { "name": "local-release", "configurePreset": "local-release" },
+    { "name": "local-debug-5key",   "configurePreset": "local-debug-5key" },
+    { "name": "local-release-5key", "configurePreset": "local-release-5key" },
+    { "name": "local-debug-knob", "configurePreset": "local-debug-knob" },
+    { "name": "local-release-knob", "configurePreset": "local-release-knob" }
   ]
 }

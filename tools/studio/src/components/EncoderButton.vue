@@ -171,7 +171,7 @@ function getLabelContainerStyle(index: number) {
     const centerRad = centerAngle * Math.PI / 180;
 
     // 距离中心的距离（百分比）
-    const radius = 32;
+    const radius = 26;
 
     // 计算位置（相对于100x100的viewBox）
     const x = 50 + radius * Math.cos(centerRad);
@@ -211,12 +211,13 @@ function getActionBadge(action: KeyAction): string | null {
 <style scoped>
 .encoder-button {
     position: relative;
-    width: var(--key-unit);
-    height: var(--key-unit);
+    width: calc(var(--key-unit) * 1.2);
+    height: calc(var(--key-unit) * 1.2);
+    margin: calc(var(--key-unit) * -0.1);
     border-radius: 50%;
     background: var(--c-key-bg);
     border: 2px solid var(--c-key-border);
-    overflow: hidden;
+    overflow: visible;
     cursor: pointer;
     transition: all var(--transition-fast);
 }

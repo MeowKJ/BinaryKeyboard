@@ -7,7 +7,7 @@
 
     <div class="status-grid">
       <!-- 电池状态 - 占满一行两列 -->
-      <div class="status-card battery-card" :class="{ charging: isCharging }">
+      <div v-if="supportsBattery" class="status-card battery-card" :class="{ charging: isCharging }">
         <div class="status-icon battery-icon-wrap" :style="{ '--bat-c': batColor }">
           <i class="pi" :class="batteryIcon"></i>
         </div>
@@ -31,7 +31,7 @@
       </div>
 
       <!-- 连接模式 -->
-      <div class="status-card connection-card">
+      <div class="status-card connection-card" :class="{ wide: !supportsBattery && !supportsRgb }">
         <div class="status-icon">
           <i class="pi" :class="connectionIcon"></i>
         </div>
@@ -42,7 +42,7 @@
       </div>
 
       <!-- RGB 状态 -->
-      <div class="status-card rgb-card">
+      <div v-if="supportsRgb" class="status-card rgb-card">
         <div class="status-icon">
           <i class="pi pi-sun"></i>
         </div>
@@ -60,6 +60,8 @@ import { computed } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 
 const deviceStore = useDeviceStore();
+const supportsBattery = computed(() => deviceStore.supportsBattery);
+const supportsRgb = computed(() => deviceStore.supportsRgb);
 
 // 电池
 const batteryLevel = computed(() => deviceStore.deviceStatus?.batteryLevel ?? 0);
@@ -82,6 +84,7 @@ const batteryIcon = computed(() => {
 
 // 连接模式
 const connectionMode = computed(() => {
+  if (!deviceStore.supportsWireless) return 'USB Wired';
   const mode = deviceStore.deviceStatus?.workMode ?? 0;
   return mode === 1 ? 'BLE' : 'USB';
 });
@@ -101,6 +104,7 @@ const rgbModeNames: Record<number, string> = {
 };
 
 const rgbStatus = computed(() => {
+  if (!supportsRgb.value) return '不支持';
   const mode = deviceStore.rgbConfig?.mode ?? 0;
   return rgbModeNames[mode] ?? '关闭';
 });
@@ -128,6 +132,10 @@ const rgbStatus = computed(() => {
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
   overflow: hidden;
+}
+
+.status-card.wide {
+  grid-column: 1 / -1;
 }
 
 .status-card:hover {

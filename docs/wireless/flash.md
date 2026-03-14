@@ -1,20 +1,14 @@
 # 无线版固件刷写
 
-## 准备工作
+## 准备
 
-- **WCHISPStudio** - [下载地址](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
-- 对应版本的 `.hex` 固件文件
+- 安装 `Python 3`
+- 打开这个仓库根目录
+- 用 `PY` 终端控制台刷写：
 
-## 固件文件说明
-
-| 固件文件                 | 适用外形 |
-| :----------------------- | :------- |
-| `ch592_basic_xxx.hex`    | 基础款   |
-| `ch592_fivekeys_xxx.hex` | 五键款   |
-| `ch592_knob_xxx.hex`     | 旋钮款   |
-| `ch592_magnetic_xxx.hex` | 磁轴款   |
-
-> 以 GitHub Releases 的发布文件为准。
+```bash
+python tools/scripts/console.py
+```
 
 ## 进入 Bootloader 模式
 
@@ -27,14 +21,45 @@
 CH592F 的 Bootloader 与 CH552G 类似，但芯片类型选择不同。
 :::
 
-## 烧录步骤
+## Windows
 
-1. 打开 **WCHISPStudio**
-2. 选择芯片类型为 **CH592**
-3. 点击"打开文件"，选择 `.hex` 固件
-4. 点击"下载/烧录"
-5. 等待进度条完成
-6. 拔插 USB，测试蓝牙配对
+1. 在仓库根目录运行：
+
+```bash
+python tools/scripts/console.py
+```
+
+2. 进入 `Home`
+3. 先点 `Install or update wchisp`
+4. 再点 `Probe ISP devices`，确认已经识别到设备
+5. 如果你刷五键款，保持当前 `Layout = 5KEY`
+6. 如果你刷旋钮款，先点 `Toggle layout` 切到 `KNOB`
+7. 点 `Flash selected preset`
+8. 等待刷写完成
+9. 拔插 USB，测试蓝牙配对
+
+## macOS / Linux
+
+1. 在仓库根目录运行：
+
+```bash
+python tools/scripts/console.py
+```
+
+2. 进入 `Home`
+3. 先点 `Install or update wchisp`
+4. 再点 `Probe ISP devices`
+5. 五键款保持 `Layout = 5KEY`
+6. 旋钮款先点 `Toggle layout` 切到 `KNOB`
+7. 点 `Flash selected preset`
+8. 等待刷写完成
+
+## 说明
+
+- `Home -> Toggle layout` 用来切换 `5KEY / KNOB`
+- `Home -> Toggle build type` 一般保持 `release`
+- `Home -> Flash selected preset` 会先构建，再刷写
+- 如果只是想检查设备在不在，可以用 `Home -> Probe ISP devices`
 
 ## 蓝牙配对测试
 

@@ -13,8 +13,8 @@
         <Tab value="keyboard"><i class="pi pi-keyboard"></i> 键盘</Tab>
         <Tab value="media"><i class="pi pi-volume-up"></i> 媒体</Tab>
         <Tab value="mouse"><i class="pi pi-desktop"></i> 鼠标</Tab>
-        <Tab value="layer"><i class="pi pi-layer-group"></i> 层</Tab>
-        <Tab value="macro"><i class="pi pi-code"></i> 宏</Tab>
+        <Tab v-if="allowLayerActions" value="layer"><i class="pi pi-layer-group"></i> 层</Tab>
+        <Tab v-if="allowMacroActions" value="macro"><i class="pi pi-code"></i> 宏</Tab>
       </TabList>
 
       <TabPanels>
@@ -113,7 +113,7 @@
         </TabPanel>
 
         <!-- 层切换 -->
-        <TabPanel value="layer">
+        <TabPanel v-if="allowLayerActions" value="layer">
           <div class="editor-panel">
             <div class="layer-section">
               <label class="section-label">操作类型</label>
@@ -150,7 +150,7 @@
         </TabPanel>
 
         <!-- 宏 -->
-        <TabPanel value="macro">
+        <TabPanel v-if="allowMacroActions" value="macro">
           <div class="editor-panel">
             <div class="macro-section">
               <label class="section-label">选择宏</label>
@@ -204,6 +204,7 @@ import {
   type KeyAction,
   createEmptyAction,
 } from '@/types/protocol';
+import { useDeviceStore } from '@/stores/deviceStore';
 import { getKeycodeName, getHidFromEvent } from '@/utils/keycodes';
 import { CONSUMER_KEYS } from '@/utils/consumer';
 
@@ -217,6 +218,7 @@ const emit = defineEmits<{
   'update:visible': [value: boolean];
   save: [action: KeyAction];
 }>();
+const deviceStore = useDeviceStore();
 
 // 对话框可见性
 const dialogVisible = computed({
@@ -242,6 +244,8 @@ const layerTarget = ref(0);
 
 // 宏相关
 const macroId = ref(0);
+const allowLayerActions = computed(() => deviceStore.supportsLayerKeyActions);
+const allowMacroActions = computed(() => deviceStore.supportsMacroActions);
 
 // 预览
 const previewKeyName = computed(() => {
@@ -264,11 +268,18 @@ const mouseButtons = [
   { label: '前进', value: MouseButton.FORWARD },
 ];
 
-const wheelDirections = [
-  { label: '向上', value: WheelDirection.UP },
-  { label: '向下', value: WheelDirection.DOWN },
-  { label: '中键点击', value: WheelDirection.CLICK },
-];
+const wheelDirections = computed(() => {
+  const directions = [
+    { label: '向上', value: WheelDirection.UP },
+    { label: '向下', value: WheelDirection.DOWN },
+  ];
+
+  if (deviceStore.supportsWheelClickAction) {
+    directions.push({ label: '中键点击', value: WheelDirection.CLICK });
+  }
+
+  return directions;
+});
 
 const layerOpOptions = [
   { label: '切换', value: LayerOp.TOGGLE },
@@ -303,11 +314,19 @@ function initFromAction(action: KeyAction) {
       activeTab.value = 'mouse';
       break;
     case ActionType.LAYER:
+      if (!allowLayerActions.value) {
+        activeTab.value = 'keyboard';
+        break;
+      }
       activeTab.value = 'layer';
       layerOp.value = action.modifier;
       layerTarget.value = action.param1;
       break;
     case ActionType.MACRO:
+      if (!allowMacroActions.value) {
+        activeTab.value = 'keyboard';
+        break;
+      }
       activeTab.value = 'macro';
       macroId.value = action.param1;
       break;
