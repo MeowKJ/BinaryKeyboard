@@ -175,7 +175,12 @@ jobs:
           CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "name=BinaryKeyboard · Studio v${STUDIO_VERSION} · CH552 v${CH552_VERSION} · CH592 v${CH592_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "name=BinaryKeyboard ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
+
+          # Collect tool versions
+          CMAKE_VER=$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || echo "N/A")
+          PYTHON_VER=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "N/A")
+          SDCC_VER=$(apt-cache show sdcc 2>/dev/null | grep -m1 '^Version:' | awk '{print $2}' || echo "N/A")
 
           # Build file table with sizes
           {
@@ -206,13 +211,17 @@ jobs:
               echo "| \`${fname}\` | ${fsize} | ${desc} |"
             done
             echo
-            echo "### ℹ️ 构建环境"
+            echo "### 🔧 构建环境"
             echo
             echo "| 属性 | 值 |"
             echo "|------|------|"
             echo "| 构建日期 | ${DATE_DISPLAY} |"
             echo "| Commit | [\`${SHA}\`](https://github.com/${{ github.repository }}/commit/${SHA}) |"
-            echo "| 工具链 | \`${{ env.TOOLCHAIN_VERSION }}\` |"
+            echo "| Runner | \`ubuntu-latest\` |"
+            echo "| CH592F 工具链 | \`${{ env.TOOLCHAIN_VERSION }}\`（RISC-V GCC 12） |"
+            echo "| SDCC | \`${SDCC_VER}\` |"
+            echo "| CMake | \`${CMAKE_VER}\` |"
+            echo "| Python | \`${PYTHON_VER}\` |"
             echo
             echo "<details><summary>🔒 SHA-256 校验值</summary>"
             echo
