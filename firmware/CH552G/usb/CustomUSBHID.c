@@ -208,7 +208,7 @@ void USB_EP1_OUT() {
         uint8_t layer = Ep1Buffer[2];
         if (layer < MAX_LAYERS) {
           setCurrentLayer(layer);
-          flashLayerColor(layer);
+          flashLayerColor(layer, 0);
         }
       } else if (cmd == HOST_CMD_READ_META) {
         // 0x05: 读取固件/协议/存储元信息

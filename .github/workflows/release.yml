@@ -44,6 +44,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Install Python
+        run: |
+          apt-get update -q
+          apt-get install -y --no-install-recommends python3
+
       - name: Build
         run: python3 tools/scripts/ch592f.py build --keyboard ${{ matrix.keyboard }} --profile release
 
