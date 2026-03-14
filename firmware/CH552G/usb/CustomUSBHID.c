@@ -18,305 +18,356 @@ extern __xdata __at (EP1_ADDR) uint8_t Ep1Buffer[];
 __xdata uint8_t keyboardLedStatus = 0;
 
 volatile __xdata uint8_t UpPoint1_Busy =
-  0;  // Flag of whether upload pointer is busy
+    0; // Flag of whether upload pointer is busy
 
-__xdata uint8_t HIDKey[8] = { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 };
-__xdata uint16_t HIDConsumer[4] = { 0x0, 0x0, 0x0, 0x0 };
-__xdata uint8_t HIDMouse[4] = { 0x0, 0x0, 0x0, 0x0 };
-__xdata uint8_t CustomBuf[31] = { 0x01 };
+__xdata uint8_t HIDKey[8] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+__xdata uint16_t HIDConsumer[4] = {0x0, 0x0, 0x0, 0x0};
+__xdata uint8_t HIDMouse[4] = {0x0, 0x0, 0x0, 0x0};
+__xdata uint8_t CustomBuf[31] = {0x01};
 
 #define SHIFT 0x80
 __code uint8_t _asciimap[128] = {
-  0x00,  // NUL
-  0x00,  // SOH
-  0x00,  // STX
-  0x00,  // ETX
-  0x00,  // EOT
-  0x00,  // ENQ
-  0x00,  // ACK
-  0x00,  // BEL
-  0x2a,  // BS	Backspace
-  0x2b,  // TAB	Tab
-  0x28,  // LF	Enter
-  0x00,  // VT
-  0x00,  // FF
-  0x00,  // CR
-  0x00,  // SO
-  0x00,  // SI
-  0x00,  // DEL
-  0x00,  // DC1
-  0x00,  // DC2
-  0x00,  // DC3
-  0x00,  // DC4
-  0x00,  // NAK
-  0x00,  // SYN
-  0x00,  // ETB
-  0x00,  // CAN
-  0x00,  // EM
-  0x00,  // SUB
-  0x00,  // ESC
-  0x00,  // FS
-  0x00,  // GS
-  0x00,  // RS
-  0x00,  // US
+    0x00, // NUL
+    0x00, // SOH
+    0x00, // STX
+    0x00, // ETX
+    0x00, // EOT
+    0x00, // ENQ
+    0x00, // ACK
+    0x00, // BEL
+    0x2a, // BS	Backspace
+    0x2b, // TAB	Tab
+    0x28, // LF	Enter
+    0x00, // VT
+    0x00, // FF
+    0x00, // CR
+    0x00, // SO
+    0x00, // SI
+    0x00, // DEL
+    0x00, // DC1
+    0x00, // DC2
+    0x00, // DC3
+    0x00, // DC4
+    0x00, // NAK
+    0x00, // SYN
+    0x00, // ETB
+    0x00, // CAN
+    0x00, // EM
+    0x00, // SUB
+    0x00, // ESC
+    0x00, // FS
+    0x00, // GS
+    0x00, // RS
+    0x00, // US
 
-  0x2c,          //  ' '
-  0x1e | SHIFT,  // !
-  0x34 | SHIFT,  // "
-  0x20 | SHIFT,  // #
-  0x21 | SHIFT,  // $
-  0x22 | SHIFT,  // %
-  0x24 | SHIFT,  // &
-  0x34,          // '
-  0x26 | SHIFT,  // (
-  0x27 | SHIFT,  // )
-  0x25 | SHIFT,  // *
-  0x2e | SHIFT,  // +
-  0x36,          // ,
-  0x2d,          // -
-  0x37,          // .
-  0x38,          // /
-  0x27,          // 0
-  0x1e,          // 1
-  0x1f,          // 2
-  0x20,          // 3
-  0x21,          // 4
-  0x22,          // 5
-  0x23,          // 6
-  0x24,          // 7
-  0x25,          // 8
-  0x26,          // 9
-  0x33 | SHIFT,  // :
-  0x33,          // ;
-  0x36 | SHIFT,  // <
-  0x2e,          // =
-  0x37 | SHIFT,  // >
-  0x38 | SHIFT,  // ?
-  0x1f | SHIFT,  // @
-  0x04 | SHIFT,  // A
-  0x05 | SHIFT,  // B
-  0x06 | SHIFT,  // C
-  0x07 | SHIFT,  // D
-  0x08 | SHIFT,  // E
-  0x09 | SHIFT,  // F
-  0x0a | SHIFT,  // G
-  0x0b | SHIFT,  // H
-  0x0c | SHIFT,  // I
-  0x0d | SHIFT,  // J
-  0x0e | SHIFT,  // K
-  0x0f | SHIFT,  // L
-  0x10 | SHIFT,  // M
-  0x11 | SHIFT,  // N
-  0x12 | SHIFT,  // O
-  0x13 | SHIFT,  // P
-  0x14 | SHIFT,  // Q
-  0x15 | SHIFT,  // R
-  0x16 | SHIFT,  // S
-  0x17 | SHIFT,  // T
-  0x18 | SHIFT,  // U
-  0x19 | SHIFT,  // V
-  0x1a | SHIFT,  // W
-  0x1b | SHIFT,  // X
-  0x1c | SHIFT,  // Y
-  0x1d | SHIFT,  // Z
-  0x2f,          // [
-  0x31,          // bslash
-  0x30,          // ]
-  0x23 | SHIFT,  // ^
-  0x2d | SHIFT,  // _
-  0x35,          // `
-  0x04,          // a
-  0x05,          // b
-  0x06,          // c
-  0x07,          // d
-  0x08,          // e
-  0x09,          // f
-  0x0a,          // g
-  0x0b,          // h
-  0x0c,          // i
-  0x0d,          // j
-  0x0e,          // k
-  0x0f,          // l
-  0x10,          // m
-  0x11,          // n
-  0x12,          // o
-  0x13,          // p
-  0x14,          // q
-  0x15,          // r
-  0x16,          // s
-  0x17,          // t
-  0x18,          // u
-  0x19,          // v
-  0x1a,          // w
-  0x1b,          // x
-  0x1c,          // y
-  0x1d,          // z
-  0x2f | SHIFT,  // {
-  0x31 | SHIFT,  // |
-  0x30 | SHIFT,  // }
-  0x35 | SHIFT,  // ~
-  0              // DEL
+    0x2c,         //  ' '
+    0x1e | SHIFT, // !
+    0x34 | SHIFT, // "
+    0x20 | SHIFT, // #
+    0x21 | SHIFT, // $
+    0x22 | SHIFT, // %
+    0x24 | SHIFT, // &
+    0x34,         // '
+    0x26 | SHIFT, // (
+    0x27 | SHIFT, // )
+    0x25 | SHIFT, // *
+    0x2e | SHIFT, // +
+    0x36,         // ,
+    0x2d,         // -
+    0x37,         // .
+    0x38,         // /
+    0x27,         // 0
+    0x1e,         // 1
+    0x1f,         // 2
+    0x20,         // 3
+    0x21,         // 4
+    0x22,         // 5
+    0x23,         // 6
+    0x24,         // 7
+    0x25,         // 8
+    0x26,         // 9
+    0x33 | SHIFT, // :
+    0x33,         // ;
+    0x36 | SHIFT, // <
+    0x2e,         // =
+    0x37 | SHIFT, // >
+    0x38 | SHIFT, // ?
+    0x1f | SHIFT, // @
+    0x04 | SHIFT, // A
+    0x05 | SHIFT, // B
+    0x06 | SHIFT, // C
+    0x07 | SHIFT, // D
+    0x08 | SHIFT, // E
+    0x09 | SHIFT, // F
+    0x0a | SHIFT, // G
+    0x0b | SHIFT, // H
+    0x0c | SHIFT, // I
+    0x0d | SHIFT, // J
+    0x0e | SHIFT, // K
+    0x0f | SHIFT, // L
+    0x10 | SHIFT, // M
+    0x11 | SHIFT, // N
+    0x12 | SHIFT, // O
+    0x13 | SHIFT, // P
+    0x14 | SHIFT, // Q
+    0x15 | SHIFT, // R
+    0x16 | SHIFT, // S
+    0x17 | SHIFT, // T
+    0x18 | SHIFT, // U
+    0x19 | SHIFT, // V
+    0x1a | SHIFT, // W
+    0x1b | SHIFT, // X
+    0x1c | SHIFT, // Y
+    0x1d | SHIFT, // Z
+    0x2f,         // [
+    0x31,         // bslash
+    0x30,         // ]
+    0x23 | SHIFT, // ^
+    0x2d | SHIFT, // _
+    0x35,         // `
+    0x04,         // a
+    0x05,         // b
+    0x06,         // c
+    0x07,         // d
+    0x08,         // e
+    0x09,         // f
+    0x0a,         // g
+    0x0b,         // h
+    0x0c,         // i
+    0x0d,         // j
+    0x0e,         // k
+    0x0f,         // l
+    0x10,         // m
+    0x11,         // n
+    0x12,         // o
+    0x13,         // p
+    0x14,         // q
+    0x15,         // r
+    0x16,         // s
+    0x17,         // t
+    0x18,         // u
+    0x19,         // v
+    0x1a,         // w
+    0x1b,         // x
+    0x1c,         // y
+    0x1d,         // z
+    0x2f | SHIFT, // {
+    0x31 | SHIFT, // |
+    0x30 | SHIFT, // }
+    0x35 | SHIFT, // ~
+    0             // DEL
 };
 
 typedef void (*pTaskFn)(void);
 
 void delayMicroseconds(uint16_t us);
 
-void USBInit() {
-  USBDeviceCfg();          // Device mode configuration
-  USBDeviceEndPointCfg();  // Endpoint configuration
-  USBDeviceIntCfg();       // Interrupt configuration
+void USBInit()
+{
+  USBDeviceCfg();         // Device mode configuration
+  USBDeviceEndPointCfg(); // Endpoint configuration
+  USBDeviceIntCfg();      // Interrupt configuration
   UEP0_T_LEN = 0;
-  UEP1_T_LEN = 0;  // Pre-use send length must be cleared
+  UEP1_T_LEN = 0; // Pre-use send length must be cleared
   UEP2_T_LEN = 0;
 }
 
-void USB_EP1_IN() {
+void USB_EP1_IN()
+{
   UEP1_T_LEN = 0;
-  UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK;  // Default NAK
-  UpPoint1_Busy = 0;                                        // Clear busy flag
+  UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_NAK; // Default NAK
+  UpPoint1_Busy = 0;                                       // Clear busy flag
 }
 
-void USB_EP1_OUT() {
-  if (U_TOG_OK)  // Discard unsynchronized packets
+void USB_EP1_OUT()
+{
+  if (U_TOG_OK) // Discard unsynchronized packets
   {
-    if (Ep1Buffer[0] == 1) {
+    if (Ep1Buffer[0] == 1)
+    {
       keyboardLedStatus = Ep1Buffer[1];
-    } else if (Ep1Buffer[0] == 4) {
+    }
+    else if (Ep1Buffer[0] == 4)
+    {
       uint8_t cmd = Ep1Buffer[1];
-      if (cmd == HOST_CMD_READ) {
+      if (cmd == HOST_CMD_READ)
+      {
         // 0x01: 读取系统信息 + layer 0
         send_custom_data(HOST_CMD_READ);
-      } else if (cmd == HOST_CMD_WRITE) {
+      }
+      else if (cmd == HOST_CMD_WRITE)
+      {
         // 0x02: 写入指定层 — [cmd, version, devType, layerIdx, 24 bytes]
-        if (Ep1Buffer[2] != CH552_FEATURE_LEVEL || Ep1Buffer[3] != EXPECT_DEVICE_TYPE) {
+        if (Ep1Buffer[2] != CH552_FEATURE_LEVEL || Ep1Buffer[3] != EXPECT_DEVICE_TYPE)
+        {
           return;
         }
         uint8_t layer = Ep1Buffer[4];
-        if (layer >= MAX_LAYERS) return;
-        for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++) {
+        if (layer >= MAX_LAYERS)
+          return;
+        for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++)
+        {
           uint16_t value = ((uint16_t)Ep1Buffer[i * 3 + 6] << 8) | Ep1Buffer[i * 3 + 7];
           setKey(layer, i, Ep1Buffer[i * 3 + 5], value);
         }
         saveLayerToEEPROM(layer);
-      } else if (cmd == HOST_CMD_READ_LAYER) {
+      }
+      else if (cmd == HOST_CMD_READ_LAYER)
+      {
         // 0x03: 读取指定层
         uint8_t layer = Ep1Buffer[2];
         send_custom_data(HOST_CMD_READ_LAYER + (layer << 4));
-      } else if (cmd == HOST_CMD_SET_LAYER) {
+      }
+      else if (cmd == HOST_CMD_SET_LAYER)
+      {
         // 0x04: 切换当前层
         uint8_t layer = Ep1Buffer[2];
-        if (layer < MAX_LAYERS) {
+        if (layer < MAX_LAYERS)
+        {
           setCurrentLayer(layer);
           flashLayerColor(layer, 0);
         }
-      } else if (cmd == HOST_CMD_READ_META) {
+      }
+      else if (cmd == HOST_CMD_READ_META)
+      {
         // 0x05: 读取固件/协议/存储元信息
         send_custom_data(HOST_CMD_READ_META);
-      } else if (cmd == HOST_CMD_READ_RGB) {
+      }
+      else if (cmd == HOST_CMD_READ_RGB)
+      {
         // 0x06: 读取 RGB 配置
         send_custom_data(HOST_CMD_READ_RGB);
-      } else if (cmd == HOST_CMD_WRITE_RGB) {
+      }
+      else if (cmd == HOST_CMD_WRITE_RGB)
+      {
         // 0x07: 写入 RGB 配置 — [cmd, enabled, mode, brightness, speed, colorR, colorG, colorB, indicatorEnabled, indicatorBrightness, pressEffect]
         applyRgbConfig(
-          Ep1Buffer[2],
-          Ep1Buffer[3],
-          Ep1Buffer[4],
-          Ep1Buffer[5],
-          Ep1Buffer[6],
-          Ep1Buffer[7],
-          Ep1Buffer[8],
-          Ep1Buffer[9],
-          Ep1Buffer[10],
-          Ep1Buffer[11]);
+            Ep1Buffer[2],
+            Ep1Buffer[3],
+            Ep1Buffer[4],
+            Ep1Buffer[5],
+            Ep1Buffer[6],
+            Ep1Buffer[7],
+            Ep1Buffer[8],
+            Ep1Buffer[9],
+            Ep1Buffer[10],
+            Ep1Buffer[11]);
       }
     }
   }
 }
 
-uint8_t USB_EP1_send(__data uint8_t reportID) {
-  if (UsbConfig == 0) {
+uint8_t USB_EP1_send(__data uint8_t reportID)
+{
+  if (UsbConfig == 0)
+  {
     return 0;
   }
 
   __data uint16_t waitWriteCount = 0;
 
   waitWriteCount = 0;
-  while (UpPoint1_Busy) {  // wait for 250ms or give up
+  while (UpPoint1_Busy)
+  { // wait for 250ms or give up
     waitWriteCount++;
     delayMicroseconds(5);
     if (waitWriteCount >= 50000)
       return 0;
   }
 
-  if (reportID == 1) {
+  if (reportID == 1)
+  {
     Ep1Buffer[64 + 0] = 1;
-    for (__data uint8_t i = 0; i < sizeof(HIDKey); i++) {  // load data for
+    for (__data uint8_t i = 0; i < sizeof(HIDKey); i++)
+    { // load data for
       // upload
       Ep1Buffer[64 + 1 + i] = HIDKey[i];
     }
-    UEP1_T_LEN = 1 + sizeof(HIDKey);  // data length
-  } else if (reportID == 2) {
+    UEP1_T_LEN = 1 + sizeof(HIDKey); // data length
+  }
+  else if (reportID == 2)
+  {
     Ep1Buffer[64 + 0] = 2;
     for (__data uint8_t i = 0; i < sizeof(HIDConsumer);
-         i++) {  // load data for upload
+         i++)
+    { // load data for upload
       Ep1Buffer[64 + 1 + i] = ((uint8_t *)HIDConsumer)[i];
     }
-    UEP1_T_LEN = 1 + sizeof(HIDConsumer);  // data length
-  } else if (reportID == 3) {
+    UEP1_T_LEN = 1 + sizeof(HIDConsumer); // data length
+  }
+  else if (reportID == 3)
+  {
     Ep1Buffer[64 + 0] = 3;
     for (__data uint8_t i = 0; i < sizeof(HIDMouse);
-         i++) {  // load data for upload
+         i++)
+    { // load data for upload
       Ep1Buffer[64 + 1 + i] = ((uint8_t *)HIDMouse)[i];
     }
-    UEP1_T_LEN = 1 + sizeof(HIDMouse);  // data length
-  } else if (reportID == 5) {
+    UEP1_T_LEN = 1 + sizeof(HIDMouse); // data length
+  }
+  else if (reportID == 5)
+  {
     Ep1Buffer[64 + 0] = 5;
     for (__data uint8_t i = 0; i < sizeof(CustomBuf);
-         i++) {  // load data for upload
+         i++)
+    { // load data for upload
       Ep1Buffer[64 + 1 + i] = ((uint8_t *)CustomBuf)[i];
     }
-    UEP1_T_LEN = 1 + sizeof(CustomBuf);  // data length
-  } else {
+    UEP1_T_LEN = 1 + sizeof(CustomBuf); // data length
+  }
+  else
+  {
     UEP1_T_LEN = 0;
   }
 
   UpPoint1_Busy = 1;
-  UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_ACK;  // upload data and respond ACK
+  UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_ACK; // upload data and respond ACK
 
   return 1;
 }
 
-uint8_t Keyboard_press(__data uint8_t k) {
+uint8_t Keyboard_press(__data uint8_t k)
+{
   __data uint8_t i;
-  if (k >= 136) {  // it's a non-printing key (not a modifier)
+  if (k >= 136)
+  { // it's a non-printing key (not a modifier)
     k = k - 136;
-  } else if (k >= 128) {  // it's a modifier key
+  }
+  else if (k >= 128)
+  { // it's a modifier key
     HIDKey[0] |= (1 << (k - 128));
     k = 0;
-  } else {  // it's a printing key
+  }
+  else
+  { // it's a printing key
     k = _asciimap[k];
-    if (!k) {
+    if (!k)
+    {
       // setWriteError();
       return 0;
     }
-    if (k & 0x80) {       // it's a capital letter or other character reached with shift
-      HIDKey[0] |= 0x02;  // the left shift modifier
+    if (k & 0x80)
+    {                    // it's a capital letter or other character reached with shift
+      HIDKey[0] |= 0x02; // the left shift modifier
       k &= 0x7F;
     }
   }
 
   // Add k to the key report only if it's not already present
   // and if there is an empty slot.
-  if (HIDKey[2] != k && HIDKey[3] != k && HIDKey[4] != k && HIDKey[5] != k && HIDKey[6] != k && HIDKey[7] != k) {
+  if (HIDKey[2] != k && HIDKey[3] != k && HIDKey[4] != k && HIDKey[5] != k && HIDKey[6] != k && HIDKey[7] != k)
+  {
 
-    for (i = 2; i < 8; i++) {
-      if (HIDKey[i] == 0x00) {
+    for (i = 2; i < 8; i++)
+    {
+      if (HIDKey[i] == 0x00)
+      {
         HIDKey[i] = k;
         break;
       }
     }
-    if (i == 8) {
+    if (i == 8)
+    {
       // setWriteError();
       return 0;
     }
@@ -325,20 +376,28 @@ uint8_t Keyboard_press(__data uint8_t k) {
   return 1;
 }
 
-uint8_t Keyboard_release(__data uint8_t k) {
+uint8_t Keyboard_release(__data uint8_t k)
+{
   __data uint8_t i;
-  if (k >= 136) {  // it's a non-printing key (not a modifier)
+  if (k >= 136)
+  { // it's a non-printing key (not a modifier)
     k = k - 136;
-  } else if (k >= 128) {  // it's a modifier key
+  }
+  else if (k >= 128)
+  { // it's a modifier key
     HIDKey[0] &= ~(1 << (k - 128));
     k = 0;
-  } else {  // it's a printing key
+  }
+  else
+  { // it's a printing key
     k = _asciimap[k];
-    if (!k) {
+    if (!k)
+    {
       return 0;
     }
-    if (k & 0x80) {          // it's a capital letter or other character reached with shift
-      HIDKey[0] &= ~(0x02);  // the left shift modifier
+    if (k & 0x80)
+    {                       // it's a capital letter or other character reached with shift
+      HIDKey[0] &= ~(0x02); // the left shift modifier
       k &= 0x7F;
     }
   }
@@ -346,8 +405,10 @@ uint8_t Keyboard_release(__data uint8_t k) {
   // Test the key report to see if k is present.  Clear it if it exists.
   // Check all positions in case the key is present more than once (which it
   // shouldn't be)
-  for (i = 2; i < 8; i++) {
-    if (0 != k && HIDKey[i] == k) {
+  for (i = 2; i < 8; i++)
+  {
+    if (0 != k && HIDKey[i] == k)
+    {
       HIDKey[i] = 0x00;
     }
   }
@@ -356,32 +417,40 @@ uint8_t Keyboard_release(__data uint8_t k) {
   return 1;
 }
 
-void Keyboard_releaseAll(void) {
-  for (__data uint8_t i = 0; i < sizeof(HIDKey); i++) {  // load data for upload
+void Keyboard_releaseAll(void)
+{
+  for (__data uint8_t i = 0; i < sizeof(HIDKey); i++)
+  { // load data for upload
     HIDKey[i] = 0;
   }
   USB_EP1_send(1);
 }
 
-uint8_t Keyboard_write(__data uint8_t c) {
-  __data uint8_t p = Keyboard_press(c);  // Keydown
-  Keyboard_release(c);                   // Keyup
-  return p;                              // just return the result of press() since release() almost always
-                                         // returns 1
+uint8_t Keyboard_write(__data uint8_t c)
+{
+  __data uint8_t p = Keyboard_press(c); // Keydown
+  Keyboard_release(c);                  // Keyup
+  return p;                             // just return the result of press() since release() almost always
+                                        // returns 1
 }
 
-
-uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod) {
-  if (k == 0) return 1;
+uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod)
+{
+  if (k == 0)
+    return 1;
   HIDKey[0] |= mod;
 
-  for (uint8_t i = 2; i < 8; i++) {
-    if (HIDKey[i] == k) {
+  for (uint8_t i = 2; i < 8; i++)
+  {
+    if (HIDKey[i] == k)
+    {
       return 1;
     }
   }
-  for (uint8_t i = 2; i < 8; i++) {
-    if (HIDKey[i] == 0) {
+  for (uint8_t i = 2; i < 8; i++)
+  {
+    if (HIDKey[i] == 0)
+    {
       HIDKey[i] = k;
       USB_EP1_send(1);
       return 1;
@@ -391,13 +460,16 @@ uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod) {
   return 0;
 }
 
-
-uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod) {
-  if (k == 0) return 1;
+uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod)
+{
+  if (k == 0)
+    return 1;
   HIDKey[0] &= ~mod;
 
-  for (uint8_t i = 2; i < 8; i++) {
-    if (HIDKey[i] == k) {
+  for (uint8_t i = 2; i < 8; i++)
+  {
+    if (HIDKey[i] == k)
+    {
       HIDKey[i] = 0;
       USB_EP1_send(1);
       return 1;
@@ -406,52 +478,59 @@ uint8_t Keyboard_rawRelease(__data uint8_t k, __data uint8_t mod) {
   return 0;
 }
 
-void Keyboard_sendReport(__data uint8_t mod, __near uint8_t *keys) {
+void Keyboard_sendReport(__data uint8_t mod, __near uint8_t *keys)
+{
   // 设置修饰键
   HIDKey[0] = mod;
-  
+
   // 清空之前的按键
   memset(HIDKey + 2, 0, 6);
-  
+
   // 填充新按键（最多6个）
-  for (uint8_t i = 0; i < 6 && keys[i] != 0; i++) {
+  for (uint8_t i = 0; i < 6 && keys[i] != 0; i++)
+  {
     HIDKey[i + 2] = keys[i];
   }
-  
+
   // 发送报告
   USB_EP1_send(1);
 }
 
-
-void Keyboard_print(const char *str) {
+void Keyboard_print(const char *str)
+{
   // using a generic pointer to handle pointer in any address space
   __data uint8_t c;
-  while ((c = *str++)) {
+  while ((c = *str++))
+  {
     Keyboard_write(c);
   }
 }
 
-uint8_t Keyboard_getLEDStatus() {
+uint8_t Keyboard_getLEDStatus()
+{
   // keyboardLedStatus is updated from USB_EP1_OUT
   return keyboardLedStatus;
 }
 
-
-
-uint8_t Consumer_press(__data uint16_t k) {
+uint8_t Consumer_press(__data uint16_t k)
+{
   __data uint8_t i;
 
   // Add k to the consumer report only if it's not already present
   // and if there is an empty slot.
-  if (HIDConsumer[0] != k && HIDConsumer[1] != k && HIDConsumer[2] != k && HIDConsumer[3] != k) {
+  if (HIDConsumer[0] != k && HIDConsumer[1] != k && HIDConsumer[2] != k && HIDConsumer[3] != k)
+  {
 
-    for (i = 0; i < 4; i++) {
-      if (HIDConsumer[i] == 0x00) {
+    for (i = 0; i < 4; i++)
+    {
+      if (HIDConsumer[i] == 0x00)
+      {
         HIDConsumer[i] = k;
         break;
       }
     }
-    if (i == 4) {
+    if (i == 4)
+    {
       // setWriteError();
       return 0;
     }
@@ -460,14 +539,17 @@ uint8_t Consumer_press(__data uint16_t k) {
   return 1;
 }
 
-uint8_t Consumer_release(__data uint16_t k) {
+uint8_t Consumer_release(__data uint16_t k)
+{
   __data uint8_t i;
 
   // Test the consumer report to see if k is present.  Clear it if it exists.
   // Check all positions in case the key is present more than once (which it
   // shouldn't be)
-  for (i = 0; i < 4; i++) {
-    if (0 != k && HIDConsumer[i] == k) {
+  for (i = 0; i < 4; i++)
+  {
+    if (0 != k && HIDConsumer[i] == k)
+    {
       HIDConsumer[i] = 0x00;
     }
   }
@@ -476,81 +558,101 @@ uint8_t Consumer_release(__data uint16_t k) {
   return 1;
 }
 
-void Consumer_releaseAll(void) {
-  for (__data uint8_t i = 0; i < 4; i++) {  // load data for upload
+void Consumer_releaseAll(void)
+{
+  for (__data uint8_t i = 0; i < 4; i++)
+  { // load data for upload
     HIDConsumer[i] = 0;
   }
   USB_EP1_send(2);
 }
 
-uint8_t Consumer_write(__data uint16_t c) {
-  __data uint8_t p = Consumer_press(c);  // Keydown
-  Consumer_release(c);                   // Keyup
-  return p;                              // just return the result of press() since release() almost always
-                                         // returns 1
+uint8_t Consumer_write(__data uint16_t c)
+{
+  __data uint8_t p = Consumer_press(c); // Keydown
+  Consumer_release(c);                  // Keyup
+  return p;                             // just return the result of press() since release() almost always
+                                        // returns 1
 }
 
-uint8_t Mouse_press(__data uint8_t k) {
+uint8_t Mouse_press(__data uint8_t k)
+{
   HIDMouse[0] |= k;
   USB_EP1_send(3);
   return 1;
 }
 
-uint8_t Mouse_release(__data uint8_t k) {
+uint8_t Mouse_release(__data uint8_t k)
+{
   HIDMouse[0] &= ~k;
   USB_EP1_send(3);
   return 1;
 }
 
-void Mouse_releaseAll(void) {
+void Mouse_releaseAll(void)
+{
   HIDMouse[0] = 0;
   USB_EP1_send(3);
 }
 
-uint8_t Mouse_click(__data uint8_t k) {
+uint8_t Mouse_click(__data uint8_t k)
+{
   Mouse_press(k);
   delayMicroseconds(10000);
   Mouse_release(k);
   return 1;
 }
 
-uint8_t Mouse_move(__data int8_t x, __xdata int8_t y) {
+uint8_t Mouse_move(__data int8_t x, __xdata int8_t y)
+{
   HIDMouse[1] = x;
   HIDMouse[2] = y;
   USB_EP1_send(3);
   return 1;
 }
 
-uint8_t Mouse_scroll(__data int8_t tilt) {
-  if(tilt == 0) return 0;
+uint8_t Mouse_scroll(__data int8_t tilt)
+{
+  if (tilt == 0)
+    return 0;
   HIDMouse[3] = tilt;
   USB_EP1_send(3);
   HIDMouse[3] = 0;
   return 1;
 }
 
-uint8_t send_test() {
-  for (uint8_t i = 0; i < 31; i++) {
+uint8_t send_test()
+{
+  for (uint8_t i = 0; i < 31; i++)
+  {
     CustomBuf[i] = i;
   }
   USB_EP1_send(5);
   return 1;
 }
 
-uint8_t send_custom_data(__data uint8_t cmd) {
-  if (cmd == HOST_CMD_READ) {
+uint8_t send_custom_data(__data uint8_t cmd)
+{
+  if (cmd == HOST_CMD_READ)
+  {
     // 系统信息 + layer 0
     fillSysInfoResponse(CustomBuf);
     USB_EP1_send(5);
-  } else if (cmd == HOST_CMD_READ_META) {
+  }
+  else if (cmd == HOST_CMD_READ_META)
+  {
     fillMetaResponse(CustomBuf);
     USB_EP1_send(5);
-  } else if ((cmd & 0x0F) == HOST_CMD_READ_LAYER) {
+  }
+  else if ((cmd & 0x0F) == HOST_CMD_READ_LAYER)
+  {
     // 读取指定层
     uint8_t layer = (cmd >> 4) & 0x0F;
     fillLayerResponse(CustomBuf, layer);
     USB_EP1_send(5);
-  } else if (cmd == HOST_CMD_READ_RGB) {
+  }
+  else if (cmd == HOST_CMD_READ_RGB)
+  {
     fillRgbResponse(CustomBuf);
     USB_EP1_send(5);
   }
