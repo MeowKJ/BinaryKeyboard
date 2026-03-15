@@ -70,6 +70,15 @@ jobs:
             ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
 
+      - name: Emit size report
+        run: python3 tools/scripts/ch592f.py size-json --keyboard ${{ matrix.keyboard }} --profile release --out size-ch592f-${{ matrix.keyboard }}.json
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: size-ch592f-${{ matrix.keyboard }}
+          path: size-ch592f-${{ matrix.keyboard }}.json
+
   build-ch552g:
     name: Package CH552G (${{ matrix.keyboard }})
     runs-on: ubuntu-latest
@@ -110,6 +119,15 @@ jobs:
             ${{ steps.artifacts.outputs.bin }}
             ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
+
+      - name: Emit size report
+        run: python3 tools/scripts/ch552g.py size-json --keyboard ${{ matrix.keyboard }} --out size-ch552g-${{ matrix.keyboard }}.json
+
+      - name: Upload size report
+        uses: actions/upload-artifact@v4
+        with:
+          name: size-ch552g-${{ matrix.keyboard }}
+          path: size-ch552g-${{ matrix.keyboard }}.json
 
   build-studio:
     name: Build Studio
@@ -164,6 +182,13 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Download size reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: size-*
+          path: sizes
+          merge-multiple: true
+
       - name: Generate version tag
         id: version
         run: |
@@ -211,6 +236,9 @@ jobs:
               echo "| \`${fname}\` | ${fsize} | ${desc} |"
             done
             echo
+            if ls sizes/*.json >/dev/null 2>&1; then
+              python3 tools/scripts/render_size_table.py sizes/*.json
+            fi
             echo "### 🔧 构建环境"
             echo
             echo "| 属性 | 值 |"

@@ -533,6 +533,39 @@ def show_artifact(keyboard: str, profile: str, artifact_type: str) -> int:
     return 0 if path.is_file() else 1
 
 
+def emit_size_json(keyboard: str, profile: str, out: Path) -> int:
+    """Write build size metrics to a JSON file for CI consumption."""
+    preset = preset_for(keyboard, profile)
+    build_dir = build_dir_for(preset)
+    mem = _read_memory_lengths_from_linker(LINKER_SCRIPT)
+    usage = _artifact_region_usage_from_objdump(build_dir)
+    if not usage:
+        size_row = _size_row_from_artifact(build_dir)
+        if size_row:
+            text, data, bss = size_row
+            usage = {"FLASH": text + data, "RAM": data + bss}
+
+    if not usage:
+        warn(f"Cannot determine size for {keyboard} ({profile})")
+        return 1
+
+    result: dict = {"chip": "CH592F", "keyboard": keyboard, "regions": {}}
+    for region in ("FLASH", "RAM"):
+        used = usage.get(region)
+        total = mem.get(region)
+        if used is not None and total:
+            result["regions"][region] = {"used": used, "total": total}
+
+    bin_file = raw_artifact_paths(build_dir)["bin"]
+    if bin_file.is_file():
+        result["bin_size"] = bin_file.stat().st_size
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2))
+    ok(f"Size JSON → {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tools/scripts/ch592f.py",
@@ -557,6 +590,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("all", "elf", "bin", "hex", "map"),
         help="Artifact type to print",
     )
+
+    p_size = sub.add_parser("size-json", help="Emit build size report as JSON")
+    p_size.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
+    p_size.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
+    p_size.add_argument("-o", "--out", required=True, type=Path, help="Output JSON path")
 
     return parser
 
@@ -587,6 +625,8 @@ def main() -> int:
         if args.command == "clean":
             clean(keyboard, profile)
             return 0
+        if args.command == "size-json":
+            return emit_size_json(keyboard, profile, args.out)
         if args.command == "artifact":
             return show_artifact(keyboard, profile, args.type)
         parser.error(f"Unsupported command: {args.command}")

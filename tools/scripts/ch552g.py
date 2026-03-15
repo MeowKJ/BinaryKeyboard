@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import filecmp
+import json
 import os
 import platform
 import re
@@ -491,6 +492,29 @@ def show_artifact(keyboard: str, artifact_type: str) -> int:
     return 0 if path.is_file() else 1
 
 
+def emit_size_json(keyboard: str, out: Path) -> int:
+    """Write build size metrics to a JSON file for CI consumption."""
+    build_dir = build_dir_for(keyboard)
+    mem_rows, _ = _parse_mem_report(build_dir / "CH552G.ihx.mem")
+
+    if not mem_rows:
+        warn(f"No memory report found for {keyboard}")
+        return 1
+
+    result: dict = {"chip": "CH552G", "keyboard": keyboard, "regions": {}}
+    for row in mem_rows:
+        result["regions"][row.name] = {"used": row.used, "total": row.total}
+
+    bin_file = raw_artifact_paths(build_dir)["bin"]
+    if bin_file.is_file():
+        result["bin_size"] = bin_file.stat().st_size
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2))
+    ok(f"Size JSON → {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tools/scripts/ch552g.py",
@@ -513,6 +537,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("all", "ihx", "hex", "bin"),
         help="Artifact type to print",
     )
+
+    p_size = sub.add_parser("size-json", help="Emit build size report as JSON")
+    p_size.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
+    p_size.add_argument("-v", "--variant", dest="keyboard_legacy", help=argparse.SUPPRESS)
+    p_size.add_argument("-o", "--out", required=True, type=Path, help="Output JSON path")
 
     return parser
 
@@ -538,6 +567,8 @@ def main() -> int:
         if args.command == "clean":
             clean(keyboard)
             return 0
+        if args.command == "size-json":
+            return emit_size_json(keyboard, args.out)
         if args.command == "artifact":
             return show_artifact(keyboard, args.type)
         parser.error(f"Unsupported command: {args.command}")
