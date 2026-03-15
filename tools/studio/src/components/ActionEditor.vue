@@ -24,12 +24,22 @@
             <div class="keyboard-capture" :class="{ listening: isListening }">
               <div v-if="!isListening" class="capture-preview">
                 <span class="preview-key">{{ previewKeyName }}</span>
-                <Button 
-                  label="点击录入按键" 
-                  icon="pi pi-circle" 
-                  severity="secondary"
-                  @click="startListening"
-                />
+                <div class="capture-actions">
+                  <Button 
+                    label="点击录入按键" 
+                    icon="pi pi-circle" 
+                    severity="secondary"
+                    @click="startListening"
+                  />
+                  <Button 
+                    v-if="keycode > 0"
+                    label="清除按键" 
+                    icon="pi pi-times" 
+                    severity="secondary"
+                    text
+                    @click="clearKeycode"
+                  />
+                </div>
               </div>
               <div v-else class="capture-listening">
                 <ProgressSpinner strokeWidth="4" style="width: 40px; height: 40px;" />
@@ -404,6 +414,11 @@ function selectWheel(direction: number) {
   };
 }
 
+// 清除按键码（保留修饰键）
+function clearKeycode() {
+  keycode.value = 0;
+}
+
 // 清空动作
 function clearAction() {
   editAction.value = createEmptyAction();
@@ -494,6 +509,12 @@ function confirmAction() {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
+}
+
+.capture-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .preview-key {
