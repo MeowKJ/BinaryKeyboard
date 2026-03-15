@@ -22,11 +22,11 @@ extern "C" {
 
 /* ==================== 报告 ID 定义 ==================== */
 
-#define HID_RPT_ID_KEY_IN           0       // 键盘输入报告
-#define HID_RPT_ID_MOUSE_IN         1       // 鼠标输入报告
-#define HID_RPT_ID_CONSUMER_IN      2       // 多媒体输入报告
-#define HID_RPT_ID_LED_OUT          0       // LED 输出报告
-#define HID_RPT_ID_FEATURE          0       // 特性报告
+#define HID_RPT_ID_KEY_IN           1       // 键盘输入报告
+#define HID_RPT_ID_LED_OUT          1       // LED 输出报告
+#define HID_RPT_ID_MOUSE_IN         2       // 鼠标输入报告
+#define HID_RPT_ID_CONSUMER_IN      3       // 多媒体输入报告
+#define HID_RPT_ID_FEATURE          4       // 特性报告
 
 /* ==================== HID 特性标志 ==================== */
 

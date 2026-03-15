@@ -285,6 +285,7 @@ def isp_lines(state: dict) -> list[str]:
         t("isp.cmd.reset"),
         t("isp.cmd.eeprom_dump"),
         t("isp.cmd.eeprom_erase"),
+        t("isp.cmd.dataflash_erase"),
         t("isp.cmd.eeprom_write"),
         t("isp.cmd.config_info"),
         t("isp.cmd.config_reset"),
@@ -370,6 +371,7 @@ def _isp_actions() -> list[dict]:
         {"id": "show_isp_sheet", "label": t("action.show_isp_sheet"), "hint": t("hint.show_isp_sheet")},
         {"id": "chip_menu", "label": t("action.chip_commands"), "hint": t("hint.chip_commands")},
         {"id": "eeprom_menu", "label": t("action.eeprom_commands"), "hint": t("hint.eeprom_commands")},
+        {"id": "clear_dataflash", "label": t("action.clear_dataflash"), "hint": t("hint.clear_dataflash")},
         {"id": "config_menu", "label": t("action.config_commands"), "hint": t("hint.config_commands")},
         {"id": "install_wchisp", "label": t("action.install_wchisp"), "hint": t("hint.install_wchisp")},
         {"id": "reset_toolchain", "label": t("action.reset_toolchain"), "hint": t("hint.reset_toolchain")},
@@ -1163,6 +1165,7 @@ def _act_show_isp_sheet(app: BKConsoleApp) -> None:
         "  python tools/scripts/flash.py reset",
         "  python tools/scripts/flash.py eeprom dump --out eeprom_dump.bin",
         "  python tools/scripts/flash.py eeprom erase",
+        "  python tools/scripts/flash.py eeprom erase   # clear dataflash",
         "  python tools/scripts/flash.py eeprom write --file eeprom_dump.bin",
         "  python tools/scripts/flash.py config info",
         "  python tools/scripts/flash.py config reset",
@@ -1204,6 +1207,10 @@ def _act_eeprom_menu(app: BKConsoleApp) -> None:
         app._suspend_and_run([sys.executable, str(FLASH_SCRIPT), "eeprom", "erase"])
     else:
         app.notify(t("prompt.unknown_command", cmd=choice), severity="error")
+
+
+def _act_clear_dataflash(app: BKConsoleApp) -> None:
+    app._suspend_and_run([sys.executable, str(FLASH_SCRIPT), "eeprom", "erase"])
 
 
 def _act_config_menu(app: BKConsoleApp) -> None:
@@ -1272,6 +1279,7 @@ ACTION_DISPATCH: dict[str, callable] = {
     "show_isp_sheet": _act_show_isp_sheet,
     "chip_menu": _act_chip_menu,
     "eeprom_menu": _act_eeprom_menu,
+    "clear_dataflash": _act_clear_dataflash,
     "config_menu": _act_config_menu,
     "studio_install": _act_studio_install,
     "studio_dev": _act_studio_dev,

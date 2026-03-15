@@ -231,6 +231,20 @@ typedef struct
  */
 
 /**
+ * @brief 逻辑按键到物理 WS2812 LED 的映射
+ * @details PCB 上 WS2812 LED 串联顺序与逻辑按键编号不一定一致。
+ *          此表将逻辑按键索引 (0~N-1) 映射到物理 LED 索引 (0~N-1)。
+ *          物理 LED 索引 0 对应 WS2812 链中第 2 个 LED (索引 1 = 第一个按键灯)。
+ *
+ * 例: {2,1,0,3,4} 表示逻辑键 0 → 物理 LED 2, 逻辑键 1 → 物理 LED 1, ...
+ */
+#if defined(KBD_LAYOUT_5KEY)
+#define KBD_LOGICAL_TO_PHYSICAL_MAP {2, 3, 4, 1, 0}
+#elif defined(KBD_LAYOUT_KNOB)
+#define KBD_LOGICAL_TO_PHYSICAL_MAP {1, 0, 2, 3}
+#endif
+
+/**
  * @brief 层切换闪烁颜色配置 (RGB格式)
  * @details 每层对应的颜色 [R, G, B], 范围 0-255
  *

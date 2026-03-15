@@ -346,7 +346,11 @@ void USB_Device_Init(void)
 void USB_Device_Deinit(void)
 {
     PFIC_DisableIRQ(USB_IRQn);
-    R8_USB_CTRL = 0;   /* 清零控制寄存器：关闭 PHY、移除 D+ 上拉，主机侧感知断连 */
+    R16_PIN_ANALOG_IE &= ~(RB_PIN_USB_IE | RB_PIN_USB_DP_PU); /* 移除 D+ 上拉与 USB 模拟使能 */
+    R8_UDEV_CTRL = 0;                                          /* 关闭 USB 端口 */
+    R8_USB_CTRL = 0;                                            /* 关闭 USB 模块 */
+    R8_USB_INT_EN = 0;                                          /* 清除中断使能 */
+    GPIOB_ModeCfg(GPIO_Pin_10 | GPIO_Pin_11, GPIO_ModeIN_PD);  /* USB D-/D+ 下拉，避免浮空干扰 */
     g_USB_DeviceState = USB_STATE_DETACHED;
 }
 

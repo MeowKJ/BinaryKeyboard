@@ -25,11 +25,7 @@ endfunction()
 set(CH552_BUILD_TARGETS)
 foreach(keyboard IN ITEMS BASIC KNOB 5KEY)
     string(TOLOWER "${keyboard}" keyboard_slug)
-    if(keyboard STREQUAL "5KEY")
-        set(target_name "ch552_5keys")
-    else()
-        set(target_name "ch552_${keyboard_slug}")
-    endif()
+    set(target_name "ch552_${keyboard_slug}")
     add_script_build_target(
         ${target_name}
         SCRIPT ${SCRIPT_ROOT}/ch552g.py
@@ -38,13 +34,17 @@ foreach(keyboard IN ITEMS BASIC KNOB 5KEY)
     list(APPEND CH552_BUILD_TARGETS ${target_name})
 endforeach()
 
+if(NOT CH592_PROFILE)
+    set(CH592_PROFILE "release")
+endif()
+
 set(CH592_BUILD_TARGETS)
 foreach(keyboard IN ITEMS 5KEY KNOB)
     string(TOLOWER "${keyboard}" keyboard_slug)
     add_script_build_target(
         ch592_${keyboard_slug}
         SCRIPT ${SCRIPT_ROOT}/ch592f.py
-        SCRIPT_ARGS build --keyboard ${keyboard} --profile release
+        SCRIPT_ARGS build --keyboard ${keyboard} --profile ${CH592_PROFILE}
     )
     list(APPEND CH592_BUILD_TARGETS ch592_${keyboard_slug})
 endforeach()

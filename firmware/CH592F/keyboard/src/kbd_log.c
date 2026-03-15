@@ -16,19 +16,22 @@
 #include "kbd_log.h"
 #include "kbd_storage.h"
 #include "kbd_mode.h"
+#include "debug.h"
 #include <string.h>
 
 /*============================================================================*/
 /* 外部函数 (usb_hid.c)                                                       */
 /*============================================================================*/
 
+#if KBD_USB_LOG_ENABLE
 extern void USB_Config_SendResponse(uint8_t cmd, uint8_t *data, uint8_t len);
+#endif
 
 /*============================================================================*/
 /* 运行时配置                                                                  */
 /*============================================================================*/
 
-static uint8_t s_enabled = 1;  /**< 日志总开关 */
+static uint8_t s_enabled = KBD_LOG_DEFAULT_ENABLED;  /**< 日志总开关 */
 
 /*============================================================================*/
 /* 编译期常量                                                                  */
@@ -54,6 +57,7 @@ typedef struct {
     uint8_t data[LOG_MAX_DATA];
 } log_entry_t;
 
+#if KBD_USB_LOG_ENABLE
 static log_entry_t s_queue[LOG_QUEUE_SIZE];
 static volatile uint8_t s_head = 0;  /**< 写入位置 */
 static volatile uint8_t s_tail = 0;  /**< 读取位置 */
@@ -88,6 +92,15 @@ static int queue_pop(log_entry_t *out)
     s_tail = (s_tail + 1) & LOG_QUEUE_MASK;
     return 0;
 }
+#endif
+
+#if KBD_USB_LOG_ENABLE
+static uint8_t usb_log_record_allowed(void)
+{
+    return (s_enabled &&
+            KBD_Mode_Get() == KBD_WORK_MODE_USB);
+}
+#endif
 
 /*============================================================================*/
 /* 公共函数                                                                    */
@@ -95,18 +108,23 @@ static int queue_pop(log_entry_t *out)
 
 void KBD_Log_Init(void)
 {
+#if KBD_USB_LOG_ENABLE
     s_head = 0;
     s_tail = 0;
-
-    /* 从系统配置加载日志开关 */
     kbd_system_config_t *sys = KBD_GetSystemConfig();
     s_enabled = sys->log_enabled ? 1 : 0;
+#else
+    s_enabled = 0;
+#endif
 }
 
 void KBD_Log_Flush(void)
 {
+#if !KBD_USB_LOG_ENABLE
+    return;
+#else
     /* USB 未插入时清空队列，防止 EP4 阻塞主循环 */
-    if (!KBD_Mode_USB_IsPlugged()) {
+    if (KBD_Mode_Get() != KBD_WORK_MODE_USB || !KBD_Mode_USB_IsPlugged()) {
         s_head = s_tail;
         return;
     }
@@ -124,6 +142,7 @@ void KBD_Log_Flush(void)
 
         USB_Config_SendResponse(KBD_CMD_LOG, buf, entry.len + 2);
     }
+#endif
 }
 
 /*============================================================================*/
@@ -132,16 +151,20 @@ void KBD_Log_Flush(void)
 
 void KBD_Log_SetEnabled(uint8_t enabled)
 {
-    s_enabled = enabled ? 1 : 0;
-
-    /* 同步到系统配置 RAM 副本 (需调用 CFG_SAVE 持久化) */
     kbd_system_config_t *sys = KBD_GetSystemConfig();
+    s_enabled = (KBD_USB_LOG_ENABLE && enabled) ? 1 : 0;
     sys->log_enabled = s_enabled;
+
+#if KBD_USB_LOG_ENABLE
+    if (!s_enabled) {
+        s_head = s_tail;
+    }
+#endif
 }
 
 uint8_t KBD_Log_IsEnabled(void)
 {
-    return s_enabled;
+    return KBD_USB_LOG_ENABLE ? s_enabled : 0;
 }
 
 /*============================================================================*/
@@ -150,49 +173,63 @@ uint8_t KBD_Log_IsEnabled(void)
 
 void KBD_Log_KeyEvent(uint8_t key_index, uint8_t pressed, uint8_t action_type, uint8_t param)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[4] = { key_index, pressed, action_type, param };
     queue_push(KBD_LOG_KEY_EVENT, data, 4);
+#endif
 }
 
 void KBD_Log_FnEvent(uint8_t fn_id, uint8_t is_long, uint8_t action, uint8_t param)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[4] = { fn_id, is_long, action, param };
     queue_push(KBD_LOG_FN_EVENT, data, 4);
+#endif
 }
 
 void KBD_Log_LayerEvent(uint8_t old_layer, uint8_t new_layer)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[2] = { old_layer, new_layer };
     queue_push(KBD_LOG_LAYER_EVENT, data, 2);
+#endif
 }
 
 void KBD_Log_ModeEvent(uint8_t old_mode, uint8_t new_mode)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[2] = { old_mode, new_mode };
     queue_push(KBD_LOG_MODE_EVENT, data, 2);
+#endif
 }
 
 void KBD_Log_BleEvent(uint8_t state)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[1] = { state };
     queue_push(KBD_LOG_BLE_EVENT, data, 1);
+#endif
 }
 
 void KBD_Log_RgbEvent(uint8_t mode, uint8_t brightness)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[2] = { mode, brightness };
     queue_push(KBD_LOG_RGB_EVENT, data, 2);
+#endif
 }
 
 void KBD_Log_SystemEvent(uint8_t event)
 {
-    if (!s_enabled) return;
+#if KBD_USB_LOG_ENABLE
+    if (!usb_log_record_allowed()) return;
     uint8_t data[1] = { event };
     queue_push(KBD_LOG_SYSTEM_EVENT, data, 1);
+#endif
 }

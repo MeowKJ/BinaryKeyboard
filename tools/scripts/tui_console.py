@@ -1051,6 +1051,7 @@ def isp_lines(state: dict) -> list[str]:
         t("isp.cmd.reset"),
         t("isp.cmd.eeprom_dump"),
         t("isp.cmd.eeprom_erase"),
+        t("isp.cmd.dataflash_erase"),
         t("isp.cmd.eeprom_write"),
         t("isp.cmd.config_info"),
         t("isp.cmd.config_reset"),
@@ -1073,6 +1074,7 @@ def action_show_isp_commands(state: dict, stdscr) -> None:
         "  python tools/scripts/flash.py reset",
         "  python tools/scripts/flash.py eeprom dump --out eeprom_dump.bin",
         "  python tools/scripts/flash.py eeprom erase",
+        "  python tools/scripts/flash.py eeprom erase   # clear dataflash",
         "  python tools/scripts/flash.py eeprom write --file eeprom_dump.bin",
         "  python tools/scripts/flash.py config info",
         "  python tools/scripts/flash.py config reset",
@@ -1132,6 +1134,10 @@ def action_isp_eeprom_write(state: dict, stdscr) -> None:
 
 
 def action_isp_eeprom_erase(state: dict, stdscr) -> None:
+    run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "eeprom", "erase"])
+
+
+def action_isp_clear_dataflash(state: dict, stdscr) -> None:
     run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "eeprom", "erase"])
 
 
@@ -1264,6 +1270,7 @@ def build_tabs(state: dict) -> list[dict]:
                 {"label": t("action.probe_devices"), "hint": t("hint.probe_devices"), "fn": action_probe},
                 {"label": t("action.chip_commands"), "hint": t("hint.chip_commands"), "fn": action_isp_chip_menu},
                 {"label": t("action.eeprom_commands"), "hint": t("hint.eeprom_commands"), "fn": action_isp_eeprom_menu},
+                {"label": t("action.clear_dataflash"), "hint": t("hint.clear_dataflash"), "fn": action_isp_clear_dataflash},
                 {"label": t("action.config_commands"), "hint": t("hint.config_commands"), "fn": action_isp_config_menu},
             ],
         },

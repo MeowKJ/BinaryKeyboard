@@ -20,35 +20,37 @@
 
 | 工具 | 说明 |
 | :--- | :--- |
-| CMake ≥ 3.21 + Ninja | 构建系统（使用 Presets） |
-| MRS Toolchain | RISC-V 交叉编译工具链（随 MounRiver Studio 安装） |
+| CMake ≥ 3.21 + Ninja | 构建系统 |
+| MRS Toolchain | RISC-V 交叉编译工具链 |
 | Python 3 | 构建 / 烧录 / console 脚本入口 |
 | Node.js | Studio 环境 |
 | wchisp | 底层烧录工具（`tools/scripts/setup.py` 自动下载） |
 
-> `CMakeUserPresets.json` 只在你走 `CMake` 工作流时需要。
 
 ### 配置开发环境
 
 ## Windows
 
 1. 安装 [MounRiver Studio](http://www.mounriver.com/)（主要是拿工具链）
-2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
-3. 填好工具链路径，一般可以在 `MounRiver Studio` 安装目录附近找到
-4. 下载烧录工具：`python tools/scripts/setup.py`
-5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
+2. 任选一种方式让仓库能找到工具链：
+   - 运行 `python tools/scripts/console.py`，在 CH592 页面点一次 `Configure toolchain`
+   - 设置环境变量 `MRS_TOOLCHAIN_ROOT`
+   - 或把 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 放进 `PATH`
+3. 下载烧录工具：`python tools/scripts/setup.py`
+4. 可选：启动统一控制台：`python tools/scripts/console.py`
 
 ## MacOS/Linux
 > MacOS 目前只支持 M 系列芯片，Linux 只支持 x64 架构。
 > 树莓派, 香橙派, 泰山派等 ARM 设备，目前无法原生编译 CH592F 固件 - WCH没有发布对应工具链。
 
 1. 安装 [MounRiver Studio](http://www.mounriver.com/) 。
-
-1. 下载 [RISC-V 工具链](http://www.mounriver.com/)
-2. 复制 `firmware/CH592F/CMakeUserPresets.json.example` 为 `CMakeUserPresets.json`
-3. 填写工具链路径
+2. 下载 [RISC-V 工具链](http://www.mounriver.com/)
+3. 任选一种方式让仓库能找到工具链：
+   - 运行 `python tools/scripts/console.py`，在 CH592 页面点一次 `Configure toolchain`
+   - 设置环境变量 `MRS_TOOLCHAIN_ROOT`
+   - 或把 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 放进 `PATH`
 4. 下载烧录工具：`python tools/scripts/setup.py`
-5. 可选：启动 TUI 控制台：`python tools/scripts/console.py`
+5. 可选：启动统一控制台：`python tools/scripts/console.py`
 
 ## 通用
 如果你想用一些顺手的小工具，可以再看一页：
@@ -63,6 +65,14 @@
 - 将 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 加入系统 `PATH`
 
 ### 首次推荐流程
+
+安装好工具链后，直接启动统一控制台开始开发：
+
+```bash
+python tools/scripts/console.py
+```
+
+如果你更习惯手动命令行，也可以逐步操作：
 
 ```bash
 # 1. 先探测工具链与缓存路径
@@ -228,24 +238,7 @@ Firmware/CH592F/
 
 ### 选择键盘布局
 
-CH592F 当前只保留 `5KEY` 与 `KNOB` 两种发布布局。推荐通过 CMake 选择：
-
-```bash
-# 五键款
-cmake --preset local-release-5key
-cmake --build --preset local-release-5key
-
-# 旋钮款
-cmake --preset local-release-knob
-cmake --build --preset local-release-knob
-```
-
-也可以直接传 CMake 变量：
-
-```bash
-cmake --preset local-release -DKEYBOARD=KNOB -DKBD_MODEL=KNOB
-cmake --build --preset local-release
-```
+CH592F 当前只保留 `5KEY` 与 `KNOB` 两种发布布局。构建时通过统一控制台切换 keyboard 即可，无需手动传参。
 
 如果不走 CMake，而是使用 MRS 或其他 IDE，请在预处理宏中定义其一：
 
@@ -295,20 +288,53 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 
 ## 编译与烧录
 
-### 一键脚本（推荐）
+### 统一控制台（推荐）
+
+日常开发推荐直接使用统一控制台，所有操作都可在交互菜单中完成：
+
+```bash
+python tools/scripts/console.py
+```
+
+控制台已集成：
+
+- target 切换（CH552G / CH592F）
+- keyboard 切换（5KEY / KNOB）
+- profile 切换（release / debug）
+- build / flash / verify
+- ISP / Doctor / Studio 入口
+
+### 烧录
+
+```bash
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin
+```
+
+### 进入 Bootloader 模式
+
+1. 断开键盘与电脑连接
+2. 按住 **BOOT** 按钮的同时连接 USB
+3. 连接后即可执行烧录
+
+### 脚本参数
+
+如果你需要脱离控制台直接调用脚本：
 
 ```bash
 # 首次使用：下载 wchisp 烧录工具
 python tools/scripts/setup.py
 
-# 仅构建
+# 构建
 python tools/scripts/ch592f.py build --keyboard 5KEY --profile release
 
 # 查看产物
 python tools/scripts/ch592f.py artifact --keyboard 5KEY --profile release --type bin
+
+# 烧录
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-5key/CH592F-5KEY-<version>.bin
 ```
 
-### 手动 CMake 构建
+### 直接使用 CMake
 
 ```bash
 cd firmware/CH592F
@@ -321,16 +347,13 @@ cmake --build --preset release-5key
 - `debug`：调试优先（`-Og -g3`）
 - `release-5key` / `debug-5key`：五键款共享预设
 - `release-knob` / `debug-knob`：旋钮款共享预设
-- `local-release` / `local-debug`：本机通用预设（在 `CMakeUserPresets.json` 中定义）
-- `local-release-5key` / `local-debug-5key`：本机五键款预设
-- `local-release-knob` / `local-debug-knob`：本机旋钮款预设
 
 推荐（本机开发）：
 
 ```bash
 cd firmware/CH592F
-cmake --preset local-release-5key
-cmake --build --preset local-release-5key
+cmake --preset release-5key
+cmake --build --preset release-5key
 ```
 
 ### CMake 变量总览
@@ -366,19 +389,15 @@ cd firmware/CH592F
 cmake --preset release-5key
 cmake --build --preset release-5key
 
-# 2. 用本地 preset 配置和构建
-cmake --preset local-release-knob
-cmake --build --preset local-release-knob
+# 2. 在通用 preset 上覆写布局和名称
+cmake --preset release -DKEYBOARD=KNOB -DKBD_MODEL=KNOB
+cmake --build --preset release
 
-# 3. 在通用 preset 上覆写布局和名称
-cmake --preset local-release -DKEYBOARD=KNOB -DKBD_MODEL=KNOB
-cmake --build --preset local-release
+# 3. 自定义完整设备名
+cmake --preset release -DKBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardLab
+cmake --build --preset release
 
-# 4. 自定义完整设备名
-cmake --preset local-release -DKBD_DEVICE_NAME_OVERRIDE=BinaryKeyboardLab
-cmake --build --preset local-release
-
-# 5. 不写 CMakeUserPresets.json 时，直接传工具链根目录
+# 4. 直接传工具链根目录
 cmake --preset release-5key -DMRS_TOOLCHAIN_ROOT=/path/to/MRS_Toolchain/Toolchain
 cmake --build --preset release-5key
 ```
@@ -397,16 +416,15 @@ cmake --build firmware/build/dev --target ch592_all
 
 **1. VS Code CMake Tools 报 `RISC-V cross-compiler not found`**
 
-- 优先检查当前 Configure Preset 是否为 `local-release` / `local-debug`
-- 若在做布局切换，也检查是否选择了 `*-5key` / `*-knob`
+- 先检查当前 Configure Preset 是否为 `release-*` / `debug-*`
 - 执行 `CMake: Delete Cache and Reconfigure`
-- 检查 `CMakeUserPresets.json` 中 `MRS_TOOLCHAIN_ROOT` 路径
-- 或使用 `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
+- 检查统一控制台缓存的工具链路径是否有效
+- 或使用 `MRS_TOOLCHAIN_ROOT` / `TOOLCHAIN_DIR` / `RISCV_TOOLCHAIN_DIR` / 系统 `PATH` 提供编译器
 
 说明：
 - 推荐将构建和烧录分离：
   `tools/scripts/ch592f.py` 负责 preset 构建，`tools/scripts/flash.py` 负责烧录现成产物
-- VS Code CMake Tools 自带“生成/配置”直接使用当前选中的 preset，不会自动替换为 `local-*`
+- VS Code CMake Tools 直接使用当前选中的共享 preset 即可，不需要 `local-*`
 
 **2. `CMAKE_C_COMPILER ... is not a full path to an existing compiler tool`**
 
@@ -431,13 +449,6 @@ python tools/scripts/ch592f.py build --keyboard KNOB --profile release
 - 优先用 `tools/scripts/ch592f.py`
 - 或显式指定 `CMAKE_MAKE_PROGRAM`
 - 或把可执行的 `ninja.exe` 写入 `NINJA_PATH`
-
-### 进入 Bootloader 模式
-
-1. 断开键盘与电脑连接
-2. 按住 **BOOT** 按钮的同时连接 USB
-3. 先运行 `python tools/scripts/ch592f.py build --keyboard KNOB --profile release`
-4. 再运行 `python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin`
 
 ## 按键映射系统
 

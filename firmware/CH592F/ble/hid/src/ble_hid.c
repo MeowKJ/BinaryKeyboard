@@ -20,6 +20,9 @@
 // 参数更新延迟（625us 单位）
 #define PARAM_UPDATE_DELAY 12800
 
+// 安全请求延迟（对齐 WCH 官方 HID 例程）
+#define SECURITY_REQ_DELAY 4800
+
 // PHY 更新延迟
 #define PHY_UPDATE_DELAY 1600
 #define BLE_SCAN_RSP_MAX_LEN 31
@@ -34,8 +37,6 @@ static gapRole_States_t g_ble_state = GAPROLE_INIT;
 static uint16_t g_conn_handle = GAP_CONNHANDLE_INIT;
 static ble_hid_callbacks_t *g_pCallbacks = NULL;
 static uint8_t g_keyboard_leds = 0;
-static bool g_ble_enabled = true;
-
 static const char *TAG = "BLE_HID";
 
 // HID 配置
@@ -72,8 +73,6 @@ static uint8_t BLE_HID_RptCallback (uint8_t id, uint8_t type, uint16_t uuid,
                                     uint8_t oper, uint16_t *pLen, uint8_t *pData);
 static void BLE_HID_EvtCallback (uint8_t evt);
 static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pEvent);
-static void BLE_HID_BattCallback (uint8_t event);
-static void BLE_HID_ScanParamCallback (uint8_t event);
 static void BLE_HID_BuildDeviceNameData (void);
 
 // HID 设备回调
@@ -144,7 +143,7 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
 
     // 设置 GAP 角色参数
     {
-        uint8_t enable = FALSE;  // 初始不广播
+        uint8_t enable = TRUE;  // BLE 模式自动开始广播（WCH Application 示例方式）
         GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
         GAPRole_SetParameter (GAPROLE_ADVERT_DATA, sizeof (g_advertData), g_advertData);
         GAPRole_SetParameter (GAPROLE_SCAN_RSP_DATA, g_scanRspDataLen, g_scanRspData);
@@ -170,12 +169,14 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
         uint8_t mitm = BLE_MITM_MODE;
         uint8_t ioCap = BLE_IO_CAPABILITIES;
         uint8_t bonding = BLE_BONDING_MODE;
+        uint8_t bondFailAction = GAPBOND_FAIL_INITIATE_PAIRING;
 
         GAPBondMgr_SetParameter (GAPBOND_PERI_DEFAULT_PASSCODE, sizeof (uint32_t), &passcode);
         GAPBondMgr_SetParameter (GAPBOND_PERI_PAIRING_MODE, sizeof (uint8_t), &pairMode);
         GAPBondMgr_SetParameter (GAPBOND_PERI_MITM_PROTECTION, sizeof (uint8_t), &mitm);
         GAPBondMgr_SetParameter (GAPBOND_PERI_IO_CAPABILITIES, sizeof (uint8_t), &ioCap);
         GAPBondMgr_SetParameter (GAPBOND_PERI_BONDING_ENABLED, sizeof (uint8_t), &bonding);
+        GAPBondMgr_SetParameter (GAPBOND_BOND_FAIL_ACTION, sizeof (uint8_t), &bondFailAction);
     }
 
     // 设置电池参数
@@ -194,9 +195,6 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     // 添加 HID 服务（必须在 HidDev_Init 之后，因为需要电池服务句柄）
     HidKbdMouse_AddService();
 
-    // 启动设备
-    tmos_set_event (bleHidTaskId, BLE_HID_START_DEVICE_EVT);
-
     LOG_I (TAG, "Init done");
 
     return 0;
@@ -214,11 +212,6 @@ uint16_t BLE_HID_ProcessEvent (uint8_t task_id, uint16_t events) {
         return (events ^ SYS_EVENT_MSG);
     }
 
-    if (events & BLE_HID_START_DEVICE_EVT) {
-        // 启动设备不再需要特殊处理，HidDev_Init 已完成
-        return (events ^ BLE_HID_START_DEVICE_EVT);
-    }
-
     if (events & BLE_HID_PARAM_UPDATE_EVT) {
         // 请求连接参数更新（latency=0 对齐官方示例，避免主机拒绝更新请求）
         GAPRole_PeripheralConnParamUpdateReq (g_conn_handle,
@@ -228,6 +221,24 @@ uint16_t BLE_HID_ProcessEvent (uint8_t task_id, uint16_t events) {
                                               BLE_CONN_TIMEOUT,
                                               bleHidTaskId);
         return (events ^ BLE_HID_PARAM_UPDATE_EVT);
+    }
+
+    if (events & BLE_HID_SECURITY_REQ_EVT) {
+        uint8_t state = (g_ble_state & GAPROLE_STATE_ADV_MASK);
+
+        if ((state == GAPROLE_CONNECTED || state == GAPROLE_CONNECTED_ADV) &&
+            g_conn_handle != GAP_CONNHANDLE_INIT) {
+            bStatus_t status = GAPBondMgr_PeriSecurityReq (g_conn_handle);
+
+            if (status != SUCCESS) {
+                LOG_W (TAG, "Security req failed: %02X", status);
+                tmos_start_task (bleHidTaskId, BLE_HID_SECURITY_REQ_EVT, SECURITY_REQ_DELAY);
+            } else {
+                LOG_I (TAG, "Security req");
+            }
+        }
+
+        return (events ^ BLE_HID_SECURITY_REQ_EVT);
     }
 
     if (events & BLE_HID_PHY_UPDATE_EVT) {
@@ -250,10 +261,6 @@ static void BLE_HID_ProcessTMOSMsg (tmos_event_hdr_t *pMsg) {
 /* ==================== 连接管理实现 ==================== */
 
 int BLE_HID_StartAdvertising (void) {
-    if (!g_ble_enabled) {
-        return -1;
-    }
-
     // 设置广播参数
     GAP_SetParamValue (TGAP_DISC_ADV_INT_MIN, BLE_ADV_INT_MIN);
     GAP_SetParamValue (TGAP_DISC_ADV_INT_MAX, BLE_ADV_INT_MAX);
@@ -298,7 +305,11 @@ gapRole_States_t BLE_HID_GetState (void) {
 }
 
 int BLE_HID_ClearBonds (void) {
-    HidDev_SetParameter (HIDDEV_ERASE_ALLBONDS, 0, NULL);
+    bStatus_t status = HidDev_SetParameter (HIDDEV_ERASE_ALLBONDS, 0, NULL);
+    if (status != SUCCESS) {
+        LOG_W (TAG, "Clear bonds failed: %02X", status);
+        return -1;
+    }
     LOG_I (TAG, "Clear bonds");
     return 0;
 }
@@ -356,20 +367,6 @@ int BLE_HID_SendConsumerReport (uint16_t key) {
 
 uint8_t BLE_HID_GetKeyboardLEDs (void) {
     return g_keyboard_leds;
-}
-
-/* ==================== 电源管理实现 ==================== */
-
-void BLE_HID_Enable (void) {
-    g_ble_enabled = true;
-}
-
-void BLE_HID_Disable (void) {
-    g_ble_enabled = false;
-    BLE_HID_StopAdvertising();
-    if (BLE_HID_IsConnected()) {
-        BLE_HID_Disconnect();
-    }
 }
 
 /* ==================== 回调函数实现 ==================== */
@@ -455,6 +452,7 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
             gapEstLinkReqEvent_t *event = (gapEstLinkReqEvent_t *)pEvent;
             g_conn_handle = event->connectionHandle;
 
+            tmos_start_task (bleHidTaskId, BLE_HID_SECURITY_REQ_EVT, SECURITY_REQ_DELAY);
             // 延迟请求参数更新
             tmos_start_task (bleHidTaskId, BLE_HID_PARAM_UPDATE_EVT, PARAM_UPDATE_DELAY);
 
@@ -466,6 +464,7 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         break;
 
     case GAPROLE_WAITING:
+        tmos_stop_task (bleHidTaskId, BLE_HID_SECURITY_REQ_EVT);
         g_conn_handle = GAP_CONNHANDLE_INIT;
 
         if (pEvent->gap.opcode == GAP_END_DISCOVERABLE_DONE_EVENT) {
@@ -475,8 +474,8 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
                    pEvent->linkTerminate.reason);
         }
 
-        // 仅在 BLE 启用时自动恢复广播
-        if (g_ble_enabled) {
+        // 自动恢复广播
+        {
             uint8_t enable = TRUE;
             GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
         }
@@ -496,14 +495,3 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
     }
 }
 
-static void BLE_HID_BattCallback (uint8_t event) {
-    if (event == BATT_LEVEL_NOTI_ENABLED) {
-        LOG_I (TAG, "Battery notification enabled");
-    } else if (event == BATT_LEVEL_NOTI_DISABLED) {
-        LOG_I (TAG, "Battery notification disabled");
-    }
-}
-
-static void BLE_HID_ScanParamCallback (uint8_t event) {
-    // 扫描参数更新
-}

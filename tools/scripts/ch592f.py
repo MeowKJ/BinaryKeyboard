@@ -174,8 +174,8 @@ def preset_for(keyboard: str, profile: str) -> str:
     return f"{_normalize_profile(profile)}-{_normalize_keyboard(keyboard).lower()}"
 
 
-def build_dir_for(preset: str) -> Path:
-    return FIRMWARE_DIR / "build" / preset
+def build_dir_for(keyboard: str, profile: str) -> Path:
+    return FIRMWARE_DIR / "build" / preset_for(keyboard, profile)
 
 
 def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
@@ -219,17 +219,33 @@ def _build_env() -> dict[str, str]:
     return env
 
 
-def _configure_args(cmake: Path, preset: str) -> list[str]:
-    args = [str(cmake), "--preset", preset]
+def _generator_configure_args() -> list[str]:
+    """Return CMake generator flags (Ninja + CMAKE_MAKE_PROGRAM on Windows)."""
+    args = ["-G", "Ninja"]
     if platform.system() == "Windows":
         ninja = find_ninja()
         if not ninja:
             die(
                 "Ninja not found. Install Ninja or set NINJA_PATH to ninja.exe.\n"
-                "CH592F shared presets use the Ninja generator."
+                "CH592F builds use the Ninja generator."
             )
         args.append(f"-DCMAKE_MAKE_PROGRAM={ninja}")
     return args
+
+
+def cmake_configure_args(cmake: Path, keyboard: str, profile: str, build_dir: Path) -> list[str]:
+    build_type = {"release": "MinSizeRel", "debug": "Debug"}[profile]
+    return [
+        str(cmake),
+        "-S", str(FIRMWARE_DIR),
+        "-B", str(build_dir),
+        *_generator_configure_args(),
+        f"-DCMAKE_TOOLCHAIN_FILE={FIRMWARE_DIR / 'cmake' / 'toolchain-ch59x.cmake'}",
+        f"-DKEYBOARD={keyboard}",
+        f"-DKBD_MODEL={keyboard}",
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    ]
 
 
 def run(cmd: list[str], cwd: Optional[Path] = None) -> None:
@@ -305,33 +321,32 @@ def _build_report(lines: list[str], preset: str, build_dir: Path, elapsed: float
     )
 
 
-def configure(keyboard: str, profile: str) -> tuple[str, Path]:
+def configure(keyboard: str, profile: str) -> Path:
     cmake = find_cmake()
     if not cmake:
         die("CMake not found. Install CMake or add it to PATH.")
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+    build_dir = build_dir_for(keyboard, profile)
+    build_dir.mkdir(parents=True, exist_ok=True)
     sep()
     info(f"Configuring CH592F ({keyboard}, {profile})")
     run(
-        _configure_args(cmake, preset),
-        cwd=FIRMWARE_DIR,
+        cmake_configure_args(cmake, keyboard, profile, build_dir),
+        cwd=PROJECT_ROOT,
     )
     ok(f"Configure complete → {build_dir}")
-    return preset, build_dir
+    return build_dir
 
 
-def build(keyboard: str, profile: str) -> tuple[str, Path]:
+def build(keyboard: str, profile: str) -> Path:
     cmake = find_cmake()
     if not cmake:
         die("CMake not found. Install CMake or add it to PATH.")
 
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+    build_dir = build_dir_for(keyboard, profile)
     cache_file = build_dir / "CMakeCache.txt"
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
     cached_model = _parse_cmake_cache_var(cache_file, "KBD_MODEL")
@@ -344,20 +359,21 @@ def build(keyboard: str, profile: str) -> tuple[str, Path]:
 
     sep()
     info(f"Building CH592F ({keyboard}, {profile})")
-    lines, elapsed = run_and_capture([str(cmake), "--build", "--preset", preset], cwd=FIRMWARE_DIR)
-    _build_report(lines, preset, build_dir, elapsed)
+    lines, elapsed = run_and_capture([str(cmake), "--build", str(build_dir)], cwd=PROJECT_ROOT)
+    _build_report(lines, preset_for(keyboard, profile), build_dir, elapsed)
 
     artifacts = export_named_artifacts(build_dir, keyboard)
     for name, path in artifacts.items():
         if path.is_file():
             ok(f"{name.upper()} → {path.parent}{os.sep}{_c('32;1', path.name)}")
 
-    return preset, build_dir
+    return build_dir
 
 
-def rebuild(keyboard: str, profile: str) -> tuple[str, Path]:
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+def rebuild(keyboard: str, profile: str) -> Path:
+    keyboard = _normalize_keyboard(keyboard)
+    profile = _normalize_profile(profile)
+    build_dir = build_dir_for(keyboard, profile)
     if build_dir.is_dir():
         sep()
         info(f"Removing {build_dir}")
@@ -367,7 +383,7 @@ def rebuild(keyboard: str, profile: str) -> tuple[str, Path]:
 
 
 def clean(keyboard: str, profile: str) -> None:
-    build_dir = build_dir_for(preset_for(keyboard, profile))
+    build_dir = build_dir_for(keyboard, profile)
     sep()
     if build_dir.is_dir():
         shutil.rmtree(build_dir)
@@ -377,14 +393,12 @@ def clean(keyboard: str, profile: str) -> None:
 
 
 def status(keyboard: str, profile: str) -> None:
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+    build_dir = build_dir_for(keyboard, profile)
     cache_file = build_dir / "CMakeCache.txt"
 
     sep()
     info(f"Keyboard: {keyboard}")
     info(f"Profile: {profile}")
-    info(f"Preset: {preset}")
     info(f"CMake: {find_cmake() if find_cmake() else 'not found'}")
     info(f"Build directory: {build_dir}")
     info(f"Configured: {'yes' if cache_file.is_file() else 'no'}")
@@ -399,8 +413,7 @@ def status(keyboard: str, profile: str) -> None:
 
 
 def show_artifact(keyboard: str, profile: str, artifact_type: str) -> int:
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+    build_dir = build_dir_for(keyboard, profile)
     raw = raw_artifact_paths(build_dir)
     if raw["bin"].is_file() or raw["hex"].is_file():
         export_named_artifacts(build_dir, keyboard)

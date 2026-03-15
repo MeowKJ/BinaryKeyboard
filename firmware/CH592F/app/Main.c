@@ -61,24 +61,34 @@ int main(void)
     Debug_Init();
 #endif
 
-    /* BLE 初始化 */
+    /* BLE 库初始化（提供 TMOS 调度器，USB/BLE 模式都需要） */
     CH59x_BLEInit();
-    
+
     /* HAL 初始化 */
     HAL_Init();
-    
-    /* GAP 角色初始化（外设模式） */
-    GAPRole_PeripheralInit();
-    
+
     /* 按键驱动初始化 */
     Key_Init();
-    
-    /* 存储系统初始化 */
+
+    /* 存储系统初始化（需在模式判定前完成，以读取 last_mode） */
     KBD_Storage_Init();
-    
+
+    /* 读取上次模式，决定本次启动路径 */
+    uint8_t last_mode = KBD_GetLastMode();
+    kbd_work_mode_t initial_mode = (last_mode == 1) ? KBD_WORK_MODE_BLE : KBD_WORK_MODE_USB;
+
+    /*
+     * 按 WCH Application 示例思路：每种模式只初始化对应协议栈
+     * - USB 模式：跳过 GAP/HID 初始化，仅 USB
+     * - BLE 模式：完整 BLE HID 初始化，跳过 USB
+     */
+    if (initial_mode == KBD_WORK_MODE_BLE) {
+        GAPRole_PeripheralInit();
+    }
+
     /* 命令处理初始化 */
     KBD_Command_Init();
-    
+
     /* RGB 灯效初始化 */
     KBD_RGB_Init();
 
@@ -90,10 +100,8 @@ int main(void)
 
     /* 键盘核心模块初始化 */
     KBD_Core_Init();
-    
-    /* 模式管理器初始化（恢复上次持久化的工作模式） */
-    uint8_t last_mode = KBD_GetLastMode();
-    kbd_work_mode_t initial_mode = (last_mode == 1) ? KBD_WORK_MODE_BLE : KBD_WORK_MODE_USB;
+
+    /* 模式管理器初始化（根据模式执行对应协议栈初始化） */
     KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks());
 
     /* 记录启动事件 */
@@ -101,6 +109,6 @@ int main(void)
 
     /* 进入主循环 */
     Main_Circulation();
-    
+
     return 0;
 }

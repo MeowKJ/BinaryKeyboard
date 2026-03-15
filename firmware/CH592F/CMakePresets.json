@@ -34,7 +34,7 @@
     {
       "name": "debug",
       "displayName": "Debug",
-      "description": "Debug build with -Og -g3",
+      "description": "Debug build with -Os -g3 and debug features enabled",
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
@@ -52,7 +52,7 @@
     {
       "name": "debug-5key",
       "displayName": "Debug (5KEY)",
-      "description": "Debug build with 5KEY model naming",
+      "description": "Debug build with 5KEY model naming and -Os -g3",
       "inherits": ["debug", "keyboard-5key"]
     },
     {
@@ -64,7 +64,7 @@
     {
       "name": "debug-knob",
       "displayName": "Debug (KNOB)",
-      "description": "Debug build with KNOB keyboard naming",
+      "description": "Debug build with KNOB keyboard naming and -Os -g3",
       "inherits": ["debug", "keyboard-knob"]
     },
     {
