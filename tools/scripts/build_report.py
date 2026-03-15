@@ -70,7 +70,7 @@ def render_usage_report(
     detail_line: str = "",
     colorize: ColorizeFn,
     use_color: bool,
-    width: int = 68,
+    width: int = 72,
     accent_code: str = "1;36",
 ) -> None:
     rows = list(rows)

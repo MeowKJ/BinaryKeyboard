@@ -43,6 +43,21 @@ def _write_tool_cache(cache: dict[str, str]) -> None:
     _write_state_data(data)
 
 
+def read_tool_cache() -> dict[str, str]:
+    return _read_tool_cache()
+
+
+def get_cached_tool_path(cache_key: str) -> Optional[Path]:
+    cached = _read_tool_cache().get(cache_key, "")
+    if not cached:
+        return None
+    candidate = Path(cached)
+    if candidate.exists():
+        return candidate.resolve()
+    _update_cached_tool(cache_key, None)
+    return None
+
+
 def _normalize_path(value: Path | str, binary_name: str) -> Optional[Path]:
     candidate = Path(value)
     if candidate.is_file():

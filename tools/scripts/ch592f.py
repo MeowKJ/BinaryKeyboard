@@ -6,104 +6,38 @@ tools/scripts/ch592f.py — CH592F CMake build helper
 from __future__ import annotations
 
 import argparse
-import ctypes
-import json
+import os
 import platform
 import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Optional
 
-from build_report import UsageRow, fmt_bytes, pct_color_code, render_usage_report, rpad, usage_bar
+from build_report import UsageRow, fmt_bytes, render_usage_report
+from common import (
+    PROJECT_ROOT,
+    colorize as _c,
+    die,
+    find_cmake,
+    find_ninja,
+    info,
+    ok,
+    parse_cmake_cache_var as _parse_cmake_cache_var,
+    run as _run,
+    run_and_capture as _run_and_capture,
+    sep,
+    use_color,
+    warn,
+)
 from firmware_naming import ch592_filename_for_keyboard, normalize_keyboard_name
-from tool_cache import resolve_tool_path
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.resolve()
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
 LINKER_SCRIPT = FIRMWARE_DIR / "SDK" / "Ld" / "Link.ld"
 DEFAULT_KEYBOARD = "5KEY"
 DEFAULT_PROFILE = "release"
-
-
-def _enable_win_ansi() -> None:
-    if platform.system() == "Windows":
-        try:
-            kernel32 = ctypes.windll.kernel32
-            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-        except Exception:
-            pass
-
-
-_enable_win_ansi()
-_USE_COLOR = sys.stdout.isatty()
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
-
-
-def info(msg: str) -> None:
-    print(_c("36", "[INFO]"), msg)
-
-
-def ok(msg: str) -> None:
-    print(_c("32", "[ OK ]"), msg)
-
-
-def warn(msg: str) -> None:
-    print(_c("33", "[WARN]"), msg)
-
-
-def sep() -> None:
-    print(_c("2", "-" * 44))
-
-
-def die(msg: str) -> None:
-    print(_c("31", "[ERR ]"), msg, file=sys.stderr)
-    sys.exit(1)
-
-
-def _candidate_windows_cmake_paths() -> list[Path]:
-    return [
-        Path(r"C:\Program Files\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files (x86)\CMake\bin\cmake.exe"),
-        Path(r"C:\ProgramData\chocolatey\bin\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\shims\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\apps\cmake\current\bin\cmake.exe"),
-        Path(r"C:\msys64\ucrt64\bin\cmake.exe"),
-        Path(r"C:\msys64\mingw64\bin\cmake.exe"),
-        Path(r"C:\msys64\usr\bin\cmake.exe"),
-        Path(r"C:\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\App\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-    ]
-
-
-def find_cmake() -> Optional[Path]:
-    binary = "cmake.exe" if platform.system() == "Windows" else "cmake"
-    candidates = _candidate_windows_cmake_paths() if platform.system() == "Windows" else []
-    return resolve_tool_path("cmake", binary, env_name="CMAKE_PATH", candidates=candidates)
-
-
-def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
-    if not cache_file.is_file():
-        return None
-    prefix = f"{key}:"
-    try:
-        for line in cache_file.read_text(errors="ignore").splitlines():
-            if line.startswith(prefix):
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    return parts[1].strip()
-    except Exception:
-        return None
-    return None
 
 
 def _parse_size_row_from_output(text: str) -> Optional[tuple[int, int, int]]:
@@ -222,52 +156,6 @@ def _artifact_region_usage_from_objdump(build_dir: Path) -> Optional[dict[str, i
     return {"FLASH": flash_used, "RAM": ram_used}
 
 
-def _resolve_preset(preset: str) -> str:
-    user = FIRMWARE_DIR / "CMakeUserPresets.json"
-    if user.is_file():
-        try:
-            data = json.loads(user.read_text())
-            build_presets = {p["name"]: p for p in data.get("buildPresets", [])}
-            configure_presets = {p["name"]: p for p in data.get("configurePresets", [])}
-            local = f"local-{preset}"
-            if local in build_presets:
-                configure_name = build_presets[local].get("configurePreset", "")
-                if not configure_name:
-                    return local
-                if _preset_toolchain_exists(configure_name, configure_presets):
-                    return local
-        except Exception:
-            pass
-    return preset
-
-
-def _preset_toolchain_exists(name: str, presets: dict[str, dict], seen: Optional[set[str]] = None) -> bool:
-    if not name:
-        return False
-    if seen is None:
-        seen = set()
-    if name in seen:
-        return False
-    seen.add(name)
-
-    preset = presets.get(name)
-    if not preset:
-        return False
-
-    cache_vars = preset.get("cacheVariables", {})
-    toolchain_root = str(cache_vars.get("MRS_TOOLCHAIN_ROOT", "")).strip()
-    if toolchain_root:
-        return Path(toolchain_root).is_dir()
-
-    inherits = preset.get("inherits", [])
-    if isinstance(inherits, str):
-        inherits = [inherits]
-    for parent in inherits:
-        if _preset_toolchain_exists(parent, presets, seen):
-            return True
-    return False
-
-
 def _normalize_keyboard(value: str) -> str:
     keyboard = normalize_keyboard_name(value)
     if keyboard == "BASIC":
@@ -287,7 +175,7 @@ def preset_for(keyboard: str, profile: str) -> str:
 
 
 def build_dir_for(preset: str) -> Path:
-    return FIRMWARE_DIR / "build" / _resolve_preset(preset)
+    return FIRMWARE_DIR / "build" / preset
 
 
 def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
@@ -301,49 +189,55 @@ def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
 
 def artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
     return {
-        "elf": raw_artifact_paths(build_dir)["elf"],
+        "elf": build_dir / ch592_filename_for_keyboard(keyboard, "elf"),
         "bin": build_dir / ch592_filename_for_keyboard(keyboard, "bin"),
         "hex": build_dir / ch592_filename_for_keyboard(keyboard, "hex"),
-        "map": raw_artifact_paths(build_dir)["map"],
+        "map": build_dir / ch592_filename_for_keyboard(keyboard, "map"),
     }
 
 
 def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
     raw = raw_artifact_paths(build_dir)
     exported = artifact_paths(build_dir, keyboard)
-    for name in ("bin", "hex"):
+    for name in ("bin", "hex", "elf", "map"):
         src = raw[name]
         dst = exported[name]
-        if src.is_file():
+        if src.is_file() and src != dst:
             shutil.copy2(src, dst)
     return exported
 
 
+def _build_env() -> dict[str, str]:
+    env = os.environ.copy()
+    ninja = find_ninja()
+    if ninja:
+        ninja_bin = str(ninja.parent.resolve())
+        path_value = env.get("PATH", "")
+        path_parts = path_value.split(os.pathsep) if path_value else []
+        if ninja_bin not in path_parts:
+            env["PATH"] = os.pathsep.join([ninja_bin, *path_parts]) if path_parts else ninja_bin
+    return env
+
+
+def _configure_args(cmake: Path, preset: str) -> list[str]:
+    args = [str(cmake), "--preset", preset]
+    if platform.system() == "Windows":
+        ninja = find_ninja()
+        if not ninja:
+            die(
+                "Ninja not found. Install Ninja or set NINJA_PATH to ninja.exe.\n"
+                "CH592F shared presets use the Ninja generator."
+            )
+        args.append(f"-DCMAKE_MAKE_PROGRAM={ninja}")
+    return args
+
+
 def run(cmd: list[str], cwd: Optional[Path] = None) -> None:
-    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True)
+    _run(cmd, cwd=cwd, env=_build_env())
 
 
 def run_and_capture(cmd: list[str], cwd: Optional[Path] = None) -> tuple[list[str], float]:
-    t0 = time.time()
-    lines: list[str] = []
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        cwd=str(cwd) if cwd else None,
-        text=True,
-        bufsize=1,
-        encoding="utf-8",
-        errors="replace",
-    )
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        print(line, end="")
-        lines.append(line)
-    proc.wait()
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, cmd)
-    return lines, time.time() - t0
+    return _run_and_capture(cmd, cwd=cwd, env=_build_env())
 
 
 def _build_report(lines: list[str], preset: str, build_dir: Path, elapsed: float) -> None:
@@ -403,11 +297,11 @@ def _build_report(lines: list[str], preset: str, build_dir: Path, elapsed: float
 
     render_usage_report(
         title="◆ CH592F Memory Report",
-        subtitle=f"preset: {preset}  ·  built in {elapsed:.1f}s  ·  source: {report_source}",
+        subtitle=f"preset: {preset}  ·  built in {elapsed:.1f}s",
         rows=[UsageRow(name, used, total, free, pct) for name, used, total, free, pct in regions],
         detail_line=detail,
         colorize=_c,
-        use_color=_USE_COLOR,
+        use_color=use_color(),
     )
 
 
@@ -418,20 +312,15 @@ def configure(keyboard: str, profile: str) -> tuple[str, Path]:
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
     preset = preset_for(keyboard, profile)
-    actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     sep()
     info(f"Configuring CH592F ({keyboard}, {profile})")
     run(
-        [
-            str(cmake),
-            "--preset",
-            actual,
-        ],
+        _configure_args(cmake, preset),
         cwd=FIRMWARE_DIR,
     )
     ok(f"Configure complete → {build_dir}")
-    return actual, build_dir
+    return preset, build_dir
 
 
 def build(keyboard: str, profile: str) -> tuple[str, Path]:
@@ -442,7 +331,6 @@ def build(keyboard: str, profile: str) -> tuple[str, Path]:
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
     preset = preset_for(keyboard, profile)
-    actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     cache_file = build_dir / "CMakeCache.txt"
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
@@ -456,22 +344,19 @@ def build(keyboard: str, profile: str) -> tuple[str, Path]:
 
     sep()
     info(f"Building CH592F ({keyboard}, {profile})")
-    lines, elapsed = run_and_capture([str(cmake), "--build", "--preset", actual], cwd=FIRMWARE_DIR)
-    _build_report(lines, actual, build_dir, elapsed)
+    lines, elapsed = run_and_capture([str(cmake), "--build", "--preset", preset], cwd=FIRMWARE_DIR)
+    _build_report(lines, preset, build_dir, elapsed)
 
     artifacts = export_named_artifacts(build_dir, keyboard)
-    artifacts["elf"] = raw_artifact_paths(build_dir)["elf"]
-    artifacts["map"] = raw_artifact_paths(build_dir)["map"]
     for name, path in artifacts.items():
         if path.is_file():
-            ok(f"{name.upper()} → {path}")
+            ok(f"{name.upper()} → {path.parent}{os.sep}{_c('32;1', path.name)}")
 
-    return actual, build_dir
+    return preset, build_dir
 
 
 def rebuild(keyboard: str, profile: str) -> tuple[str, Path]:
     preset = preset_for(keyboard, profile)
-    actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     if build_dir.is_dir():
         sep()
@@ -493,14 +378,13 @@ def clean(keyboard: str, profile: str) -> None:
 
 def status(keyboard: str, profile: str) -> None:
     preset = preset_for(keyboard, profile)
-    actual = _resolve_preset(preset)
     build_dir = build_dir_for(preset)
     cache_file = build_dir / "CMakeCache.txt"
 
     sep()
     info(f"Keyboard: {keyboard}")
     info(f"Profile: {profile}")
-    info(f"Preset: {preset} (actual: {actual})")
+    info(f"Preset: {preset}")
     info(f"CMake: {find_cmake() if find_cmake() else 'not found'}")
     info(f"Build directory: {build_dir}")
     info(f"Configured: {'yes' if cache_file.is_file() else 'no'}")
@@ -577,12 +461,10 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name, help=f"{name.capitalize()} CH592F firmware")
         p.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
         p.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
-        p.add_argument("-p", "--preset", dest="preset_legacy", help=argparse.SUPPRESS)
 
     p_artifact = sub.add_parser("artifact", help="Print artifact path")
     p_artifact.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
     p_artifact.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
-    p_artifact.add_argument("-p", "--preset", dest="preset_legacy", help=argparse.SUPPRESS)
     p_artifact.add_argument(
         "-t",
         "--type",
@@ -604,10 +486,6 @@ def main() -> int:
     args = parser.parse_args()
     keyboard = args.keyboard
     profile = args.profile
-    if getattr(args, "preset_legacy", None):
-        preset = args.preset_legacy.lower()
-        profile = "debug" if preset.startswith("debug-") else "release"
-        keyboard = "KNOB" if "knob" in preset else "5KEY"
 
     try:
         if args.command == "status":

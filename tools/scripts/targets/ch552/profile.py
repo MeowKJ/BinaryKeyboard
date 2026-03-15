@@ -3,8 +3,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ch552g import DEFAULT_KEYBOARD, VALID_KEYBOARDS, build_dir_for, find_sdcc
+from ch552g import DEFAULT_KEYBOARD, VALID_KEYBOARDS, build_dir_for
+from common import display_path as _display_path, find_sdcc
 from firmware_naming import ch552_filename_for_keyboard
+from i18n import t
 from targets.common import FLASH_SCRIPT, PROJECT_ROOT, SCRIPT_DIR, TargetActionSpec, TargetProfile
 
 
@@ -59,42 +61,30 @@ def _verify_command_display(state: dict) -> str:
 
 def _target_details_lines(state: dict) -> list[str]:
     return [
-        f"Target: {state['target']}",
-        f"Build dir: {_display_path(_build_dir(state))}",
-        f"Compiler: {find_sdcc() or 'missing'}",
-        f"Keyboard: {state['keyboard']}",
-        "Keymap: multi-layer remap + FUNC-hold layer switching",
-        "RGB: key RGB with layer flash feedback (no indicator RGB)",
+        f"{t('detail.build_dir')}: {_display_path(_build_dir(state))}",
     ]
 
 
 def _detect_tool_lines(_state: dict) -> list[str]:
-    return [f"sdcc: {find_sdcc() or 'missing'}"]
+    sdcc = find_sdcc()
+    return [f"sdcc: {sdcc or 'missing'}"]
 
 
 def _doctor_lines(_state: dict) -> list[str]:
     sdcc_path = find_sdcc()
-    return [f"[{'OK' if sdcc_path else 'WARN'}] sdcc: {sdcc_path or 'missing'}"]
+    return [f"[{'OK' if sdcc_path else 'FAIL'}] sdcc: {sdcc_path or 'missing'}"]
 
 
 def _home_actions(state: dict) -> list[TargetActionSpec]:
     return [
-        TargetActionSpec("toggle_target", f"Toggle target  [{state['target']}]", "Switch between CH592F and CH552G workflows."),
-        TargetActionSpec("cycle_keyboard", f"Cycle keyboard  [{state['keyboard']}]", "Cycle BASIC / KNOB / 5KEY."),
-        TargetActionSpec("build", "Build selected target", "Run tools/scripts/ch552g.py build."),
-        TargetActionSpec("flash", "Flash selected target", "Build, then flash the resolved CH552G artifact."),
-        TargetActionSpec("show_commands", "Show build commands", "Print the resolved build / flash / verify commands."),
-        TargetActionSpec("generate_ide_config", "Generate IDE config", "Write VSCode C/C++ settings and a root compile_commands.json."),
-        TargetActionSpec("install_wchisp", "Install or update wchisp", "Run tools/scripts/setup.py."),
-        TargetActionSpec("probe", "Probe ISP devices", "List connected WCH ISP devices."),
+        TargetActionSpec("build", t("action.build"), t("hint.build_552")),
+        TargetActionSpec("flash", t("action.flash"), t("hint.flash_552")),
+        TargetActionSpec("clean", t("action.clean"), t("hint.clean")),
+        TargetActionSpec("toggle_target", t("action.toggle_target", target=state["target"]), t("hint.toggle_target")),
+        TargetActionSpec("cycle_keyboard", t("action.cycle_keyboard", keyboard=state["keyboard"]), t("hint.cycle_keyboard_552")),
+        TargetActionSpec("show_commands", t("action.show_commands"), t("hint.show_commands")),
+        TargetActionSpec("generate_ide_config", t("action.generate_ide"), t("hint.generate_ide")),
     ]
-
-
-def _display_path(path: Path) -> str:
-    try:
-        return str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")
-    except ValueError:
-        return str(path).replace("\\", "/")
 
 
 CH552_PROFILE = TargetProfile(

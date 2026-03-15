@@ -22,11 +22,11 @@ try:
 except ImportError:  # pragma: no cover - Windows fallback
     curses = None
 
-from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS, find_cmake, find_sdcc
-from targets.ch592 import CH592_USER_PRESETS, CH592_USER_PRESETS_EXAMPLE
+from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
+from common import colorize as _c, find_cmake, find_sdcc, find_wchisp, display_path, use_color
+from i18n import t
 from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
-from tool_cache import resolve_tool_path
 
 # ── Line cache for expensive calls (git, doctor, etc.) ────────────────────────
 _line_cache: dict[str, tuple[float, list[str]]] = {}
@@ -37,15 +37,8 @@ except locale.Error:
     pass
 
 
-_USE_COLOR = sys.stdout.isatty()
-ACTION_PANEL_MIN_ITEMS = 9
+ACTION_PANEL_MIN_ITEMS = 6
 TEXT_BADGE_CODES = ("1;95", "1;93", "1;96", "1;92", "1;91")
-_SPINNER = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-_spinner_tick = 0
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
 
 
 def _text_badge(badge: str, index: int) -> str:
@@ -222,13 +215,6 @@ def current_build_label(state: dict) -> str:
     return current_target_profile(state).build_label(state)
 
 
-def display_path(path: Path) -> str:
-    try:
-        return str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")
-    except ValueError:
-        return str(path).replace("\\", "/")
-
-
 def current_artifact_path(state: dict) -> Path:
     return current_target_profile(state).artifact_path(state)
 
@@ -285,7 +271,9 @@ def prompt_line(stdscr, prompt: str, default: str = "") -> str:
     return value or default
 
 
-def wait_for_return(prompt: str = "\nPress Enter to return...") -> None:
+def wait_for_return(prompt: str = "") -> None:
+    if not prompt:
+        prompt = t("press_enter")
     try:
         input(_c("2", prompt))
     except (EOFError, KeyboardInterrupt):
@@ -425,7 +413,7 @@ def run_command(stdscr, cmd: list[str], cwd: Path = PROJECT_ROOT) -> None:
     suspend_curses(stdscr)
     try:
         print("\n" + _c("1;36", "$") + " " + _c("1", " ".join(shlex.quote(part) for part in cmd)))
-        subprocess.run(cmd, cwd=str(cwd), check=False)
+        subprocess.run(cmd, cwd=str(cwd), check=False, shell=(os.name == "nt"))
         wait_for_return()
     finally:
         resume_curses(stdscr)
@@ -436,7 +424,7 @@ def run_command_sequence(stdscr, commands: list[tuple[list[str], Path]]) -> None
     try:
         for cmd, cwd in commands:
             print("\n" + _c("1;36", "$") + " " + _c("1", " ".join(shlex.quote(part) for part in cmd)))
-            result = subprocess.run(cmd, cwd=str(cwd), check=False)
+            result = subprocess.run(cmd, cwd=str(cwd), check=False, shell=(os.name == "nt"))
             if result.returncode != 0:
                 print(f"\n{_c('31', f'Command failed with exit {result.returncode}.')}")
                 break
@@ -487,12 +475,12 @@ def trim_to_cells(text: str, max_cells: int) -> str:
     return "".join(out)
 
 
-def safe_addnstr(stdscr, y: int, x: int, text: str, max_len: int, attr: int = 0) -> None:
+def safe_addnstr(stdscr, y: int, x: int, text: str, max_cells: int, attr: int = 0) -> None:
     height, width = stdscr.getmaxyx()
-    if y < 0 or y >= height or x < 0 or x >= width or max_len <= 0:
+    if y < 0 or y >= height or x < 0 or x >= width or max_cells <= 0:
         return
     try:
-        clipped = trim_to_cells(text, min(max_len, width - x))
+        clipped = trim_to_cells(text, min(max_cells, width - x))
         stdscr.addstr(y, x, clipped, attr)
     except curses.error:
         pass
@@ -508,39 +496,9 @@ def safe_hline(stdscr, y: int, x: int, ch: int, count: int) -> None:
         pass
 
 
-# ── CMakeUserPresets.json helpers ─────────────────────────────────────────────
-
-def read_toolchain_from_presets() -> str:
-    """Read MRS_TOOLCHAIN_ROOT from existing CMakeUserPresets.json, or empty."""
-    if not CH592_USER_PRESETS.is_file():
-        return ""
-    try:
-        data = json.loads(CH592_USER_PRESETS.read_text())
-        for preset in data.get("configurePresets", []):
-            val = preset.get("cacheVariables", {}).get("MRS_TOOLCHAIN_ROOT", "")
-            if val and val != "/path/to/MRS_Toolchain/Toolchain":
-                return val
-    except Exception:
-        pass
-    return ""
-
-
 def _effective_toolchain(state: dict) -> str:
-    """Return the effective toolchain root from state, presets, or env."""
-    return state["toolchain_root"] or read_toolchain_from_presets() or os.environ.get("MRS_TOOLCHAIN_ROOT", "")
-
-
-def write_user_presets(toolchain_root: str) -> str:
-    if not toolchain_root.strip():
-        return "Toolchain root is empty."
-    if not CH592_USER_PRESETS_EXAMPLE.is_file():
-        return f"Missing template: {CH592_USER_PRESETS_EXAMPLE}"
-    data = json.loads(CH592_USER_PRESETS_EXAMPLE.read_text())
-    for preset in data.get("configurePresets", []):
-        cache = preset.setdefault("cacheVariables", {})
-        cache["MRS_TOOLCHAIN_ROOT"] = toolchain_root
-    CH592_USER_PRESETS.write_text(json.dumps(data, indent=2, ensure_ascii=True) + "\n")
-    return f"Wrote {CH592_USER_PRESETS}"
+    """Return the effective toolchain root from state or env."""
+    return state["toolchain_root"] or os.environ.get("MRS_TOOLCHAIN_ROOT", "")
 
 
 def _read_json_file(path: Path, default):
@@ -854,33 +812,33 @@ def generate_ide_config(state: dict, editor: str = "all") -> list[str]:
         include_paths = _sorted_workspace_paths(fallback_includes)
 
     lines = [
-        f"Target: {state['target']}",
-        f"Build config: {current_build_label(state)}",
-        f"Selected build dir: {current_build_dir_label(state)}",
-        f"Compile databases merged: {len(db_paths)}",
-        f"Entries written: {len(merged_entries)}",
+        f"{t('ide.target')}: {state['target']}",
+        f"{t('ide.build_config')}: {current_build_label(state)}",
+        f"{t('ide.build_dir')}: {current_build_dir_label(state)}",
+        f"{t('ide.dbs_merged')}: {len(db_paths)}",
+        f"{t('ide.entries')}: {len(merged_entries)}",
     ]
 
     ROOT_COMPILE_COMMANDS.write_text(json.dumps(merged_entries, indent=2, ensure_ascii=True) + "\n")
-    lines.append(f"[OK] Wrote {display_path(ROOT_COMPILE_COMMANDS)}")
+    lines.append(t("ide.wrote", path=display_path(ROOT_COMPILE_COMMANDS)))
 
     if editor in ("vscode", "all"):
         _write_sdcc_compat_header(VSCODE_SDCC_COMPAT)
         _update_vscode_settings(VSCODE_SETTINGS, include_paths)
         _update_vscode_cpp_properties(VSCODE_CPP_PROPERTIES, include_paths, selected_defines)
-        lines.append(f"[OK] Wrote {display_path(VSCODE_SETTINGS)}")
-        lines.append(f"[OK] Wrote {display_path(VSCODE_CPP_PROPERTIES)}")
-        lines.append(f"[OK] Wrote {display_path(VSCODE_SDCC_COMPAT)}")
+        lines.append(t("ide.wrote", path=display_path(VSCODE_SETTINGS)))
+        lines.append(t("ide.wrote", path=display_path(VSCODE_CPP_PROPERTIES)))
+        lines.append(t("ide.wrote", path=display_path(VSCODE_SDCC_COMPAT)))
     else:
-        lines.append("[OK] CLion/clangd support written via root compile_commands.json")
+        lines.append(t("ide.clion_support"))
 
     if not selected_entries:
-        lines.append("[WARN] Selected build has no compile_commands.json yet; using fallback include paths where needed.")
+        lines.append(t("ide.warn_no_db"))
     elif not selected_includes:
-        lines.append("[WARN] Selected build compile_commands.json was found, but include flags could not be parsed.")
+        lines.append(t("ide.warn_no_includes"))
 
     lines.append("")
-    lines.append("CLion note: open the firmware CMake project directly, or point it at compile_commands.json in the repo root.")
+    lines.append(t("ide.clion_note"))
     return lines
 
 
@@ -896,17 +854,10 @@ def _param_bar(state: dict, compact: bool = False, ascii_safe: bool = False) -> 
     sep = " | " if compact else "  │  " if not ascii_safe else "  |  "
     if is_ch592_target(state):
         profile = state["build_type"]
-        parts = [f"Target: {target}", f"Keyboard: {keyboard}", f"Profile: {profile}", f"Artifact: {art_ok}"]
+        parts = [f"{t('bar.target')}: {target}", f"{t('bar.keyboard')}: {keyboard}", f"{t('bar.profile')}: {profile}", f"{t('bar.artifact')}: {art_ok}"]
     else:
-        parts = [f"Target: {target}", f"Keyboard: {keyboard}", f"Artifact: {art_ok}"]
+        parts = [f"{t('bar.target')}: {target}", f"{t('bar.keyboard')}: {keyboard}", f"{t('bar.artifact')}: {art_ok}"]
     return sep.join(parts)
-
-
-def find_wchisp_binary() -> str | None:
-    local = SCRIPT_DIR / ("wchisp.exe" if os.name == "nt" else "wchisp")
-    binary = "wchisp.exe" if os.name == "nt" else "wchisp"
-    path = resolve_tool_path("wchisp", binary, env_name="WCHISP_PATH", preferred_candidates=[local])
-    return str(path) if path else None
 
 
 def _tool_version(cmd: list[str]) -> str:
@@ -917,17 +868,6 @@ def _tool_version(cmd: list[str]) -> str:
     return ""
 
 
-def detect_tools(state: dict) -> list[str]:
-    items = [
-        f"target: {state['target']}",
-        f"python: {sys.executable}",
-        f"cmake: {find_cmake() or 'missing'}",
-        f"wchisp: {find_wchisp_binary() or 'missing'}",
-    ]
-    items.extend(current_target_profile(state).detect_tool_lines(state))
-    return items
-
-
 def git_dirty() -> bool:
     code, out, _ = capture_command(["git", "status", "--porcelain"])
     return code == 0 and bool(out.strip())
@@ -935,33 +875,36 @@ def git_dirty() -> bool:
 
 def doctor_lines(state: dict) -> list[str]:
     items: list[str] = []
-    target = state["target"]
     git_is_dirty = git_dirty()
 
-    # 1. Required tools — existence + version
+    # python (always OK if we're running)
+    items.append(f"[OK] python: {sys.executable}")
+
+    # cmake
     cmake_path = find_cmake()
     if cmake_path:
         ver = _tool_version([str(cmake_path), "--version"])
         items.append(f"[OK] cmake: {cmake_path} ({ver})")
     else:
-        items.append("[WARN] cmake: missing")
+        items.append("[FAIL] cmake: missing")
 
-    wchisp_path = find_wchisp_binary()
+    # wchisp
+    wchisp_path = find_wchisp()
     if wchisp_path:
-        ver = _tool_version([wchisp_path, "--version"])
+        ver = _tool_version([str(wchisp_path), "--version"])
         items.append(f"[OK] wchisp: {wchisp_path} ({ver})")
     else:
-        items.append("[WARN] wchisp: missing — run 'Install wchisp'")
+        items.append("[FAIL] wchisp: missing")
 
+    # target-specific tools (sdcc / ninja / toolchain)
     items.extend(current_target_profile(state).doctor_lines(state))
 
-    items.append(f"[OK] target: {target}")
-
-    for name in ("pnpm", "node", "git"):
+    # node / pnpm / git
+    for name in ("node", "pnpm", "git"):
         path = shutil.which(name)
-        items.append(f"[{'OK' if path else 'WARN'}] {name}: {path or 'missing'}")
+        items.append(f"[{'OK' if path else 'FAIL'}] {name}: {path or t('missing')}")
 
-    items.append(f"[{'WARN' if git_is_dirty else 'OK'}] git worktree: {'dirty' if git_is_dirty else 'clean'}")
+    items.append(f"[{'FAIL' if git_is_dirty else 'OK'}] {t('doctor.git_worktree')}: {t('doctor.dirty') if git_is_dirty else t('doctor.clean')}")
 
     return items
 
@@ -977,10 +920,6 @@ def _mark_cache_dirty():
     """Signal that the next main-loop iteration should clear cached data."""
     global _invalidate_cache_after_action
     _invalidate_cache_after_action = True
-
-
-def action_check_tools(state: dict, stdscr) -> None:
-    show_text(stdscr, "Environment", detect_tools(state))
 
 
 def action_install_wchisp(state: dict, stdscr) -> None:
@@ -1019,54 +958,67 @@ def action_toggle_build_type(state: dict, stdscr) -> None:
 
 
 def action_configure_toolchain(state: dict, stdscr) -> None:
-    """Prompt for toolchain root and always write CMakeUserPresets.json."""
+    """Prompt for toolchain root and cache it for the shared CH592 presets."""
     default = _effective_toolchain(state) or "/path/to/MRS_Toolchain/Toolchain"
     toolchain_root = choose_directory_dialog(default)
     if not toolchain_root:
         toolchain_root = prompt_line(stdscr, "MRS_TOOLCHAIN_ROOT", default)
     if not toolchain_root.strip():
-        show_text(stdscr, "Toolchain", ["Toolchain root is empty, aborted."])
+        show_text(stdscr, t("action.configure_toolchain"), [t("toolchain.empty")])
         return
-    state["toolchain_root"] = toolchain_root
-    save_state(state)
-    _mark_cache_dirty()
-    msg = write_user_presets(toolchain_root)
-    # Validate the path
+    # Validate before saving
     gcc = _find_gcc_in_toolchain(toolchain_root)
-    lines = [msg, ""]
     if gcc:
-        lines.append(f"[OK] Found compiler: {Path(gcc).name}")
+        state["toolchain_root"] = toolchain_root
+        save_state(state)
+        _mark_cache_dirty()
+        lines = [
+            t("toolchain.saved"),
+            t("toolchain.shared_presets"),
+            "",
+            f"[OK] {t('toolchain.found', name=Path(gcc).name)}",
+        ]
     elif Path(toolchain_root).is_dir():
-        lines.append("[WARN] No riscv-*-elf-gcc found under this path")
+        lines = [f"[FAIL] {t('toolchain.no_gcc')}", "", toolchain_root]
     else:
-        lines.append("[WARN] Path does not exist on disk")
-    lines.append(f"Preset will resolve to: local-*")
-    show_text(stdscr, "Toolchain", lines)
+        lines = [f"[FAIL] {t('toolchain.path_missing')}", "", toolchain_root]
+    show_text(stdscr, t("action.configure_toolchain"), lines)
+
+
+def action_reset_toolchain(state: dict, stdscr) -> None:
+    """Clear the cached toolchain root and re-detect from env/PATH."""
+    if state.get("toolchain_root"):
+        state["toolchain_root"] = ""
+        save_state(state)
+        _mark_cache_dirty()
+        show_text(stdscr, t("action.reset_toolchain"), [t("toolchain.reset")])
+    else:
+        show_text(stdscr, t("action.reset_toolchain"), [t("toolchain.reset_no_cache")])
 
 
 def action_open_url(name: str, url: str, state: dict, stdscr) -> None:
     if webbrowser.open(url):
-        show_text(stdscr, "Open URL", [f"Opened {name}: {url}"])
+        show_text(stdscr, "URL", [t("url.opened", name=name, url=url)])
     else:
-        show_text(stdscr, "Open URL", [f"Failed to open browser automatically.", url])
+        show_text(stdscr, "URL", [t("url.failed"), url])
 
 
 def action_show_commands(state: dict, stdscr) -> None:
     lines = [
-        f"Target: {state['target']}",
-        f"Build config: {current_build_label(state)}",
-        f"Artifact: {current_artifact_label(state)}",
+        f"{t('cmd.target')}: {state['target']}",
+        f"{t('cmd.build_config')}: {current_build_label(state)}",
+        f"{t('cmd.artifact')}: {current_artifact_label(state)}",
         "",
-        "Build:",
+        t("cmd.build_label"),
         f"  {current_build_command_display(state)}",
         "",
-        "Flash:",
+        t("cmd.flash_label"),
         f"  {current_flash_command_display(state)}",
         "",
-        "Verify:",
+        t("cmd.verify_label"),
         f"  {current_verify_command_display(state)}",
     ]
-    show_text(stdscr, "Commands", lines)
+    show_text(stdscr, t("action.show_commands"), lines)
 
 
 def action_generate_ide_config(state: dict, stdscr) -> None:
@@ -1078,41 +1030,41 @@ def target_details_lines(state: dict) -> list[str]:
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_path = find_wchisp_binary() or "missing"
+    wchisp_path = str(find_wchisp() or t('missing'))
     return [
-        f"target: {state['target']}",
-        f"wchisp: {wchisp_path}",
-        f"flash wrapper: {FLASH_SCRIPT}",
-        f"default image: {current_artifact_label(state)}",
+        f"{t('isp.target')}: {state['target']}",
+        f"{t('isp.wchisp')}: {wchisp_path}",
+        f"{t('isp.flash_wrapper')}: {FLASH_SCRIPT}",
+        f"{t('isp.default_image')}: {current_artifact_label(state)}",
         "",
-        "Transport options:",
-        "  -d/--device N   choose USB device index",
-        "  -s/--serial     use serial transport",
-        "  --port PORT     serial port path",
+        t("isp.transport_options"),
+        t("isp.device_help"),
+        t("isp.serial_help"),
+        t("isp.port_help"),
         "",
-        "ISP commands:",
-        "  info                chip info / UID / bootloader",
-        "  probe               list connected ISP devices",
-        "  flash               program a prepared artifact",
-        "  verify              verify chip flash against image",
-        "  erase               erase code flash",
-        "  reset               reset target chip",
-        "  eeprom dump         dump EEPROM to file",
-        "  eeprom erase        erase data EEPROM",
-        "  eeprom write        write file into EEPROM",
-        "  config info         read config registers",
-        "  config reset        reset config registers",
+        t("isp.commands_header"),
+        t("isp.cmd.info"),
+        t("isp.cmd.probe"),
+        t("isp.cmd.flash"),
+        t("isp.cmd.verify"),
+        t("isp.cmd.erase"),
+        t("isp.cmd.reset"),
+        t("isp.cmd.eeprom_dump"),
+        t("isp.cmd.eeprom_erase"),
+        t("isp.cmd.eeprom_write"),
+        t("isp.cmd.config_info"),
+        t("isp.cmd.config_reset"),
     ]
 
 
 def action_show_isp_commands(state: dict, stdscr) -> None:
     lines = [
-        "ISP command sheet",
+        t("isp_sheet.title"),
         "",
-        "Build first:",
+        t("isp_sheet.build_first"),
         f"  {current_build_command_display(state)}",
         "",
-        "ISP:",
+        t("isp_sheet.isp"),
         "  python tools/scripts/flash.py info",
         "  python tools/scripts/flash.py probe",
         f"  {current_flash_command_display(state)}",
@@ -1125,11 +1077,11 @@ def action_show_isp_commands(state: dict, stdscr) -> None:
         "  python tools/scripts/flash.py config info",
         "  python tools/scripts/flash.py config reset",
         "",
-        "Optional transport flags:",
+        t("isp_sheet.transport_flags"),
         "  -d 0",
         "  -s --port /dev/cu.usbmodemXXXX",
     ]
-    show_text(stdscr, "ISP Commands", lines)
+    show_text(stdscr, t("tab.isp"), lines)
 
 
 def action_build(state: dict, stdscr) -> None:
@@ -1167,14 +1119,14 @@ def action_isp_reset(state: dict, stdscr) -> None:
 
 
 def action_isp_eeprom_dump(state: dict, stdscr) -> None:
-    out_file = prompt_line(stdscr, "EEPROM dump output file", "eeprom_dump.bin")
+    out_file = prompt_line(stdscr, t("prompt.eeprom_dump_file"), "eeprom_dump.bin")
     run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "eeprom", "dump", "--out", out_file])
 
 
 def action_isp_eeprom_write(state: dict, stdscr) -> None:
-    file_path = prompt_line(stdscr, "EEPROM input file", "eeprom_dump.bin")
+    file_path = prompt_line(stdscr, t("prompt.eeprom_input_file"), "eeprom_dump.bin")
     if not file_path.strip():
-        show_text(stdscr, "EEPROM Write", ["File path is empty, aborted."])
+        show_text(stdscr, "EEPROM", [t("prompt.file_empty")])
         return
     run_command(stdscr, [sys.executable, str(FLASH_SCRIPT), "eeprom", "write", "--file", file_path])
 
@@ -1192,7 +1144,7 @@ def action_isp_config_reset(state: dict, stdscr) -> None:
 
 
 def action_isp_chip_menu(state: dict, stdscr) -> None:
-    choice = prompt_line(stdscr, "Chip command [probe/info/verify/erase/reset]", "probe").strip().lower()
+    choice = prompt_line(stdscr, t("prompt.chip_command"), "probe").strip().lower()
     actions = {
         "probe": action_probe,
         "info": action_isp_info,
@@ -1202,13 +1154,13 @@ def action_isp_chip_menu(state: dict, stdscr) -> None:
     }
     fn = actions.get(choice)
     if not fn:
-        show_text(stdscr, "ISP Chip Command", [f"Unknown command: {choice}"])
+        show_text(stdscr, t("tab.isp"), [t("prompt.unknown_command", cmd=choice)])
         return
     fn(state, stdscr)
 
 
 def action_isp_eeprom_menu(state: dict, stdscr) -> None:
-    choice = prompt_line(stdscr, "EEPROM command [dump/write/erase]", "dump").strip().lower()
+    choice = prompt_line(stdscr, t("prompt.eeprom_command"), "dump").strip().lower()
     actions = {
         "dump": action_isp_eeprom_dump,
         "write": action_isp_eeprom_write,
@@ -1216,20 +1168,20 @@ def action_isp_eeprom_menu(state: dict, stdscr) -> None:
     }
     fn = actions.get(choice)
     if not fn:
-        show_text(stdscr, "ISP EEPROM Command", [f"Unknown command: {choice}"])
+        show_text(stdscr, "EEPROM", [t("prompt.unknown_command", cmd=choice)])
         return
     fn(state, stdscr)
 
 
 def action_isp_config_menu(state: dict, stdscr) -> None:
-    choice = prompt_line(stdscr, "Config command [info/reset]", "info").strip().lower()
+    choice = prompt_line(stdscr, t("prompt.config_command"), "info").strip().lower()
     actions = {
         "info": action_isp_config_info,
         "reset": action_isp_config_reset,
     }
     fn = actions.get(choice)
     if not fn:
-        show_text(stdscr, "ISP Config Command", [f"Unknown command: {choice}"])
+        show_text(stdscr, "Config", [t("prompt.unknown_command", cmd=choice)])
         return
     fn(state, stdscr)
 
@@ -1246,10 +1198,6 @@ def action_studio_build(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "run", "build"], cwd=STUDIO_DIR)
 
 
-def action_studio_preview(state: dict, stdscr) -> None:
-    run_command(stdscr, ["pnpm", "run", "preview"], cwd=STUDIO_DIR)
-
-
 def action_docs_install(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "install"], cwd=DOCS_DIR)
 
@@ -1262,10 +1210,6 @@ def action_docs_build(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "run", "build"], cwd=DOCS_DIR)
 
 
-def action_doctor_report(state: dict, stdscr) -> None:
-    show_text(stdscr, "Doctor", doctor_lines(state))
-
-
 # ── Tab layout ────────────────────────────────────────────────────────────────
 
 ACTION_HANDLERS = {
@@ -1273,6 +1217,7 @@ ACTION_HANDLERS = {
     "cycle_keyboard": action_cycle_keyboard,
     "toggle_build_type": action_toggle_build_type,
     "configure_toolchain": action_configure_toolchain,
+    "reset_toolchain": action_reset_toolchain,
     "build": action_build,
     "flash": action_flash,
     "show_commands": action_show_commands,
@@ -1297,83 +1242,58 @@ def resolve_target_actions(state: dict) -> list[dict]:
 
 def build_tabs(state: dict) -> list[dict]:
     art = current_artifact_path(state)
-    art_status = "Ready" if art.is_file() else "Not built"
-    common_home_lines = [
-        "Welcome to BinaryKeyboard Console",
+    art_status = t("ready") if art.is_file() else t("not_built")
+    home_lines = [
+        t("welcome"),
         "",
-        f"Build config: {current_build_label(state)}",
-        f"Artifact: {current_artifact_label(state)}  ({art_status})",
-        f"Build dir: {current_build_dir_label(state)}",
+    ] + target_details_lines(state) + [
+        f"{t('home.artifact')}: {current_artifact_label(state)}  ({art_status})",
     ]
 
     return [
         {
-            "name": "Home",
-            "lines": common_home_lines,
+            "name": t("tab.home"),
+            "lines": home_lines,
             "actions": resolve_target_actions(state),
         },
         {
-            "name": "Target",
-            "lines": target_details_lines(state),
-            "actions": [
-                {"label": "Show build commands", "hint": "Print the resolved build / flash / verify commands.", "fn": action_show_commands},
-                {"label": "Generate IDE config", "hint": "Write VSCode C/C++ settings and a root compile_commands.json.", "fn": action_generate_ide_config},
-                {"label": "Check tools", "hint": "Show cmake/ninja/wchisp/toolchain detection.", "fn": action_check_tools},
-            ],
-        },
-        {
-            "name": "ISP",
+            "name": t("tab.isp"),
             "lines": isp_lines(state),
             "actions": [
-                {"label": "Show ISP command sheet", "hint": "Print all flash.py ISP commands and examples.", "fn": action_show_isp_commands},
-                {"label": "Probe devices", "hint": "Run flash.py probe.", "fn": action_probe},
-                {"label": "Chip commands...", "hint": "Choose info / verify / erase / reset.", "fn": action_isp_chip_menu},
-                {"label": "EEPROM commands...", "hint": "Choose dump / write / erase.", "fn": action_isp_eeprom_menu},
-                {"label": "Config commands...", "hint": "Choose config info / reset.", "fn": action_isp_config_menu},
+                {"label": t("action.show_isp_sheet"), "hint": t("hint.show_isp_sheet"), "fn": action_show_isp_commands},
+                {"label": t("action.probe_devices"), "hint": t("hint.probe_devices"), "fn": action_probe},
+                {"label": t("action.chip_commands"), "hint": t("hint.chip_commands"), "fn": action_isp_chip_menu},
+                {"label": t("action.eeprom_commands"), "hint": t("hint.eeprom_commands"), "fn": action_isp_eeprom_menu},
+                {"label": t("action.config_commands"), "hint": t("hint.config_commands"), "fn": action_isp_config_menu},
             ],
         },
         {
-            "name": "Studio",
+            "name": t("tab.dev"),
             "lines": [
-                f"Path: {STUDIO_DIR}",
-                "Stack: Vue 3 + Vite + PrimeVue",
-                "Targets: CH592F / CH552G",
+                f"{t('path')}: {STUDIO_DIR}",
+                t("studio.stack"),
+                t("studio.targets"),
+                "",
+                f"{t('path')}: {DOCS_DIR}",
+                t("docs.stack"),
             ],
             "actions": [
-                {"label": "Install dependencies", "hint": "Run pnpm install in tools/studio.", "fn": action_studio_install},
-                {"label": "Dev server", "hint": "Run pnpm run dev in tools/studio.", "fn": action_studio_dev},
-                {"label": "Build studio", "hint": "Run pnpm run build in tools/studio.", "fn": action_studio_build},
-                {"label": "Preview build", "hint": "Run pnpm run preview in tools/studio.", "fn": action_studio_preview},
+                {"label": t("action.studio_install"), "hint": t("hint.install_studio"), "fn": action_studio_install},
+                {"label": t("action.studio_dev"), "hint": t("hint.dev_studio"), "fn": action_studio_dev},
+                {"label": t("action.build_studio"), "hint": t("hint.build_studio"), "fn": action_studio_build},
+                {"label": t("action.docs_install"), "hint": t("hint.install_docs"), "fn": action_docs_install},
+                {"label": t("action.docs_dev"), "hint": t("hint.dev_docs"), "fn": action_docs_dev},
+                {"label": t("action.build_docs"), "hint": t("hint.build_docs"), "fn": action_docs_build},
             ],
         },
         {
-            "name": "Docs",
-            "lines": [
-                f"Path: {DOCS_DIR}",
-                "Stack: VitePress",
-            ],
+            "name": t("tab.info"),
+            "lines": _cached(f"info:{state['target']}", lambda: doctor_lines(state) + [""] + [f"{name}: {url}" for name, url in DOC_URLS.items()]),
             "actions": [
-                {"label": "Install dependencies", "hint": "Run pnpm install in docs.", "fn": action_docs_install},
-                {"label": "Dev server", "hint": "Run pnpm run dev in docs.", "fn": action_docs_dev},
-                {"label": "Build docs", "hint": "Run pnpm run build in docs.", "fn": action_docs_build},
-            ],
-        },
-        {
-            "name": "Doctor",
-            "lines": _cached(f"doctor:{state['target']}", lambda: doctor_lines(state)),
-            "actions": [
-                {"label": "Show doctor report", "hint": "Rerun all health checks.", "fn": action_doctor_report},
-                {"label": "Check tools", "hint": "Show cmake/ninja/wchisp/toolchain detection.", "fn": action_check_tools},
-            ],
-        },
-        {
-            "name": "Links",
-            "lines": [f"{name}: {url}" for name, url in DOC_URLS.items()],
-            "actions": [
-                {"label": "Open MRS download", "hint": "MounRiver Studio download page.", "fn": lambda s, w: action_open_url("MRS download", DOC_URLS["MRS download"], s, w)},
-                {"label": "Open wchisp releases", "hint": "wchisp release page.", "fn": lambda s, w: action_open_url("wchisp release", DOC_URLS["wchisp release"], s, w)},
-                {"label": "Open WCH homepage", "hint": "Official WCH site.", "fn": lambda s, w: action_open_url("WCH homepage", DOC_URLS["WCH homepage"], s, w)},
-                {"label": "Open project repo", "hint": "BinaryKeyboard repository.", "fn": lambda s, w: action_open_url("Project repo", DOC_URLS["Project repo"], s, w)},
+                {"label": t("link.mrs_download"), "hint": t("link.mrs_hint"), "fn": lambda s, w: action_open_url("MRS download", DOC_URLS["MRS download"], s, w)},
+                {"label": t("link.wchisp_releases"), "hint": t("link.wchisp_hint"), "fn": lambda s, w: action_open_url("wchisp release", DOC_URLS["wchisp release"], s, w)},
+                {"label": t("link.wch_homepage"), "hint": t("link.wch_hint"), "fn": lambda s, w: action_open_url("WCH homepage", DOC_URLS["WCH homepage"], s, w)},
+                {"label": t("link.project_repo"), "hint": t("link.repo_hint"), "fn": lambda s, w: action_open_url("Project repo", DOC_URLS["Project repo"], s, w)},
             ],
         },
     ]
@@ -1386,6 +1306,8 @@ def _content_attr(line: str) -> int:
     stripped = line.lstrip()
     if stripped.startswith("[OK]"):
         return curses.color_pair(5)
+    if stripped.startswith("[FAIL]"):
+        return curses.color_pair(14)
     if stripped.startswith("[WARN]"):
         return curses.color_pair(7)
     return curses.A_NORMAL
@@ -1396,18 +1318,15 @@ def _badge_attr(index: int) -> int:
 
 
 def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_index: int) -> tuple[list[tuple[int, int, int]], list[tuple[int, int]]]:
-    global _spinner_tick
     stdscr.erase()
     height, width = stdscr.getmaxyx()
     tab_regions: list[tuple[int, int, int]] = []
     action_rows: list[tuple[int, int]] = []
-    compact = width < 96 or height < 26
-    show_hints = not compact and width >= 96 and height >= 26
+    compact = width < 72 or height < 24
+    show_hints = not compact
 
     # ── Title ─────────────────────────────────────────────────────────────────
-    spin = _SPINNER[_spinner_tick % len(_SPINNER)]
-    _spinner_tick += 1
-    title = f"{spin} BK Console" if compact else f"{spin} BinaryKeyboard Console"
+    title = f"◆ {t('title_short')}" if compact else f"◆ {t('title')}"
     safe_addnstr(stdscr, 0, 2, title, max(0, width - 4), curses.color_pair(1) | curses.A_BOLD)
 
     # ── Live parameter bar ────────────────────────────────────────────────────
@@ -1454,7 +1373,8 @@ def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_in
     body = tabs[tab_index]
     safe_hline(stdscr, 4, 1, curses.ACS_HLINE, max(0, width - 2))
     action_row_height = 2 if show_hints else 1
-    action_slot_count = max(ACTION_PANEL_MIN_ITEMS, max((len(tab["actions"]) for tab in tabs), default=0))
+    cur_action_count = len(body["actions"])
+    action_slot_count = max(ACTION_PANEL_MIN_ITEMS, cur_action_count)
     action_block_height = max(1, action_slot_count * action_row_height)
     content_top = 5 if compact else 6
     content_limit = max(content_top, height - action_block_height - 3)
@@ -1484,13 +1404,11 @@ def draw_screen(stdscr, state: dict, tabs: list[dict], tab_index: int, action_in
 
     # ── Status bar ────────────────────────────────────────────────────────────
     if height > 2:
-        status = (
-            f" {tabs[tab_index]['name']} | ←→ tab  ↑↓ select  Enter run  q quit "
-            if compact
-            else f" {tabs[tab_index]['name']}  │  ←→ switch tab  ↑↓ select  Enter run  click+dbl-click  1-9 quick run  r refresh  q quit "
-        )
+        status = f" {t('status.compact', tab=tabs[tab_index]['name'])} " if compact else f" {t('status.full', tab=tabs[tab_index]['name'])} "
+        cells_used = text_cells(status)
+        padded = status + " " * max(0, width - cells_used)
         try:
-            stdscr.addstr(height - 1, 0, trim_to_cells(status.ljust(width), width), curses.color_pair(6))
+            stdscr.addstr(height - 1, 0, trim_to_cells(padded, width), curses.color_pair(6))
         except curses.error:
             pass
 
@@ -1520,6 +1438,7 @@ def run_curses(stdscr) -> None:
     curses.init_pair(11, curses.COLOR_BLACK, curses.COLOR_GREEN)
     curses.init_pair(12, curses.COLOR_BLACK, curses.COLOR_RED)
     curses.init_pair(13, curses.COLOR_CYAN, bg)
+    curses.init_pair(14, curses.COLOR_RED, bg)       # [FAIL]
     curses.mouseinterval(180)
     curses.mousemask(
         curses.BUTTON1_CLICKED
@@ -1527,7 +1446,7 @@ def run_curses(stdscr) -> None:
         | curses.BUTTON1_RELEASED
     )
     stdscr.keypad(True)
-    curses.halfdelay(10)  # 1 second timeout for spinner animation
+    stdscr.timeout(-1)  # blocking getch — no animation polling
 
     while True:
         global _invalidate_cache_after_action
@@ -1540,8 +1459,6 @@ def run_curses(stdscr) -> None:
         tab_regions, action_rows = draw_screen(stdscr, state, tabs, tab_index, action_index)
         key = stdscr.getch()
 
-        if key == -1:  # halfdelay timeout — just redraw for spinner
-            continue
         if key in (ord("q"), ord("Q")):
             save_state(state)
             return
@@ -1601,12 +1518,12 @@ def run_text_mode() -> None:
     while True:
         tabs = build_tabs(state)
         tab_badges = _menu_badges([tab["name"] for tab in tabs])
-        print(f"\n{_c('1;36', 'BinaryKeyboard Console')}")
+        print(f"\n{_c('1;36', t('title'))}")
         print(_c("36", _param_bar(state, ascii_safe=True)))
         print(_c("2", "-" * 44))
         for i, tab in enumerate(tabs, start=1):
             print(f"  {_text_badge(tab_badges[i - 1], i - 1)} {_c('1', tab['name'])}")
-        print(f"  {_c('1;31', '[Q]')} Quit")
+        print(f"  {_c('1;31', '[Q]')} {t('quit')}")
         try:
             choice = input(_c("32", "> ")).strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -1631,7 +1548,7 @@ def run_text_mode() -> None:
         for i, action in enumerate(tab["actions"], start=1):
             print(f"  {_text_badge(action_badges[i - 1], i - 1)} {_c('1', action['label'])}")
             print(f"      {_text_hint(action['hint'])}")
-        print(f"  {_c('2', '[B]')} Back")
+        print(f"  {_c('2', '[B]')} {t('back')}")
         try:
             action_choice = input(_c("32", "> ")).strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -1691,6 +1608,7 @@ def apply_cli_overrides(state: dict, args) -> None:
 
 def main() -> None:
     args = build_parser().parse_args()
+
     try:
         if args.ide_config:
             state = load_state()
