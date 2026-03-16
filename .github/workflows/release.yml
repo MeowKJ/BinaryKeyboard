@@ -194,7 +194,7 @@ jobs:
           CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "name=BinaryKeyboard ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
+          echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
 
           # Collect tool versions
           CMAKE_VER=$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || echo "N/A")
