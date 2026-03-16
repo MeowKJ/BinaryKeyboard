@@ -6,7 +6,7 @@
     </h3>
     <div class="layer-hint">
       <i class="pi pi-info-circle"></i>
-      <span>按住 BOOT + 按键N 在键盘上切换层</span>
+      <span>按住 {{ layerSwitchModifierLabel }} + 按键N 在键盘上切换层</span>
     </div>
     <div v-if="!previewMode" class="layer-legend">
       <div class="legend-item">
@@ -60,7 +60,7 @@
 import { computed } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { getLayerLayoutByType, type LayoutDef } from '@/config/layouts';
-import { KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
+import { DeviceProtocol, KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
 
 const props = defineProps<{
   keyboardType: number;
@@ -78,6 +78,10 @@ const availableLayerCount = computed(() => {
     return KeyboardTypeInfo[props.keyboardType as KeyboardType]?.layers ?? 1;
   }
   return deviceStore.keymap.numLayers;
+});
+
+const layerSwitchModifierLabel = computed(() => {
+  return deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552 ? 'FUNC' : 'BOOT';
 });
 
 // 旋钮款按键索引→层索引的映射 (仅物理按键，旋钮不参与层选择)
@@ -129,7 +133,7 @@ function getKeyTitle(key: LayoutDef['keys'][number]): string {
   if (idx >= availableLayerCount.value) {
     return `层 ${idx + 1} - 当前固件不支持`;
   }
-  return `层 ${idx + 1} - 点击编辑 | BOOT + ${idx + 1} 切换`;
+  return `层 ${idx + 1} - 点击编辑 | ${layerSwitchModifierLabel.value} + ${idx + 1} 切换`;
 }
 </script>
 

@@ -384,7 +384,8 @@ const keyboardCardSubtitle = computed(() => {
     return '预览布局模式';
   }
   if (deviceStore.supportsMultiLayer) {
-    return '点击按键进行编辑 · 按住 FN + 按键N 切换到层N';
+    const modifierLabel = deviceStore.deviceInfo?.protocol === 'ch552' ? 'FUNC' : 'FN';
+    return `点击按键进行编辑 · 按住 ${modifierLabel} + 按键N 切换到层N`;
   }
   return '点击按键进行编辑 · 当前设备仅支持单层键位映射';
 });
