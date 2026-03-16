@@ -13,7 +13,7 @@
     <div class="version-divider"></div>
     <div class="version-badges-compact">
       <div class="ver-badge studio">
-        <span class="ver-badge-icon">🐱</span>
+        <span class="ver-badge-icon"><CatEmoji /></span>
         <span class="ver-badge-ver">v{{ releaseStore.studioVersion }}</span>
       </div>
       <div class="ver-badge ch552">
@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { useDeviceStore } from '@/stores/deviceStore';
+import CatEmoji from '@/components/CatEmoji.vue';
 import { useReleaseStore } from '@/stores/releaseStore';
 
 const deviceStore = useDeviceStore();

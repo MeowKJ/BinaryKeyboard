@@ -11,7 +11,7 @@
         <div class="glow-title">
           <span class="glow-title-icon glow-paw">🐾</span>
           <span>Debug Terminal</span>
-          <span class="glow-cat-emoji">😺</span>
+          <span class="glow-cat-emoji"><CatEmoji type="grinning" /></span>
         </div>
 
         <!-- 过滤器标签 -->
@@ -103,7 +103,7 @@
       </div>
 
       <div v-if="terminalStore.filteredEntries.length === 0" class="glow-empty">
-        <div class="glow-empty-cat">😺</div>
+        <div class="glow-empty-cat"><CatEmoji type="grinning" /></div>
         <div class="glow-empty-icon">🐾 🐾 🐾</div>
         <span>Waiting for meow data...</span>
         <span class="glow-empty-hint">Connect keyboard to start capturing packets</span>
@@ -215,7 +215,7 @@
       <span v-if="terminalStore.entries.length > 0" class="glow-statusbar-count">
         {{ terminalStore.entries.length }}
       </span>
-      <span v-if="terminalStore.isOpen" class="glow-statusbar-meow">😺</span>
+      <span v-if="terminalStore.isOpen" class="glow-statusbar-meow"><CatEmoji type="grinning" /></span>
     </button>
 
     <div class="glow-statusbar-info">
@@ -234,6 +234,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, nextTick, computed } from 'vue';
 import { useTerminalStore, type FilterMode } from '@/stores/terminalStore';
+import CatEmoji from '@/components/CatEmoji.vue';
 import type { TerminalEntry } from '@/stores/terminalStore';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { hidService } from '@/services/HidService';

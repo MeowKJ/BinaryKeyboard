@@ -23,7 +23,7 @@
 
       <div class="welcome-content">
         <div class="logo-section">
-          <div class="logo-icon">🐱</div>
+          <div class="logo-icon"><CatEmoji /></div>
           <h1 class="app-title">BinaryKeyboard</h1>
           <p class="app-subtitle">开源二进制键盘改键工具</p>
         </div>
@@ -75,7 +75,7 @@
           </div>
           <div class="version-badges">
             <div class="version-badge studio-badge">
-              <div class="badge-icon">🐱</div>
+              <div class="badge-icon"><CatEmoji /></div>
               <div class="badge-info">
                 <span class="badge-label">Studio</span>
                 <span class="badge-version">v{{ releaseStore.studioVersion }}</span>
@@ -115,7 +115,7 @@
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
-          <span class="header-logo">🐱</span>
+          <span class="header-logo"><CatEmoji /></span>
           <span class="header-title">BinaryKeyboard</span>
         </div>
 
@@ -195,9 +195,9 @@
             <div class="deco-star deco-star-1">✨</div>
             <div class="deco-star deco-star-2">✨</div>
             <!-- 键盘装饰 -->
-            <span class="deco-emoji deco-cat-1">😺</span>
-            <span class="deco-emoji deco-cat-2">🐱</span>
-            <span class="deco-emoji deco-cat-3">😸</span>
+            <span class="deco-emoji deco-cat-1"><CatEmoji type="grinning" /></span>
+            <span class="deco-emoji deco-cat-2"><CatEmoji /></span>
+            <span class="deco-emoji deco-cat-3"><CatEmoji type="grinning-eyes" /></span>
             <!-- 小装饰 -->
             <span class="deco-mini deco-yarn">🧶</span>
             <span class="deco-mini deco-star-3">⭐</span>
@@ -255,6 +255,7 @@ import {
 import { createDeviceUiDefinition, hasUiSection } from '@/types/deviceUi';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import { getHidDevicePlugin } from '@/services/hid/registry';
+import CatEmoji from '@/components/CatEmoji.vue';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
@@ -1903,6 +1904,11 @@ body {
   font-size: 2.5rem;
   opacity: 0.18;
   animation: emojiFloat 6s ease-in-out infinite 0.5s;
+}
+
+.deco-emoji :deep(.cat-emoji) {
+  width: 1em;
+  height: 1em;
 }
 
 @keyframes emojiFloat {
