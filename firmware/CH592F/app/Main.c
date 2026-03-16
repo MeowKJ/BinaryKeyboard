@@ -13,6 +13,7 @@
 /* 键盘核心模块 */
 #include "kbd_mode.h"
 #include "kbd_core.h"
+#include "kbd_macro.h"
 #include "kbd_storage.h"
 #include "kbd_command.h"
 #include "kbd_rgb.h"
@@ -100,6 +101,9 @@ int main(void)
 
     /* 键盘核心模块初始化 */
     KBD_Core_Init();
+
+    /* 宏引擎初始化 */
+    KBD_Macro_Init();
 
     /* 模式管理器初始化（根据模式执行对应协议栈初始化） */
     KBD_Mode_Init(initial_mode, KBD_Core_GetCallbacks());

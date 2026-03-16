@@ -3,8 +3,10 @@ import {
   Command,
   DeviceProtocol,
   FRAME_SIZE,
+  MACRO_SLOTS,
   MAX_FN_KEYS,
   MAX_KEYS,
+  MacroActionType,
   PressEffect,
   ResponseCode,
   createEmptyAction,
@@ -17,10 +19,15 @@ import {
   type LayerConfig,
   type LogConfig,
   type KeymapConfig,
+  type MacroAction,
+  type MacroData,
+  type MacroHeader,
+  type MacroOverview,
   type RgbConfig,
 } from '@/types/protocol';
 import { FIRMWARE_VERSION_META } from '@/generated/versionConfig';
 import { parseLogFrame, parseReceiveFrame, parseSendFrame } from '@/utils/protocolParser';
+import { decodeUtf8CString, truncateUtf8ByBytes } from '@/utils/utf8';
 import type { BatteryInfo, HidOptionalOperations } from '../../common/types';
 import type {
   CodecInboundPacket,
@@ -49,6 +56,11 @@ export class Ch592Codec implements DeviceCodec<DataView> {
       getBattery: () => this.getBattery(transport),
       getLogConfig: () => this.getLogConfig(transport),
       setLogConfig: (config) => this.setLogConfig(transport, config),
+      getMacroOverview: () => this.getMacroOverview(transport),
+      getMacroInfo: (slot) => this.getMacroInfo(transport, slot),
+      getMacroData: (slot) => this.getMacroData(transport, slot),
+      setMacroData: (slot, macro) => this.setMacroData(transport, slot, macro),
+      deleteMacro: (slot) => this.deleteMacro(transport, slot),
     };
   }
 
@@ -381,5 +393,144 @@ export class Ch592Codec implements DeviceCodec<DataView> {
   ): Promise<void> {
     const resp = await this.sendCommand(transport, cmd);
     this.expectOk(resp, commandName);
+  }
+
+  // ==========================================================================
+  // 宏操作
+  // ==========================================================================
+
+  private async getMacroOverview(transport: CodecTransport<DataView>): Promise<MacroOverview> {
+    const resp = await this.sendCommand(transport, Command.MACRO_INFO, 0xff);
+    const d = this.expectOk(resp, 'MACRO_INFO');
+    const totalSlots = resp.getUint8(d + 1);
+    const usedCount = resp.getUint8(d + 2);
+    const slotValid: boolean[] = [];
+    for (let i = 0; i < totalSlots; i++) {
+      slotValid.push(resp.getUint8(d + 3 + i) !== 0);
+    }
+    return { totalSlots, usedCount, slotValid };
+  }
+
+  private async getMacroInfo(transport: CodecTransport<DataView>, slot: number): Promise<MacroHeader> {
+    const resp = await this.sendCommand(transport, Command.MACRO_INFO, slot);
+    const d = this.expectOk(resp, 'MACRO_INFO');
+    return this.parseMacroHeader(resp, d + 1);
+  }
+
+  private async getMacroData(transport: CodecTransport<DataView>, slot: number): Promise<MacroData> {
+    const header = await this.getMacroInfo(transport, slot);
+    const raw = new Uint8Array(header.dataSize);
+    let offset = 0;
+
+    while (offset < header.dataSize) {
+      const chunkSize = Math.min(56, header.dataSize - offset);
+      const reqData = new Uint8Array([
+        (offset >> 8) & 0xff,
+        offset & 0xff,
+        chunkSize,
+      ]);
+
+      const resp = await this.sendCommand(transport, Command.MACRO_GET, slot, reqData);
+      const d = this.expectOk(resp, 'MACRO_GET');
+      const readLen = resp.getUint8(d + 3);
+      const isLast = resp.getUint8(d + 4) !== 0;
+
+      for (let i = 0; i < readLen; i++) {
+        raw[offset + i] = resp.getUint8(d + 5 + i);
+      }
+      offset += readLen;
+      if (isLast) break;
+    }
+
+    const actions: MacroAction[] = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const type = raw[i] as MacroActionType;
+      const param = raw[i + 1];
+      actions.push({ type, param });
+      if (type === MacroActionType.END) break;
+    }
+
+    return { header, actions };
+  }
+
+  private async setMacroData(
+    transport: CodecTransport<DataView>,
+    slot: number,
+    macro: MacroData,
+  ): Promise<void> {
+    // 序列化动作
+    const actionData = new Uint8Array(macro.actions.length * 2);
+    for (let i = 0; i < macro.actions.length; i++) {
+      actionData[i * 2] = macro.actions[i].type;
+      actionData[i * 2 + 1] = macro.actions[i].param;
+    }
+
+    // Begin (seq=0): [seq(1), header(24)]
+    const headerPayload = this.buildMacroHeaderPayload(macro.header, actionData.length);
+    const beginData = new Uint8Array(1 + 24);
+    beginData[0] = 0; // seq
+    beginData.set(headerPayload, 1);
+    const beginResp = await this.sendCommand(transport, Command.MACRO_SET, slot, beginData);
+    this.expectOk(beginResp, 'MACRO_SET begin');
+
+    // Chunks (seq=1..N): [seq(1), offset_hi(1), offset_lo(1), len(1), data...]
+    let offset = 0;
+    let seq = 1;
+    const maxChunkData = FRAME_SIZE - 3 - 4; // 64 - 3 header - 4 chunk header = 57
+    while (offset < actionData.length) {
+      const chunkSize = Math.min(maxChunkData, actionData.length - offset);
+      const chunkFrame = new Uint8Array(4 + chunkSize);
+      chunkFrame[0] = seq;
+      chunkFrame[1] = (offset >> 8) & 0xff;
+      chunkFrame[2] = offset & 0xff;
+      chunkFrame[3] = chunkSize;
+      chunkFrame.set(actionData.slice(offset, offset + chunkSize), 4);
+
+      const resp = await this.sendCommand(transport, Command.MACRO_SET, slot, chunkFrame);
+      this.expectOk(resp, 'MACRO_SET chunk');
+
+      offset += chunkSize;
+      seq++;
+    }
+
+    // End (seq=0xFF): [seq(1)]
+    const endData = new Uint8Array([0xff]);
+    const endResp = await this.sendCommand(transport, Command.MACRO_SET, slot, endData);
+    this.expectOk(endResp, 'MACRO_SET end');
+  }
+
+  private async deleteMacro(transport: CodecTransport<DataView>, slot: number): Promise<void> {
+    const resp = await this.sendCommand(transport, Command.MACRO_DEL, slot);
+    this.expectOk(resp, 'MACRO_DEL');
+  }
+
+  private parseMacroHeader(resp: DataView, offset: number): MacroHeader {
+    const valid = resp.getUint8(offset);
+    const id = resp.getUint8(offset + 1);
+    const actionCount = resp.getUint8(offset + 2) | (resp.getUint8(offset + 3) << 8);
+    const dataSize = resp.getUint8(offset + 4) | (resp.getUint8(offset + 5) << 8);
+    // offset+6, +7 reserved
+    const nameBytes = new Uint8Array(16);
+    for (let i = 0; i < 16; i++) {
+      nameBytes[i] = resp.getUint8(offset + 8 + i);
+    }
+    const name = decodeUtf8CString(nameBytes);
+    return { valid, id, actionCount, dataSize, name };
+  }
+
+  private buildMacroHeaderPayload(header: MacroHeader, dataSize: number): Uint8Array {
+    const buf = new Uint8Array(24);
+    buf[0] = 0xaa; // valid magic
+    buf[1] = header.id;
+    buf[2] = header.actionCount & 0xff;
+    buf[3] = (header.actionCount >> 8) & 0xff;
+    buf[4] = dataSize & 0xff;
+    buf[5] = (dataSize >> 8) & 0xff;
+    // buf[6], buf[7] reserved
+    const nameBytes = new TextEncoder().encode(
+      truncateUtf8ByBytes(header.name, 16),
+    );
+    buf.set(nameBytes.slice(0, 16), 8);
+    return buf;
   }
 }

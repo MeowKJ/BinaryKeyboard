@@ -159,21 +159,38 @@
             <div class="macro-section">
               <label class="section-label">选择宏</label>
               <div class="macro-grid">
-                <button 
-                  v-for="i in 8" 
+                <button
+                  v-for="i in 8"
                   :key="i"
                   class="option-btn macro-btn"
-                  :class="{ active: macroId === i - 1 }"
+                  :class="{
+                    active: macroId === i - 1,
+                    'has-data': macroStore.slotValid[i - 1],
+                  }"
                   @click="macroId = i - 1"
                 >
-                  宏 {{ i }}
+                  {{ macroSlotLabel(i - 1) }}
                 </button>
               </div>
-              <p class="macro-hint">
-                <i class="pi pi-info-circle"></i>
-                宏编辑功能暂未开放
-              </p>
             </div>
+
+            <Divider />
+
+            <div class="macro-section">
+              <label class="section-label">触发模式</label>
+              <div class="macro-trigger-grid">
+                <button
+                  v-for="opt in macroTriggerOptions"
+                  :key="opt.value"
+                  class="option-btn"
+                  :class="{ active: macroTrigger === opt.value }"
+                  @click="macroTrigger = opt.value"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+            </div>
+
           </div>
         </TabPanel>
       </TabPanels>
@@ -205,10 +222,12 @@ import {
   MouseButton,
   WheelDirection,
   LayerOp,
+  MacroTrigger,
   type KeyAction,
   createEmptyAction,
 } from '@/types/protocol';
 import { useDeviceStore } from '@/stores/deviceStore';
+import { useMacroStore } from '@/stores/macroStore';
 import { getKeycodeName, getHidFromEvent } from '@/utils/keycodes';
 import { CONSUMER_KEYS } from '@/utils/consumer';
 
@@ -223,6 +242,7 @@ const emit = defineEmits<{
   save: [action: KeyAction];
 }>();
 const deviceStore = useDeviceStore();
+const macroStore = useMacroStore();
 
 // 对话框可见性
 const dialogVisible = computed({
@@ -245,8 +265,22 @@ const layerTarget = ref(0);
 
 // 宏相关
 const macroId = ref(0);
+const macroTrigger = ref<MacroTrigger>(MacroTrigger.ONCE);
 const allowLayerActions = computed(() => deviceStore.supportsLayerKeyActions);
 const allowMacroActions = computed(() => deviceStore.supportsMacroActions);
+
+const macroTriggerOptions = [
+  { value: MacroTrigger.ONCE, label: '单次' },
+  { value: MacroTrigger.HOLD_ABORT, label: '按住·立停' },
+  { value: MacroTrigger.HOLD_FINISH, label: '按住·跑完' },
+  { value: MacroTrigger.TOGGLE, label: '切换循环' },
+];
+
+function macroSlotLabel(idx: number): string {
+  if (!macroStore.overview || !macroStore.slotValid[idx]) return `宏 ${idx + 1}`;
+  return macroStore.getSlotDisplayName(idx);
+}
+
 const modifierOptions = [
   { label: 'LCtrl', mask: Modifier.LCTRL },
   { label: 'LShift', mask: Modifier.LSHIFT },
@@ -339,6 +373,7 @@ function initFromAction(action: KeyAction) {
       }
       activeTab.value = 'macro';
       macroId.value = action.param1;
+      macroTrigger.value = action.modifier as MacroTrigger;
       break;
     default:
       activeTab.value = 'keyboard';
@@ -445,7 +480,7 @@ function confirmAction() {
     case 'macro':
       finalAction = {
         type: ActionType.MACRO,
-        modifier: 0,
+        modifier: macroTrigger.value,
         param1: macroId.value,
         param2: 0,
       };
@@ -616,14 +651,17 @@ function setModifier(mask: number, enabled: boolean): void {
   text-align: center;
 }
 
-.macro-hint {
-  margin-top: 1rem;
-  font-size: 0.85rem;
-  color: var(--c-text-muted);
-  display: flex;
-  align-items: center;
+.macro-btn.has-data {
+  border-color: var(--c-accent);
+  color: var(--c-accent-light);
+}
+
+.macro-trigger-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 0.5rem;
 }
+
 
 /* 底部 */
 .dialog-footer {

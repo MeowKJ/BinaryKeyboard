@@ -5,6 +5,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { hidService } from "@/services/HidService";
+import { useMacroStore } from "@/stores/macroStore";
 import {
   type DeviceCapabilities,
   type DeviceInfo,
@@ -222,6 +223,10 @@ export const useDeviceStore = defineStore("device", () => {
       } else {
         fnKeyConfig.value = createEmptyFnKeyConfig();
       }
+      if (supportsMacroActions.value) {
+        const macroStore = useMacroStore();
+        await macroStore.refreshOverview().catch(() => {});
+      }
 
       return true;
     } catch (error) {
@@ -246,6 +251,7 @@ export const useDeviceStore = defineStore("device", () => {
     rgbConfig.value = createDefaultRgbConfig();
     fnKeyConfig.value = createEmptyFnKeyConfig();
     currentEditLayer.value = 0;
+    useMacroStore().reset();
   }
 
   /** 刷新设备信息 */

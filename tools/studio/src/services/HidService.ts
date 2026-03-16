@@ -3,7 +3,7 @@
  * 统一管理已注册的设备适配器插件
  */
 
-import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig } from '@/types/protocol';
+import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData } from '@/types/protocol';
 import { showToast } from '@/services/toastService';
 import { createHidAdapters } from './hid/registry';
 import type { BatteryInfo, HidAdapter, HidOptionalOperations } from './hid/common/types';
@@ -152,6 +152,26 @@ export class HidService {
 
   async setLogConfig(config: LogConfig): Promise<void> {
     await this.requireOptionalOperation('setLogConfig')(config);
+  }
+
+  async getMacroOverview(): Promise<MacroOverview> {
+    return this.requireOptionalOperation('getMacroOverview')();
+  }
+
+  async getMacroInfo(slot: number): Promise<MacroHeader> {
+    return this.requireOptionalOperation('getMacroInfo')(slot);
+  }
+
+  async getMacroData(slot: number): Promise<MacroData> {
+    return this.requireOptionalOperation('getMacroData')(slot);
+  }
+
+  async setMacroData(slot: number, macro: MacroData): Promise<void> {
+    await this.requireOptionalOperation('setMacroData')(slot, macro);
+  }
+
+  async deleteMacro(slot: number): Promise<void> {
+    await this.requireOptionalOperation('deleteMacro')(slot);
   }
 }
 

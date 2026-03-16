@@ -442,6 +442,59 @@ export const MAX_LAYERS = 5;
 export const MAX_KEYS = 8;
 export const MAX_FN_KEYS = 4;
 export const MACRO_SLOTS = 8;
+export const MACRO_MAX_ACTIONS = 1000;
+export const MACRO_MAX_DATA_SIZE = 2024; // 2048 - 24 header
+export const MACRO_NAME_MAX_BYTES = 16;
+
+/** 宏触发模式 */
+export enum MacroTrigger {
+  ONCE = 0x00,         /** 按下触发 1 次 */
+  HOLD_ABORT = 0x01,   /** 按住循环，松开立即中断 */
+  HOLD_FINISH = 0x02,  /** 按住循环，松开跑完当轮 */
+  TOGGLE = 0x03,       /** 按下切换循环 */
+}
+
+/** 宏动作类型 */
+export enum MacroActionType {
+  KEY_DOWN = 0x01,
+  KEY_UP = 0x02,
+  MOD_DOWN = 0x03,
+  MOD_UP = 0x04,
+  DELAY = 0x10,
+  CONSUMER = 0x20,
+  MOUSE_DOWN = 0x30,
+  MOUSE_UP = 0x31,
+  WHEEL = 0x32,
+  END = 0xff,
+}
+
+/** 宏动作单元 (2 bytes) */
+export interface MacroAction {
+  type: MacroActionType;
+  param: number;
+}
+
+/** 宏头部信息 (24 bytes) */
+export interface MacroHeader {
+  valid: number;
+  id: number;
+  actionCount: number;
+  dataSize: number;
+  name: string;
+}
+
+/** 完整宏数据 */
+export interface MacroData {
+  header: MacroHeader;
+  actions: MacroAction[];
+}
+
+/** 宏槽位概览 */
+export interface MacroOverview {
+  totalSlots: number;
+  usedCount: number;
+  slotValid: boolean[];
+}
 
 // ============================================================================
 // 辅助函数
@@ -488,8 +541,8 @@ export function createLayerAction(op: LayerOp, layerId: number): KeyAction {
 }
 
 /** 创建宏动作 */
-export function createMacroAction(macroId: number): KeyAction {
-  return { type: ActionType.MACRO, modifier: 0, param1: macroId, param2: 0 };
+export function createMacroAction(macroId: number, trigger: MacroTrigger = MacroTrigger.ONCE): KeyAction {
+  return { type: ActionType.MACRO, modifier: trigger, param1: macroId, param2: 0 };
 }
 
 /** 创建空层 */

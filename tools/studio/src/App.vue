@@ -167,6 +167,26 @@
 
           <RgbPanel v-if="showRgbPanel" />
 
+          <!-- 宏管理面板 -->
+          <div v-if="showMacroPanel" class="panel macro-panel">
+            <h3 class="panel-title">
+              <i class="pi pi-code"></i>
+              宏管理
+            </h3>
+            <div class="macro-slot-grid">
+              <button
+                v-for="i in 8"
+                :key="i"
+                class="macro-slot-btn"
+                :class="{ 'has-data': macroStore.slotValid[i - 1] }"
+                @click="openMacroEditor(i - 1)"
+              >
+                <span class="macro-slot-idx">{{ i }}</span>
+                <span class="macro-slot-name">{{ macroStore.slotValid[i - 1] ? macroStore.getSlotDisplayName(i - 1) : '空' }}</span>
+              </button>
+            </div>
+          </div>
+
           <ActionsPanel :show-reset-button="showResetButton" :save-label="saveKeymapLabel" @save="saveConfig"
             @discard="discardChanges" @reset="confirmReset" />
         </aside>
@@ -228,6 +248,9 @@
       <!-- 键位编辑器弹窗 -->
       <ActionEditor v-model:visible="editorVisible" :key-index="selectedKeyIndex" :action="selectedAction"
         @save="onActionSave" />
+
+      <!-- 宏编辑器弹窗 (独立于按键编辑器) -->
+      <MacroEditor v-model:visible="macroEditorVisible" :slot="macroEditorSlot" />
     </div>
 
     <!-- 确认对话框 -->
@@ -265,6 +288,8 @@ import LayerPanel from '@/components/LayerPanel.vue';
 import FnPanel from '@/components/FnPanel.vue';
 import RgbPanel from '@/components/RgbPanel.vue';
 import ActionsPanel from '@/components/ActionsPanel.vue';
+import MacroEditor from '@/components/MacroEditor.vue';
+import { useMacroStore } from '@/stores/macroStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { useReleaseStore } from '@/stores/releaseStore';
 
@@ -272,18 +297,22 @@ const toast = useToast();
 initToastService(toast);   // 注入全局 toast，供 Service 层使用
 const confirm = useConfirm();
 const deviceStore = useDeviceStore();
+const macroStore = useMacroStore();
 const terminalStore = useTerminalStore();
 const releaseStore = useReleaseStore();
 
-// PWA 更新（Service Worker 检测到新版本时 needRefresh 为 true，用户点击后静默刷新）
+// PWA 更新（Service Worker 检测到新版本时 needRefresh 为 true，用户点击后交给 SW 接管刷新）
 const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
   onRegistered(r: ServiceWorkerRegistration | undefined) {
     if (r) r.update();
   },
 });
 async function onPwaUpdate() {
-  await updateServiceWorker(true);
-  window.location.reload();
+  try {
+    await updateServiceWorker();
+  } catch (error) {
+    showToast('error', '更新失败', error instanceof Error ? error.message : '无法应用新版本');
+  }
 }
 
 // 主题
@@ -295,6 +324,16 @@ const previewKeyboardType = ref(-1); // -1 表示使用实际设备，0-2 表示
 // 编辑器状态
 const editorVisible = ref(false);
 const selectedKeyIndex = ref(-1);
+
+// 宏编辑器
+const macroEditorVisible = ref(false);
+const macroEditorSlot = ref(0);
+
+async function openMacroEditor(slot: number) {
+  await macroStore.startEditing(slot);
+  macroEditorSlot.value = slot;
+  macroEditorVisible.value = true;
+}
 
 const selectedAction = computed<KeyAction>(() => {
   if (selectedKeyIndex.value < 0) return createEmptyAction();
@@ -336,6 +375,7 @@ const currentUiDefinition = computed(() => {
 const showLayerPanel = computed(() => hasUiSection(currentUiDefinition.value, 'layer-panel'));
 const showFnPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'fn-panel'));
 const showRgbPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'rgb-panel'));
+const showMacroPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsMacroActions);
 const showResetButton = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFactoryReset);
 const showLayerBadge = computed(() => previewKeyboardType.value >= 0 || deviceStore.supportsMultiLayer);
 const saveKeymapLabel = computed(() => deviceStore.supportsExplicitSave ? '保存配置' : '写入键位');
@@ -1116,6 +1156,69 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* 宏管理面板 */
+.macro-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.375rem;
+}
+
+.macro-slot-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+  overflow: hidden;
+}
+
+.macro-slot-btn:hover {
+  background: var(--c-bg-hover);
+  border-color: var(--c-accent);
+  color: var(--c-text-secondary);
+}
+
+.macro-slot-btn.has-data {
+  border-color: var(--c-accent);
+  color: var(--c-accent-light);
+}
+
+.macro-slot-idx {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--c-bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.macro-slot-btn.has-data .macro-slot-idx {
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+.macro-slot-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .info-item {
