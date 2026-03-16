@@ -21,7 +21,8 @@
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
     "primevue": "^4.3.1",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-draggable-plus": "^0.6.1"
   },
   "devDependencies": {
     "@primevue/auto-import-resolver": "^4.3.1",
@@ -29,13 +30,26 @@
     "@types/node": "^22.13.4",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/tsconfig": "^0.7.0",
-    "npm-run-all2": "^7.0.2",
+    "npm-run-all2": "^8.0.4",
     "typescript": "~5.7.3",
     "unplugin-vue-components": "^28.4.1",
-    "vite": "^6.1.0",
-    "vite-plugin-pwa": "^0.21.1",
-    "vite-plugin-vue-devtools": "^7.7.2",
-    "vue-tsc": "^2.2.2",
+    "vite": "^6.4.1",
+    "vite-plugin-pwa": "^1.2.0",
+    "vite-plugin-vue-devtools": "^8.1.0",
+    "vue-tsc": "^3.2.5",
     "workbox-window": "^7.4.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@babel/helpers": "7.26.10",
+      "@rollup/plugin-babel": "7.0.0",
+      "@rollup/plugin-node-resolve": "16.0.3",
+      "@rollup/plugin-replace": "6.0.3",
+      "@rollup/plugin-terser": "1.0.0",
+      "brace-expansion@2.0.1": "2.0.2",
+      "minimatch@9.0.5": "9.0.7",
+      "rollup": "4.59.0",
+      "serialize-javascript": "7.0.3"
+    }
   }
 }

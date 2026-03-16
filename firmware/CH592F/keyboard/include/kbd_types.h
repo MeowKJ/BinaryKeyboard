@@ -249,6 +249,18 @@ typedef struct __attribute__((packed)) {
  */
 
 /**
+ * @brief 宏触发模式
+ *
+ * 存储在 kbd_action_t.modifier 字段（当 type == KBD_ACTION_MACRO 时）
+ */
+typedef enum {
+  KBD_MACRO_TRIG_ONCE = 0x00,        /**< 按下触发 1 次 */
+  KBD_MACRO_TRIG_HOLD_ABORT = 0x01,  /**< 按住循环，松开立即中断 */
+  KBD_MACRO_TRIG_HOLD_FINISH = 0x02, /**< 按住循环，松开跑完当轮再停 */
+  KBD_MACRO_TRIG_TOGGLE = 0x03,      /**< 按下开始循环，再按停（跑完当轮） */
+} kbd_macro_trigger_t;
+
+/**
  * @brief 宏动作类型
  *
  * @note 所有按键类动作都需要显式的 DOWN 和 UP 配对

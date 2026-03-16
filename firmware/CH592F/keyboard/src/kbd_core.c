@@ -8,6 +8,7 @@
 
 #include "kbd_core.h"
 #include "kbd_storage.h"
+#include "kbd_macro.h"
 #include "kbd_rgb.h"
 #include "kbd_mode.h"
 #include "kbd_log.h"
@@ -349,13 +350,27 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
             KBD_SetCurrentLayer(action->param1);
             LOG_I(TAG, "Layer -> %d", action->param1);
             KBD_Log_LayerEvent(old_l, action->param1);
+            /* 切层时停止正在运行的宏 */
+            if (KBD_Macro_IsRunning()) {
+                KBD_Macro_Cancel();
+            }
         }
         break;
 
     case KBD_ACTION_MACRO:
         if (pressed) {
-            /* TODO: 实现宏执行 */
-            LOG_D(TAG, "Macro %d (not impl)", action->param1);
+            kbd_macro_trigger_t trig = (kbd_macro_trigger_t)action->modifier;
+            if (trig == KBD_MACRO_TRIG_TOGGLE && KBD_Macro_IsRunning()) {
+                KBD_Macro_Cancel(); /* Toggle 模式: 再按 → 停 */
+            } else {
+                int ret = KBD_Macro_Execute(action->param1, trig);
+                if (ret != 0) {
+                    LOG_W(TAG, "Macro %d exec fail: %d", action->param1, ret);
+                }
+            }
+        } else {
+            /* 松开事件通知宏引擎 */
+            KBD_Macro_OnKeyRelease();
         }
         break;
 
@@ -444,6 +459,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
     /* 层控制 */
     case KBD_FN_LAYER_NEXT:
         {
+            if (KBD_Macro_IsRunning()) KBD_Macro_Cancel();
             uint8_t layer = KBD_NextLayer();
             LOG_I(TAG, "FN: layer next -> %d", layer);
             KBD_RGB_FlashLayer(layer);
@@ -452,6 +468,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
 
     case KBD_FN_LAYER_PREV:
         {
+            if (KBD_Macro_IsRunning()) KBD_Macro_Cancel();
             uint8_t layer = KBD_PrevLayer();
             LOG_I(TAG, "FN: layer prev -> %d", layer);
             KBD_RGB_FlashLayer(layer);
@@ -459,6 +476,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         break;
 
     case KBD_FN_LAYER_SET:
+        if (KBD_Macro_IsRunning()) KBD_Macro_Cancel();
         LOG_I(TAG, "FN: layer set %d", param);
         KBD_SetCurrentLayer(param);
         KBD_RGB_FlashLayer(param);
@@ -473,6 +491,12 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
     case KBD_FN_BOOTLOADER:
         LOG_W(TAG, "FN: bootloader");
         Hal_JumpToBootloader();
+        break;
+
+    /* 宏 */
+    case KBD_FN_MACRO:
+        LOG_I(TAG, "FN: macro %d", param);
+        KBD_Macro_Execute(param, KBD_MACRO_TRIG_ONCE);
         break;
 
     default:

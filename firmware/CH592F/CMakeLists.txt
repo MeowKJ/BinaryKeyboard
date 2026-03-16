@@ -119,6 +119,7 @@ set(CH592_KEYBOARD_SOURCES
     # Keyboard
     keyboard/src/kbd_command.c
     keyboard/src/kbd_core.c
+    keyboard/src/kbd_macro.c
     keyboard/src/kbd_log.c
     keyboard/src/kbd_rgb.c
     keyboard/src/kbd_storage.c
