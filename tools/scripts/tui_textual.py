@@ -180,6 +180,23 @@ def _capture(cmd: list[str], cwd: Path = PROJECT_ROOT) -> tuple[int, str, str]:
     return (r.returncode, r.stdout.strip(), r.stderr.strip())
 
 
+def _escape_applescript(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _launch_in_macos_terminal(cmd: list[str], cwd: Path) -> tuple[bool, str]:
+    cmd_str = " ".join(shlex.quote(part) for part in cmd)
+    shell_cmd = f"cd {shlex.quote(str(cwd))}; {cmd_str}"
+    script = (
+        'tell application "Terminal"\n'
+        '  activate\n'
+        f'  do script "{_escape_applescript(shell_cmd)}"\n'
+        'end tell'
+    )
+    code, _, err = _capture(["osascript", "-e", script], cwd=cwd)
+    return (code == 0, err)
+
+
 def doctor_lines(state: dict) -> list[str]:
     items: list[str] = []
 
@@ -789,13 +806,34 @@ class BKConsoleApp(App):
                 f'start "" cmd /k "cd /d {cwd} && {cmd_str}"',
                 shell=True,
             )
-        else:
+            self.notify(t("launched_terminal", cmd=cmd_str), timeout=3)
+            return
+
+        if sys.platform == "darwin":
+            ok, err = _launch_in_macos_terminal(cmd, cwd)
+            if ok:
+                self.notify(t("launched_terminal", cmd=cmd_str), timeout=3)
+            else:
+                self.notify(
+                    t("launch_terminal_failed", cmd=cmd_str, err=err or "osascript failed"),
+                    severity="error",
+                    timeout=5,
+                )
+            return
+
+        try:
             subprocess.Popen(
                 ["bash", "-c", cmd_str],
                 cwd=str(cwd),
                 start_new_session=True,
             )
-        self.notify(t("launched_terminal", cmd=cmd_str), timeout=3)
+            self.notify(t("launched_terminal", cmd=cmd_str), timeout=3)
+        except OSError as exc:
+            self.notify(
+                t("launch_terminal_failed", cmd=cmd_str, err=str(exc)),
+                severity="error",
+                timeout=5,
+            )
 
     def _suspend_and_show(self, title: str, lines: list[str]) -> None:
         def _runner() -> None:

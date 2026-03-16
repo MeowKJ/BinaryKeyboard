@@ -227,6 +227,7 @@ _EN: dict[str, str] = {
 
         # ── Terminal launch ───────────────────────────────────────────────
         "launched_terminal": "Launched in new terminal: {cmd}",
+        "launch_terminal_failed": "Failed to launch terminal for {cmd}: {err}",
 
         # ── Language ──────────────────────────────────────────────────────
         "action.toggle_lang": "Switch language  [{lang}]",
@@ -456,6 +457,7 @@ _ZH: dict[str, str] = {
 
         # ── Terminal launch ───────────────────────────────────────────────
         "launched_terminal": "已在新终端启动: {cmd}",
+        "launch_terminal_failed": "启动终端失败: {cmd} ({err})",
 
         # ── Language ──────────────────────────────────────────────────────
         "action.toggle_lang": "切换语言  [{lang}]",
