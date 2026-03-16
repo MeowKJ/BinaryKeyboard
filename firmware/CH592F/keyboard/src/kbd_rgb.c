@@ -95,9 +95,22 @@ static inline uint8_t KeyToLed(uint8_t key_idx)
 
 /** @brief 每个按键的按下衰减值 (255=刚按下, 0=无效果) */
 static uint8_t s_press_fade[KBD_NUM_KEYS];
+static uint8_t s_press_color_r[KBD_NUM_KEYS];
+static uint8_t s_press_color_g[KBD_NUM_KEYS];
+static uint8_t s_press_color_b[KBD_NUM_KEYS];
+static uint8_t s_press_active_count = 0;
 
 /* 前向声明 */
 static void ApplyBrightness(uint8_t *r, uint8_t *g, uint8_t *b, uint8_t brightness);
+static uint8_t CalcBreathing(uint8_t phase);
+static bool CalcBlink(uint8_t phase);
+static void SampleModeKeyColor(const kbd_rgb_config_t *cfg,
+                               uint8_t key_index,
+                               bool allow_fallback,
+                               uint8_t *r,
+                               uint8_t *g,
+                               uint8_t *b);
+static void ClearPressEffects(void);
 
 /**
  * @brief 计算每帧衰减步长
@@ -107,31 +120,109 @@ static uint8_t PressFadeStep(uint8_t speed)
     return (uint8_t)(2u + (speed >> 5));
 }
 
-/**
- * @brief 检查是否有激活的按下效果
- */
-static bool HasActivePressEffect(uint8_t press_effect)
+static void ResolvePressFallbackColor(const kbd_rgb_config_t *cfg,
+                                      uint8_t *r,
+                                      uint8_t *g,
+                                      uint8_t *b)
 {
-    if (press_effect == PRESS_EFFECT_NONE)
-        return false;
-    for (uint8_t i = 0; i < KBD_NUM_KEYS; i++)
+    *r = cfg->color_r;
+    *g = cfg->color_g;
+    *b = cfg->color_b;
+    ApplyBrightness(r, g, b, cfg->brightness);
+
+    if (*r == 0 && *g == 0 && *b == 0 && cfg->brightness > 0)
     {
-        if (s_press_fade[i] > 0)
-            return true;
+        *r = cfg->brightness;
+        *g = cfg->brightness;
+        *b = cfg->brightness;
     }
-    return false;
+}
+
+static void SampleModeKeyColor(const kbd_rgb_config_t *cfg,
+                               uint8_t key_index,
+                               bool allow_fallback,
+                               uint8_t *r,
+                               uint8_t *g,
+                               uint8_t *b)
+{
+    *r = 0;
+    *g = 0;
+    *b = 0;
+
+    switch (cfg->mode)
+    {
+    case KBD_RGB_STATIC:
+        *r = cfg->color_r;
+        *g = cfg->color_g;
+        *b = cfg->color_b;
+        ApplyBrightness(r, g, b, cfg->brightness);
+        break;
+
+    case KBD_RGB_BREATHING:
+    {
+        uint16_t period_ms = 4000 - ((uint32_t)cfg->speed * 3500 / 255);
+        uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
+        uint8_t breath_brightness = CalcBreathing(phase);
+        uint8_t floor_val = (uint16_t)cfg->brightness * 64 >> 8;
+        uint8_t range = cfg->brightness - floor_val;
+        uint8_t final_brightness = floor_val + ((uint16_t)range * breath_brightness >> 8);
+        *r = cfg->color_r;
+        *g = cfg->color_g;
+        *b = cfg->color_b;
+        ApplyBrightness(r, g, b, final_brightness);
+        break;
+    }
+
+    case KBD_RGB_BLINK:
+    {
+        uint16_t period_ms = 2000 - ((uint32_t)cfg->speed * 1800 / 255);
+        uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
+        if (CalcBlink(phase))
+        {
+            *r = cfg->color_r;
+            *g = cfg->color_g;
+            *b = cfg->color_b;
+            ApplyBrightness(r, g, b, cfg->brightness);
+        }
+        break;
+    }
+
+    case KBD_RGB_RAINBOW:
+    {
+        uint16_t period_ms = 5000 - ((uint32_t)cfg->speed * 4500 / 255);
+        uint16_t hue_base = (s_effect_phase * 360 / period_ms) % 360;
+        uint16_t hue = (hue_base + (uint16_t)key_index * 360 / KBD_NUM_KEYS) % 360;
+        WS2812_Color color = WS2812_HSVtoRGB(hue, 255, cfg->brightness);
+        *r = color.r;
+        *g = color.g;
+        *b = color.b;
+        break;
+    }
+
+    default:
+        break;
+    }
+
+    if (allow_fallback && *r == 0 && *g == 0 && *b == 0)
+    {
+        ResolvePressFallbackColor(cfg, r, g, b);
+    }
+}
+
+static void ClearPressEffects(void)
+{
+    memset(s_press_fade, 0, sizeof(s_press_fade));
+    memset(s_press_color_r, 0, sizeof(s_press_color_r));
+    memset(s_press_color_g, 0, sizeof(s_press_color_g));
+    memset(s_press_color_b, 0, sizeof(s_press_color_b));
+    s_press_active_count = 0;
 }
 
 /**
- * @brief 处理按下效果：逐键覆写 LED 颜色并衰减
+ * @brief 处理按下效果：逐键覆写 LED 亮度并衰减
  */
 static void ProcessPressEffects(kbd_rgb_config_t *cfg)
 {
-    uint8_t ref_r = cfg->color_r;
-    uint8_t ref_g = cfg->color_g;
-    uint8_t ref_b = cfg->color_b;
-    ApplyBrightness(&ref_r, &ref_g, &ref_b, cfg->brightness);
-
     uint8_t step = PressFadeStep(cfg->speed);
 
     for (uint8_t i = 0; i < KBD_NUM_KEYS; i++)
@@ -144,19 +235,19 @@ static void ProcessPressEffects(kbd_rgb_config_t *cfg)
 
         if (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE)
         {
-            /* 按下亮起渐灭：颜色 * intensity */
-            uint8_t r = ((uint16_t)ref_r * intensity) >> 8;
-            uint8_t g = ((uint16_t)ref_g * intensity) >> 8;
-            uint8_t b = ((uint16_t)ref_b * intensity) >> 8;
+            uint8_t r = ((uint16_t)s_press_color_r[i] * intensity) >> 8;
+            uint8_t g = ((uint16_t)s_press_color_g[i] * intensity) >> 8;
+            uint8_t b = ((uint16_t)s_press_color_b[i] * intensity) >> 8;
             WS2812_Set(led_idx, r, g, b);
         }
         else
         {
-            /* 按下熄灭渐亮：颜色 * (255 - intensity) */
+            uint8_t base_r, base_g, base_b;
+            SampleModeKeyColor(cfg, i, false, &base_r, &base_g, &base_b);
             uint8_t factor = 255 - intensity;
-            uint8_t r = ((uint16_t)ref_r * factor) >> 8;
-            uint8_t g = ((uint16_t)ref_g * factor) >> 8;
-            uint8_t b = ((uint16_t)ref_b * factor) >> 8;
+            uint8_t r = ((uint16_t)base_r * factor) >> 8;
+            uint8_t g = ((uint16_t)base_g * factor) >> 8;
+            uint8_t b = ((uint16_t)base_b * factor) >> 8;
             WS2812_Set(led_idx, r, g, b);
         }
 
@@ -164,7 +255,11 @@ static void ProcessPressEffects(kbd_rgb_config_t *cfg)
         if (s_press_fade[i] > step)
             s_press_fade[i] -= step;
         else
+        {
             s_press_fade[i] = 0;
+            if (s_press_active_count > 0)
+                s_press_active_count--;
+        }
     }
 }
 
@@ -459,7 +554,7 @@ void KBD_RGB_Init(void)
     s_effect_phase = 0;
     s_flash_active = false;
     s_layer_flash_active = false;
-    memset(s_press_fade, 0, sizeof(s_press_fade));
+    ClearPressEffects();
 
     s_rgb_task_id = TMOS_ProcessEventRegister(KBD_RGB_ProcessEvent);
     tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
@@ -468,6 +563,11 @@ void KBD_RGB_Init(void)
 void KBD_RGB_Process(void)
 {
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
+
+    if (cfg->press_effect == PRESS_EFFECT_NONE && s_press_active_count > 0)
+    {
+        ClearPressEffects();
+    }
 
     /* 更新相位计数器 */
     s_effect_phase += RGB_UPDATE_INTERVAL_MS;
@@ -537,7 +637,8 @@ void KBD_RGB_Process(void)
     }
 
     /* 检测按下效果状态 */
-    bool has_active_press = HasActivePressEffect(cfg->press_effect);
+    bool has_active_press =
+        (cfg->press_effect != PRESS_EFFECT_NONE) && (s_press_active_count > 0);
 
     /* LIGHT_FADE 激活时，按键灯基底强制熄灭（仅按下的键亮起） */
     bool suppress_base = (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE && has_active_press);
@@ -762,5 +863,17 @@ void KBD_RGB_RegisterKeyPress(uint8_t key_index)
     if (!cfg->enabled || cfg->press_effect == PRESS_EFFECT_NONE ||
         key_index >= KBD_NUM_KEYS)
         return;
+
+    if (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE)
+    {
+        SampleModeKeyColor(cfg, key_index, true,
+                           &s_press_color_r[key_index],
+                           &s_press_color_g[key_index],
+                           &s_press_color_b[key_index]);
+    }
+
+    if (s_press_fade[key_index] == 0)
+        s_press_active_count++;
+
     s_press_fade[key_index] = 255;
 }
