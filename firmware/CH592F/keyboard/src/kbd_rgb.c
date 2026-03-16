@@ -640,8 +640,8 @@ void KBD_RGB_Process(void)
     bool has_active_press =
         (cfg->press_effect != PRESS_EFFECT_NONE) && (s_press_active_count > 0);
 
-    /* LIGHT_FADE 激活时，按键灯基底强制熄灭（仅按下的键亮起） */
-    bool suppress_base = (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE && has_active_press);
+    /* LIGHT_FADE 始终以黑底运行：空闲时全灭，按下时仅叠加被触发按键 */
+    bool suppress_base = (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE);
 
     /* RGB 开关关闭或基底被抑制时，仅关闭按键灯；指示灯与层指示仍保持 */
     if (!cfg->enabled || suppress_base)
