@@ -22,17 +22,7 @@
 python tools/scripts/console.py
 ```
 
-如果当前终端不适合 `curses`，或者 Windows Python 缺少 `_curses` 扩展，也可以：
-
-```bash
-python tools/scripts/console.py --text
-```
-
-Windows 下如果想启用完整 TUI，而不是文本回退模式：
-
-```powershell
-python -m pip install windows-curses
-```
+脚本会自动在仓库根目录创建 `.venv`，检查并安装 `tools/scripts/requirements-console.txt` 里的控制台依赖，然后用这个虚拟环境重启自己。
 
 ### 当前功能
 
@@ -91,15 +81,6 @@ python -m pip install windows-curses
       "command": "python3",
       "windows": { "command": "python" },
       "args": ["${workspaceFolder}/tools/scripts/console.py"],
-      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
-      "problemMatcher": []
-    },
-    {
-      "label": "BK: TUI Console (text)",
-      "type": "shell",
-      "command": "python3",
-      "windows": { "command": "python" },
-      "args": ["${workspaceFolder}/tools/scripts/console.py", "--text"],
       "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
       "problemMatcher": []
     },

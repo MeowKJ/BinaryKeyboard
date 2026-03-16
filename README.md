@@ -47,11 +47,7 @@
 python tools/scripts/console.py
 ```
 
-如果当前终端不适合 curses TUI，也可以使用文本模式：
-
-```bash
-python tools/scripts/console.py --text
-```
+脚本会自动在仓库根目录创建 `.venv`，检查并安装 `tools/scripts/requirements-console.txt` 里的控制台依赖，然后用这个虚拟环境重启自己。
 
 <p align="center">
   <img src="https://github.com/MeowKJ/BinaryKeyboard/releases/download/readme-assets/console-tui.png" width="960" alt="BinaryKeyboard console.py TUI">

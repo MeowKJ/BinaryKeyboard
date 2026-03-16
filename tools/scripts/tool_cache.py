@@ -12,16 +12,14 @@ from typing import Iterable, Optional
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
-LEGACY_STATE_FILE = SCRIPT_DIR / ".ch592f_console_state.json"
 TOOL_CACHE_KEY = "tool_cache"
 
 
 def _read_state_data() -> dict:
-    state_path = STATE_FILE if STATE_FILE.is_file() else LEGACY_STATE_FILE
-    if not state_path.is_file():
+    if not STATE_FILE.is_file():
         return {}
     try:
-        data = json.loads(state_path.read_text())
+        data = json.loads(STATE_FILE.read_text())
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
