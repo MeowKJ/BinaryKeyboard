@@ -11,8 +11,20 @@ extern "C" {
 /* ======================= 配置 ======================= */
 
 /** UART 日志输出开关 (设为 0 禁用 UART，节省功耗与 ISR 时间) */
+#ifndef KBD_DEBUG_BUILD
+#define KBD_DEBUG_BUILD 0
+#endif
+
+#ifndef KBD_USB_LOG_ENABLE
+#define KBD_USB_LOG_ENABLE KBD_DEBUG_BUILD
+#endif
+
+#ifndef KBD_LOG_DEFAULT_ENABLED
+#define KBD_LOG_DEFAULT_ENABLED KBD_USB_LOG_ENABLE
+#endif
+
 #ifndef UART_LOG_ENABLE
-#define UART_LOG_ENABLE  0
+#define UART_LOG_ENABLE  KBD_DEBUG_BUILD
 #endif
 
 #define DEBUG_UART1_BAUDRATE    115200
@@ -26,7 +38,7 @@ extern "C" {
 
 /* 当前日志级别 (编译时配置) */
 #ifndef LOG_LEVEL
-#define LOG_LEVEL         LOG_LEVEL_DEBUG
+#define LOG_LEVEL         LOG_LEVEL_INFO
 #endif
 
 /* ======================= API ======================= */

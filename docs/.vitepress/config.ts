@@ -20,8 +20,8 @@ export default defineConfig({
       { text: '🏠 首页', link: '/' },
       { 
         text: '⚡ 经典版',
-        link: '/classic/',
-        activeMatch: '/classic/'
+        link: '/wired/',
+        activeMatch: '/wired/'
       },
       { 
         text: '📡 无线版',
@@ -29,7 +29,7 @@ export default defineConfig({
         activeMatch: '/wireless/'
       },
       { text: '🔧 开发', items: [
-        { text: '⚡ 经典版开发', link: '/classic/dev' },
+        { text: '⚡ 经典版开发', link: '/wired/dev' },
         { text: '📡 无线版开发', link: '/wireless/dev' },
       ]},
       { text: '❓ FAQ', link: '/faq' },
@@ -40,11 +40,11 @@ export default defineConfig({
         text: '⚡ 经典版',
         collapsed: false,
         items: [
-          { text: '快速开始', link: '/classic/' },
-          { text: '硬件复刻', link: '/classic/make' },
-          { text: '刷写固件', link: '/classic/flash' },
-          { text: '改键软件', link: '/classic/remap' },
-          { text: '固件开发', link: '/classic/dev' },
+          { text: '快速开始', link: '/wired/' },
+          { text: '硬件复刻', link: '/wired/make' },
+          { text: '刷写固件', link: '/wired/flash' },
+          { text: '改键软件', link: '/wired/remap' },
+          { text: '固件开发', link: '/wired/dev' },
         ]
       },
       {

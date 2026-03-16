@@ -102,19 +102,27 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       throw new Error('设备未连接');
     }
 
-    this.addTerminalEntry(this.codec.describeOutgoingFrame(frame));
-    await this.device.sendReport(this.commandReportId, frame);
-
     const timeout = options.timeout ?? 3000;
     const timeoutLabel = options.timeoutLabel ?? '命令响应超时';
-
-    return new Promise((resolve, reject) => {
+    const responsePromise = new Promise<TResponse>((resolve, reject) => {
       this.responsePromise = { resolve, reject };
       this.responseTimeout = window.setTimeout(() => {
+        this.responseTimeout = null;
         this.responsePromise = null;
         reject(new Error(timeoutLabel));
       }, timeout);
     });
+
+    this.addTerminalEntry(this.codec.describeOutgoingFrame(frame));
+
+    try {
+      await this.device.sendReport(this.commandReportId, frame);
+    } catch (error) {
+      this.clearPendingResponse();
+      throw error instanceof Error ? error : new Error('发送 HID 报告失败');
+    }
+
+    return responsePromise;
   }
 
   protected async sendNoWait(frame: Uint8Array, _options?: CodecCommandOptions): Promise<void> {

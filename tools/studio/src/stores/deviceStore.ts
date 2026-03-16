@@ -78,6 +78,45 @@ export const useDeviceStore = defineStore("device", () => {
   /** 轮询周期计数 (用于电压低频采样) */
   let _pollTick = 0;
 
+  function cloneKeymapConfig(config: KeymapConfig): KeymapConfig {
+    return JSON.parse(JSON.stringify(config)) as KeymapConfig;
+  }
+
+  function normalizeKeymapConfig(config: KeymapConfig): KeymapConfig {
+    const normalized = cloneKeymapConfig(config);
+    const info = deviceInfo.value;
+
+    if (!info?.capabilities.multiLayer) {
+      normalized.numLayers = 1;
+      normalized.currentLayer = 0;
+      normalized.defaultLayer = 0;
+      return normalized;
+    }
+
+    const supportedLayers = Math.max(
+      1,
+      info.maxLayers ||
+        KeyboardTypeInfo[info.keyboardType]?.layers ||
+        normalized.numLayers ||
+        1,
+    );
+
+    normalized.numLayers = Math.min(
+      Math.max(normalized.numLayers || 1, 1),
+      supportedLayers,
+    );
+    normalized.currentLayer = Math.min(
+      normalized.currentLayer || 0,
+      normalized.numLayers - 1,
+    );
+    normalized.defaultLayer = Math.min(
+      normalized.defaultLayer || 0,
+      normalized.numLayers - 1,
+    );
+
+    return normalized;
+  }
+
   // ========================================
   // 计算属性
   // ========================================
@@ -183,7 +222,6 @@ export const useDeviceStore = defineStore("device", () => {
       } else {
         fnKeyConfig.value = createEmptyFnKeyConfig();
       }
-      currentEditLayer.value = 0;
 
       return true;
     } catch (error) {
@@ -218,35 +256,10 @@ export const useDeviceStore = defineStore("device", () => {
 
   /** 刷新按键映射 */
   async function refreshKeymap(): Promise<void> {
-    const config = await hidService.getFullKeymap();
+    const config = normalizeKeymapConfig(await hidService.getFullKeymap());
     keymap.value = config;
-    keymapOriginal.value = JSON.parse(JSON.stringify(config)); // 深拷贝
-
-    if (deviceInfo.value?.capabilities.multiLayer) {
-      // 以设备上报的 maxLayers 为准，避免不同协议/固件的层数能力不一致
-      const expectedLayers = Math.max(
-        1,
-        deviceInfo.value.maxLayers ||
-          KeyboardTypeInfo[deviceInfo.value.keyboardType]?.layers ||
-          1,
-      );
-      if (keymap.value.numLayers !== expectedLayers) {
-        keymap.value.numLayers = expectedLayers;
-        // 确保当前层在有效范围内
-        if (keymap.value.currentLayer >= expectedLayers) {
-          keymap.value.currentLayer = 0;
-        }
-        if (keymap.value.defaultLayer >= expectedLayers) {
-          keymap.value.defaultLayer = 0;
-        }
-        currentEditLayer.value = keymap.value.currentLayer;
-      }
-    } else {
-      keymap.value.numLayers = 1;
-      keymap.value.currentLayer = 0;
-      keymap.value.defaultLayer = 0;
-      currentEditLayer.value = 0;
-    }
+    keymapOriginal.value = cloneKeymapConfig(config);
+    currentEditLayer.value = config.currentLayer;
   }
 
   /** 刷新 RGB 配置 */
@@ -277,7 +290,7 @@ export const useDeviceStore = defineStore("device", () => {
       if (supportsExplicitSave.value) {
         await hidService.saveConfig();
       }
-      keymapOriginal.value = JSON.parse(JSON.stringify(keymap.value));
+      keymapOriginal.value = cloneKeymapConfig(keymap.value);
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "保存失败";
       throw error;
@@ -362,7 +375,7 @@ export const useDeviceStore = defineStore("device", () => {
     const layer = layerIndex ?? currentEditLayer.value;
     if (
       layer >= 0 &&
-      layer < MAX_LAYERS &&
+      layer < keymap.value.numLayers &&
       keyIndex >= 0 &&
       keyIndex < actualKeyCount.value
     ) {
@@ -378,7 +391,7 @@ export const useDeviceStore = defineStore("device", () => {
     const layer = layerIndex ?? currentEditLayer.value;
     if (
       layer >= 0 &&
-      layer < MAX_LAYERS &&
+      layer < keymap.value.numLayers &&
       keyIndex >= 0 &&
       keyIndex < actualKeyCount.value
     ) {
@@ -396,7 +409,14 @@ export const useDeviceStore = defineStore("device", () => {
 
   /** 增加层数 */
   function addLayer(): boolean {
-    if (keymap.value.numLayers < MAX_LAYERS) {
+    const supportedLayers = Math.max(
+      1,
+      deviceInfo.value?.maxLayers ||
+        KeyboardTypeInfo[deviceInfo.value?.keyboardType ?? 0]?.layers ||
+        1,
+    );
+
+    if (keymap.value.numLayers < Math.min(MAX_LAYERS, supportedLayers)) {
       keymap.value.numLayers++;
       return true;
     }
@@ -407,6 +427,12 @@ export const useDeviceStore = defineStore("device", () => {
   function removeLayer(): boolean {
     if (keymap.value.numLayers > 1) {
       keymap.value.numLayers--;
+      if (keymap.value.currentLayer >= keymap.value.numLayers) {
+        keymap.value.currentLayer = keymap.value.numLayers - 1;
+      }
+      if (keymap.value.defaultLayer >= keymap.value.numLayers) {
+        keymap.value.defaultLayer = 0;
+      }
       if (currentEditLayer.value >= keymap.value.numLayers) {
         currentEditLayer.value = keymap.value.numLayers - 1;
       }
@@ -417,7 +443,8 @@ export const useDeviceStore = defineStore("device", () => {
 
   /** 放弃更改 */
   function discardChanges(): void {
-    keymap.value = JSON.parse(JSON.stringify(keymapOriginal.value));
+    keymap.value = cloneKeymapConfig(keymapOriginal.value);
+    currentEditLayer.value = keymap.value.currentLayer;
   }
 
   // ========================================

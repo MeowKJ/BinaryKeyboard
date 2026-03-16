@@ -432,10 +432,9 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private versionToSemver(featureLevel: number): { major: number; minor: number; patch: number } {
     const legacyPatch = Number.isFinite(featureLevel) && featureLevel > 0 ? Math.trunc(featureLevel) : 0;
     return {
-      // Legacy CH552 firmware without READ_META only exposes a feature level byte,
-      // so keep the fallback clearly marked as non-semver-compatible instead of
-      // pretending it belongs to the current release line.
-      major: 0,
+      // Legacy CH552 firmware without READ_META only exposes a feature level byte.
+      // Map it to the CH552 major line so Studio keeps a consistent version UI.
+      major: 2,
       minor: 0,
       patch: legacyPatch,
     };

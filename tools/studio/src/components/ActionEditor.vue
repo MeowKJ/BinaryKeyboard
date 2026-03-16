@@ -59,10 +59,14 @@
             <div class="modifier-section">
               <label class="section-label">修饰键</label>
               <div class="modifier-grid">
-                <ToggleButton v-model="modCtrl" onLabel="Ctrl" offLabel="Ctrl" />
-                <ToggleButton v-model="modShift" onLabel="Shift" offLabel="Shift" />
-                <ToggleButton v-model="modAlt" onLabel="Alt" offLabel="Alt" />
-                <ToggleButton v-model="modGui" onLabel="Win" offLabel="Win" />
+                <ToggleButton
+                  v-for="option in modifierOptions"
+                  :key="option.mask"
+                  :modelValue="isModifierEnabled(option.mask)"
+                  :onLabel="option.label"
+                  :offLabel="option.label"
+                  @update:modelValue="setModifier(option.mask, $event)"
+                />
               </div>
             </div>
           </div>
@@ -146,13 +150,13 @@
               <label class="section-label">目标层</label>
               <div class="layer-buttons">
                 <button 
-                  v-for="i in 4" 
-                  :key="i"
+                  v-for="option in layerOptions"
+                  :key="option.value"
                   class="option-btn layer-btn"
-                  :class="{ active: layerTarget === i - 1 }"
-                  @click="layerTarget = i - 1"
+                  :class="{ active: layerTarget === option.value }"
+                  @click="layerTarget = option.value"
                 >
-                  层 {{ i }}
+                  {{ option.label }}
                 </button>
               </div>
             </div>
@@ -243,10 +247,7 @@ const isListening = ref(false);
 
 // 键盘相关
 const keycode = ref(0);
-const modCtrl = ref(false);
-const modShift = ref(false);
-const modAlt = ref(false);
-const modGui = ref(false);
+const modifierMask = ref(0);
 
 // 层相关
 const layerOp = ref(LayerOp.TOGGLE);
@@ -256,15 +257,27 @@ const layerTarget = ref(0);
 const macroId = ref(0);
 const allowLayerActions = computed(() => deviceStore.supportsLayerKeyActions);
 const allowMacroActions = computed(() => deviceStore.supportsMacroActions);
+const modifierOptions = [
+  { label: 'LCtrl', mask: Modifier.LCTRL },
+  { label: 'LShift', mask: Modifier.LSHIFT },
+  { label: 'LAlt', mask: Modifier.LALT },
+  { label: 'LWin', mask: Modifier.LGUI },
+  { label: 'RCtrl', mask: Modifier.RCTRL },
+  { label: 'RShift', mask: Modifier.RSHIFT },
+  { label: 'RAlt', mask: Modifier.RALT },
+  { label: 'RWin', mask: Modifier.RGUI },
+];
+const layerOptions = computed(() =>
+  Array.from({ length: Math.max(1, deviceStore.keymap.numLayers) }, (_, index) => ({
+    label: `层 ${index + 1}`,
+    value: index,
+  })),
+);
 
 // 预览
 const previewKeyName = computed(() => {
   if (activeTab.value !== 'keyboard') return '';
-  const mod = (modCtrl.value ? Modifier.LCTRL : 0) |
-              (modShift.value ? Modifier.LSHIFT : 0) |
-              (modAlt.value ? Modifier.LALT : 0) |
-              (modGui.value ? Modifier.LGUI : 0);
-  return getKeycodeName(keycode.value, mod) || '未设置';
+  return getKeycodeName(keycode.value, modifierMask.value) || '未设置';
 });
 
 // 数据
@@ -311,10 +324,7 @@ function initFromAction(action: KeyAction) {
     case ActionType.KEYBOARD:
       activeTab.value = 'keyboard';
       keycode.value = action.param1;
-      modCtrl.value = !!(action.modifier & Modifier.LCTRL);
-      modShift.value = !!(action.modifier & Modifier.LSHIFT);
-      modAlt.value = !!(action.modifier & Modifier.LALT);
-      modGui.value = !!(action.modifier & Modifier.LGUI);
+      modifierMask.value = action.modifier;
       break;
     case ActionType.CONSUMER:
       activeTab.value = 'media';
@@ -330,7 +340,7 @@ function initFromAction(action: KeyAction) {
       }
       activeTab.value = 'layer';
       layerOp.value = action.modifier;
-      layerTarget.value = action.param1;
+      layerTarget.value = Math.min(action.param1, layerOptions.value.length - 1);
       break;
     case ActionType.MACRO:
       if (!allowMacroActions.value) {
@@ -343,10 +353,7 @@ function initFromAction(action: KeyAction) {
     default:
       activeTab.value = 'keyboard';
       keycode.value = 0;
-      modCtrl.value = false;
-      modShift.value = false;
-      modAlt.value = false;
-      modGui.value = false;
+      modifierMask.value = 0;
   }
 }
 
@@ -369,10 +376,7 @@ function handleKeyDown(event: KeyboardEvent) {
   
   if (hid > 0) {
     keycode.value = hid;
-    modCtrl.value = !!(modifier & Modifier.LCTRL);
-    modShift.value = !!(modifier & Modifier.LSHIFT);
-    modAlt.value = !!(modifier & Modifier.LALT);
-    modGui.value = !!(modifier & Modifier.LGUI);
+    modifierMask.value = modifier;
   }
 
   cancelListening();
@@ -423,10 +427,7 @@ function clearKeycode() {
 function clearAction() {
   editAction.value = createEmptyAction();
   keycode.value = 0;
-  modCtrl.value = false;
-  modShift.value = false;
-  modAlt.value = false;
-  modGui.value = false;
+  modifierMask.value = 0;
 }
 
 // 确认动作
@@ -435,13 +436,9 @@ function confirmAction() {
 
   switch (activeTab.value) {
     case 'keyboard':
-      const mod = (modCtrl.value ? Modifier.LCTRL : 0) |
-                  (modShift.value ? Modifier.LSHIFT : 0) |
-                  (modAlt.value ? Modifier.LALT : 0) |
-                  (modGui.value ? Modifier.LGUI : 0);
       finalAction = {
         type: ActionType.KEYBOARD,
-        modifier: mod,
+        modifier: modifierMask.value,
         param1: keycode.value,
         param2: 0,
       };
@@ -456,7 +453,7 @@ function confirmAction() {
       finalAction = {
         type: ActionType.LAYER,
         modifier: layerOp.value,
-        param1: layerTarget.value,
+        param1: Math.min(layerTarget.value, layerOptions.value.length - 1),
         param2: 0,
       };
       break;
@@ -473,6 +470,18 @@ function confirmAction() {
   }
 
   emit('save', finalAction);
+}
+
+function isModifierEnabled(mask: number): boolean {
+  return (modifierMask.value & mask) !== 0;
+}
+
+function setModifier(mask: number, enabled: boolean): void {
+  if (enabled) {
+    modifierMask.value |= mask;
+    return;
+  }
+  modifierMask.value &= ~mask;
 }
 </script>
 
@@ -533,9 +542,9 @@ function confirmAction() {
 
 /* 修饰键 */
 .modifier-grid {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
-  flex-wrap: wrap;
 }
 
 /* 通用选项按钮 */

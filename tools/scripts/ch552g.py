@@ -6,8 +6,6 @@ tools/scripts/ch552g.py — CH552G CMake build helper
 from __future__ import annotations
 
 import argparse
-import ctypes
-import filecmp
 import json
 import os
 import platform
@@ -15,60 +13,34 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Optional
 
 from build_report import UsageRow, fmt_bytes, render_usage_report
+from common import (
+    PROJECT_ROOT,
+    colorize as _c,
+    die,
+    find_cmake,
+    find_ninja,
+    find_sdcc,
+    info,
+    ok,
+    parse_cmake_cache_var as _parse_cmake_cache_var,
+    run as _run,
+    run_and_capture as _run_and_capture,
+    sep,
+    use_color,
+    warn,
+)
 from firmware_naming import ch552_filename_for_keyboard, normalize_keyboard_name
-from tool_cache import resolve_tool_path
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.resolve()
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH552G"
 BUILD_ROOT = FIRMWARE_DIR / "build"
 
 VALID_KEYBOARDS = ("BASIC", "KNOB", "5KEY")
 DEFAULT_KEYBOARD = "BASIC"
-
-
-def _enable_win_ansi() -> None:
-    if platform.system() == "Windows":
-        try:
-            kernel32 = ctypes.windll.kernel32
-            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-        except Exception:
-            pass
-
-
-_enable_win_ansi()
-_USE_COLOR = sys.stdout.isatty()
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
-
-
-def info(msg: str) -> None:
-    print(_c("36", "[INFO]"), msg)
-
-
-def ok(msg: str) -> None:
-    print(_c("32", "[ OK ]"), msg)
-
-
-def warn(msg: str) -> None:
-    print(_c("33", "[WARN]"), msg)
-
-
-def sep() -> None:
-    print(_c("2", "-" * 44))
-
-
-def die(msg: str) -> None:
-    print(_c("31", "[ERR ]"), msg, file=sys.stderr)
-    sys.exit(1)
 
 
 def _normalize_keyboard(value: str) -> str:
@@ -77,69 +49,6 @@ def _normalize_keyboard(value: str) -> str:
     except ValueError:
         die(f"Unsupported keyboard: {value}. Expected one of: {', '.join(VALID_KEYBOARDS)}")
     return DEFAULT_KEYBOARD
-
-
-def _candidate_windows_cmake_paths() -> list[Path]:
-    return [
-        Path(r"C:\Program Files\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files (x86)\CMake\bin\cmake.exe"),
-        Path(r"C:\ProgramData\chocolatey\bin\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\shims\cmake.exe"),
-        Path(r"C:\Users\KJ\scoop\apps\cmake\current\bin\cmake.exe"),
-        Path(r"C:\msys64\ucrt64\bin\cmake.exe"),
-        Path(r"C:\msys64\mingw64\bin\cmake.exe"),
-        Path(r"C:\msys64\usr\bin\cmake.exe"),
-        Path(r"C:\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\App\Tools\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"),
-    ]
-
-
-def _candidate_windows_sdcc_paths() -> list[Path]:
-    return [
-        Path(r"C:\App\Environment\SDCC\bin\sdcc.exe"),
-        Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
-        Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),
-        Path(r"C:\tools\sdcc\bin\sdcc.exe"),
-        Path(r"C:\Users\KJ\scoop\apps\sdcc\current\bin\sdcc.exe"),
-        Path(r"C:\msys64\ucrt64\bin\sdcc.exe"),
-        Path(r"C:\msys64\mingw64\bin\sdcc.exe"),
-    ]
-
-
-def _candidate_windows_ninja_paths() -> list[Path]:
-    candidates = [
-        Path(r"C:\Program Files\CMake\bin\ninja.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
-        Path(r"C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
-        Path(r"C:\App\IDE\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
-        Path(r"C:\App\IDE\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe"),
-    ]
-    local_appdata = os.environ.get("LOCALAPPDATA")
-    if local_appdata:
-        winget_root = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages"
-        if winget_root.is_dir():
-            candidates.extend(sorted(winget_root.glob("Ninja-build.Ninja_*/ninja.exe")))
-    return candidates
-
-
-def find_cmake() -> Optional[Path]:
-    binary = "cmake.exe" if platform.system() == "Windows" else "cmake"
-    candidates = _candidate_windows_cmake_paths() if platform.system() == "Windows" else []
-    return resolve_tool_path("cmake", binary, env_name="CMAKE_PATH", candidates=candidates)
-
-
-def find_sdcc() -> Optional[Path]:
-    binary = "sdcc.exe" if platform.system() == "Windows" else "sdcc"
-    candidates = _candidate_windows_sdcc_paths() if platform.system() == "Windows" else []
-    return resolve_tool_path("sdcc", binary, env_name="SDCC_PATH", candidates=candidates)
-
-
-def find_ninja() -> Optional[Path]:
-    binary = "ninja.exe" if platform.system() == "Windows" else "ninja"
-    candidates = _candidate_windows_ninja_paths() if platform.system() == "Windows" else []
-    return resolve_tool_path("ninja", binary, env_name="NINJA_PATH", candidates=candidates)
 
 
 def build_dir_for(keyboard: str) -> Path:
@@ -170,27 +79,15 @@ def _cleanup_stale_named_artifacts(build_dir: Path, keyboard: str, ext: str, kee
             candidate.unlink()
 
 
-def _promote_artifact(build_dir: Path, keyboard: str, ext: str, src: Path, dst: Path) -> None:
-    if not src.is_file():
-        return
-
-    if dst.is_file():
-        if filecmp.cmp(src, dst, shallow=False):
-            src.unlink()
-        else:
-            dst.unlink()
-            shutil.move(src, dst)
-    else:
-        shutil.move(src, dst)
-
-    _cleanup_stale_named_artifacts(build_dir, keyboard, ext, dst)
-
-
 def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
     raw = raw_artifact_paths(build_dir)
     exported = artifact_paths(build_dir, keyboard)
     for name in ("bin", "hex"):
-        _promote_artifact(build_dir, keyboard, name, raw[name], exported[name])
+        src = raw[name]
+        dst = exported[name]
+        if src.is_file():
+            shutil.copy2(src, dst)
+            _cleanup_stale_named_artifacts(build_dir, keyboard, name, dst)
     return exported
 
 
@@ -208,46 +105,11 @@ def _build_env() -> dict[str, str]:
 
 
 def run(cmd: list[str], cwd: Optional[Path] = None) -> None:
-    subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True, env=_build_env())
+    _run(cmd, cwd=cwd, env=_build_env())
 
 
 def run_and_capture(cmd: list[str], cwd: Optional[Path] = None) -> tuple[list[str], float]:
-    t0 = time.time()
-    lines: list[str] = []
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        cwd=str(cwd) if cwd else None,
-        text=True,
-        bufsize=1,
-        encoding="utf-8",
-        errors="replace",
-        env=_build_env(),
-    )
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        print(line, end="")
-        lines.append(line)
-    proc.wait()
-    if proc.returncode != 0:
-        raise subprocess.CalledProcessError(proc.returncode, cmd)
-    return lines, time.time() - t0
-
-
-def _parse_cmake_cache_var(cache_file: Path, key: str) -> Optional[str]:
-    if not cache_file.is_file():
-        return None
-    prefix = f"{key}:"
-    try:
-        for line in cache_file.read_text(errors="ignore").splitlines():
-            if line.startswith(prefix):
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    return parts[1].strip()
-    except Exception:
-        return None
-    return None
+    return _run_and_capture(cmd, cwd=cwd, env=_build_env())
 
 
 def _expected_generator() -> Optional[str]:
@@ -358,11 +220,11 @@ def _build_report(keyboard: str, build_dir: Path, elapsed: float) -> None:
 
     render_usage_report(
         title="◆ CH552G Build Report",
-        subtitle=f"keyboard: {keyboard}  ·  built in {elapsed:.1f}s  ·  source: sdcc mem",
+        subtitle=f"keyboard: {keyboard}  ·  built in {elapsed:.1f}s",
         rows=mem_rows,
         detail_line=detail,
         colorize=_c,
-        use_color=_USE_COLOR,
+        use_color=use_color(),
     )
 
 
@@ -426,7 +288,7 @@ def build(keyboard: str) -> Path:
     artifacts["ihx"] = raw_artifact_paths(build_dir)["ihx"]
     for name, path in artifacts.items():
         if path.is_file():
-            ok(f"{name.upper()} → {path}")
+            ok(f"{name.upper()} → {path.parent}{os.sep}{_c('32;1', path.name)}")
 
     return build_dir
 
@@ -525,11 +387,9 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("status", "configure", "build", "rebuild", "clean"):
         p = sub.add_parser(name, help=f"{name.capitalize()} CH552G firmware")
         p.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
-        p.add_argument("-v", "--variant", dest="keyboard_legacy", help=argparse.SUPPRESS)
 
     p_artifact = sub.add_parser("artifact", help="Print artifact path")
     p_artifact.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
-    p_artifact.add_argument("-v", "--variant", dest="keyboard_legacy", help=argparse.SUPPRESS)
     p_artifact.add_argument(
         "-t",
         "--type",
@@ -549,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    keyboard = _normalize_keyboard(getattr(args, "keyboard_legacy", None) or args.keyboard)
+    keyboard = _normalize_keyboard(args.keyboard)
 
     try:
         if args.command == "status":

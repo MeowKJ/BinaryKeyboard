@@ -387,11 +387,19 @@ static void HandleLayerSet(const kbd_cmd_frame_t *frame)
   }
 
   uint8_t layer = frame->data[0];
+  uint8_t old_layer = KBD_GetCurrentLayer();
   int ret = KBD_SetCurrentLayer(layer);
+  uint8_t new_layer = KBD_GetCurrentLayer();
+
+  if (ret == 0 && new_layer != old_layer)
+  {
+    KBD_Log_LayerEvent(old_layer, new_layer);
+    KBD_RGB_FlashLayer(new_layer);
+  }
 
   uint8_t resp[2];
   resp[0] = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_PARAM;
-  resp[1] = KBD_GetCurrentLayer();
+  resp[1] = new_layer;
 
   KBD_Command_SendResponse(KBD_CMD_LAYER_SET, 0, resp, 2);
   LOG_D(TAG, "Layer switch: %d", layer);

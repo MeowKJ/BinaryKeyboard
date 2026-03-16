@@ -235,7 +235,7 @@ static const kbd_system_config_t s_default_system = {
     .default_mode = 0,          /* USB */
     .auto_sleep_min = 5,        /* 5 分钟 */
     .debounce_ms = 10,          /* 10ms */
-    .log_enabled = 1,           /* HID 日志默认开启 */
+    .log_enabled = KBD_LOG_DEFAULT_ENABLED, /* HID 日志默认开关由构建类型决定 */
 };
 
 /*============================================================================*/
@@ -717,9 +717,13 @@ int KBD_Config_Load(void) {
 
   /* 迁移 v1.1 → v1.2: 初始化 HID 日志开关 */
   if (s_config_header.version < 0x0102) {
-    s_system_config.log_enabled = 1;
+    s_system_config.log_enabled = KBD_LOG_DEFAULT_ENABLED;
     LOG_I(TAG, "Migrated log config (v1.1->v1.2)");
   }
+
+#if !KBD_USB_LOG_ENABLE
+  s_system_config.log_enabled = 0;
+#endif
 
   /* 热数据（层号）独立覆盖，减少高频切层带来的整份配置写入 */
   ApplyRuntimeLayerIfValid();

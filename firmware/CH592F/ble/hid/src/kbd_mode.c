@@ -1,9 +1,12 @@
 /********************************** (C) COPYRIGHT *******************************
  * File Name          : kbd_mode.c
  * Author             : MeowKJ
- * Version            : V2.0
+ * Version            : V3.0
  * Date               : 2024/11/07
- * Description        : 键盘模式管理器实现（支持 USB/BLE/2.4G 多模）
+ * Description        : 键盘模式管理器实现
+ *                      采用 WCH Application 示例思路：
+ *                      模式切换 = 保存模式 + SYS_ResetExecute() 全系统复位
+ *                      每种模式只初始化对应的协议栈，避免动态切换冲突
  *******************************************************************************/
 
 #include "kbd_mode.h"
@@ -15,7 +18,7 @@
 #include <string.h>
 
 #define TAG "MODE"
-#define BLE_BOND_CLEAR_SETTLE_MS 50
+#define BLE_BOND_CLEAR_SETTLE_MS 100
 
 /*============================================================================*/
 /* 私有变量 */
@@ -40,8 +43,6 @@ static uint16_t g_consumer_report;
 static void KBD_Mode_UpdateConnState(kbd_conn_state_t state);
 static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState);
 static void KBD_Mode_BLE_LedCallback(uint8_t leds);
-static int KBD_Mode_USB_Init(void);
-static int KBD_Mode_BLE_InitInternal(void);
 
 /*============================================================================*/
 /* BLE 回调 */
@@ -73,30 +74,22 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
 
     LOG_I(TAG, "init mode=%d", initial_mode);
 
-    /* 初始化 BLE（总是初始化，因为需要 TMOS） */
-    ret = KBD_Mode_BLE_InitInternal();
-    if (ret != 0) {
-        LOG_E(TAG, "BLE init failed %d", ret);
-        return ret;
-    }
-
-    /* 初始化 USB 硬件（无论初始模式均先 init，再按模式决定是否 deinit） */
-    ret = KBD_Mode_USB_Init();
-    if (ret != 0) {
-        LOG_E(TAG, "USB init failed %d", ret);
-        return ret;
-    }
-
-    if (initial_mode == KBD_WORK_MODE_USB) {
-        BLE_HID_Disable();
-        /* USB 枚举由 KBD_Mode_Process 轮询完成后自动置 CONNECTED */
+    /*
+     * WCH Application 示例思路：每种模式只初始化对应协议栈
+     * - USB 模式：仅 USB，不初始化 BLE HID
+     * - BLE 模式：仅 BLE HID，不初始化 USB
+     * 模式切换通过 SYS_ResetExecute() 全系统复位实现
+     */
+    if (initial_mode == KBD_WORK_MODE_BLE) {
+        /* BLE 模式：初始化 BLE HID，广播由 GAPROLE_STARTED 回调自动触发 */
+        ret = BLE_HID_Init(&g_ble_callbacks);
+        if (ret != 0) {
+            LOG_E(TAG, "BLE init failed %d", ret);
+            return ret;
+        }
     } else {
-        BLE_HID_Enable();
-        /* 蓝牙模式：关闭 USB PHY，消除中断冲突 */
-        USB_Device_Deinit();
-#if KBD_AUTO_START_ADVERTISING
-        BLE_HID_StartAdvertising();
-#endif
+        /* USB 模式：仅初始化 USB */
+        USB_Device_Init();
     }
 
     return 0;
@@ -115,25 +108,10 @@ void KBD_Mode_Process(void)
             KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
         }
     }
-
-#if KBD_AUTO_SWITCH_TO_USB_ON_PLUG
-    /* 检测 USB 插入状态变化 */
-    static bool last_usb_plugged = false;
-    bool usb_plugged = KBD_Mode_USB_IsPlugged();
-
-    if (usb_plugged && !last_usb_plugged) {
-        /* USB 刚插入，自动切换到 USB 模式 */
-        if (g_current_mode != KBD_WORK_MODE_USB) {
-            LOG_I(TAG, "USB plugged, auto switch");
-            KBD_Mode_Switch(KBD_WORK_MODE_USB);
-        }
-    }
-    last_usb_plugged = usb_plugged;
-#endif
 }
 
 /*============================================================================*/
-/* 模式切换实现 */
+/* 模式切换实现（SYS_ResetExecute 方式）                                      */
 /*============================================================================*/
 
 int KBD_Mode_Switch(kbd_work_mode_t mode)
@@ -146,47 +124,23 @@ int KBD_Mode_Switch(kbd_work_mode_t mode)
         return 0;
     }
 
-    LOG_I(TAG, "switch %d -> %d", g_current_mode, mode);
+    LOG_I(TAG, "switch %d -> %d (reset)", g_current_mode, mode);
     g_mode_switching = true;
 
     /* 释放当前所有按键 */
     KBD_Mode_ReleaseAllKeys();
 
-    if (mode == KBD_WORK_MODE_USB) {
-        /* 切换到 USB 模式：先标记模式，屏蔽 BLE 回调中的反向切换 */
-        g_current_mode = KBD_WORK_MODE_USB;
-        BLE_HID_Disable();
+    /* 保存目标模式到 DataFlash */
+    KBD_SetLastMode(mode == KBD_WORK_MODE_BLE ? 1 : 0);
+    KBD_Storage_FlushRuntime(); /* 立即落盘，确保复位前写入完成 */
 
-        /* 重新初始化 USB PHY */
-        KBD_Mode_USB_Init();
-        KBD_SetLastMode(0);
-        /* 不立即设 CONNECTED，由 KBD_Mode_Process 轮询 USB 枚举完成后再置位 */
-        KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+    /* 等待 Flash 写入和外设稳定 */
+    mDelaymS(10);
 
-    } else {
-        /* 切换到蓝牙模式：关闭 USB PHY，消除中断冲突 */
-        USB_Device_Deinit();
-        BLE_HID_Enable();
-        g_current_mode = KBD_WORK_MODE_BLE;
-        KBD_SetLastMode(1);
+    /* 全系统复位，下次启动自动进入新模式 */
+    SYS_ResetExecute();
 
-#if KBD_AUTO_START_ADVERTISING
-        if (BLE_HID_StartAdvertising() != 0) {
-            KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
-        } else {
-            KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
-        }
-#else
-        KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
-#endif
-    }
-    g_mode_switching = false;
-
-    /* 调用模式切换回调 */
-    if (g_pCallbacks && g_pCallbacks->onModeChange) {
-        g_pCallbacks->onModeChange(mode);
-    }
-
+    /* 不会到达这里 */
     return 0;
 }
 
@@ -265,26 +219,23 @@ int KBD_Mode_BLE_ClearBonds(void)
         return -1;
     }
 
-    BLE_HID_Enable();
     BLE_HID_StopAdvertising();
 
-    if (BLE_HID_IsConnected()) {
-        BLE_HID_Disconnect();
-        mDelaymS(BLE_BOND_CLEAR_SETTLE_MS);
-    }
-
     ret = BLE_HID_ClearBonds();
-    mDelaymS(BLE_BOND_CLEAR_SETTLE_MS);
-
-#if KBD_AUTO_START_ADVERTISING
-    if (BLE_HID_StartAdvertising() == 0) {
-        KBD_Mode_UpdateConnState(KBD_CONN_ADVERTISING);
-    } else {
+    if (ret != 0) {
         KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
+        return ret;
     }
-#else
+
+    /*
+     * 清除 bond 后直接复位回 BLE 模式。
+     * 这样可以避开当前连接/广播状态机残留，并让 BondMgr/白名单从干净状态重新初始化。
+     */
     KBD_Mode_UpdateConnState(KBD_CONN_DISCONNECTED);
-#endif
+    KBD_SetLastMode(1);
+    KBD_Storage_FlushRuntime();
+    mDelaymS(BLE_BOND_CLEAR_SETTLE_MS);
+    SYS_ResetExecute();
 
     return ret;
 }
@@ -468,17 +419,6 @@ uint8_t KBD_Mode_GetKeyboardLEDs(void)
 /*============================================================================*/
 /* 私有函数实现 */
 /*============================================================================*/
-
-static int KBD_Mode_USB_Init(void)
-{
-    USB_Device_Init();
-    return 0;
-}
-
-static int KBD_Mode_BLE_InitInternal(void)
-{
-    return BLE_HID_Init(&g_ble_callbacks);
-}
 
 static void KBD_Mode_BLE_StateCallback(gapRole_States_t newState)
 {

@@ -134,27 +134,15 @@ int BLE_HID_SendConsumerReport(uint16_t key);
  */
 uint8_t BLE_HID_GetKeyboardLEDs(void);
 
-/* ==================== 电源管理 ==================== */
-
-/**
- * @brief 启用 BLE（从低功耗恢复）
- */
-void BLE_HID_Enable(void);
-
-/**
- * @brief 禁用 BLE（进入低功耗前）
- */
-void BLE_HID_Disable(void);
-
 /* ==================== 内部使用 ==================== */
 
 // TMOS 任务 ID
 extern uint8_t bleHidTaskId;
 
 // 事件定义
-#define BLE_HID_START_DEVICE_EVT        0x0001
-#define BLE_HID_PARAM_UPDATE_EVT        0x0002
-#define BLE_HID_PHY_UPDATE_EVT          0x0004
+#define BLE_HID_PARAM_UPDATE_EVT        0x0001
+#define BLE_HID_PHY_UPDATE_EVT          0x0002
+#define BLE_HID_SECURITY_REQ_EVT        0x0004
 
 #ifdef __cplusplus
 }

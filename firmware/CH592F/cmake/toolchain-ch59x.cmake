@@ -10,14 +10,15 @@ set(CMAKE_SYSTEM_PROCESSOR riscv)
 #   riscv-none-embed-  |  riscv-wch-elf-  |  riscv-none-elf-
 #
 # Detection order:
-#   1. MRS_TOOLCHAIN_ROOT  — CMakeUserPresets.json / cmake -D / env var
+#   1. MRS_TOOLCHAIN_ROOT  — cmake -D / env var / console cache
 #   2. TOOLCHAIN_DIR       — direct path to compiler bin/
-#   3. System PATH         — auto-discover from PATH
+#   3. Cached riscv_gcc    — tools/scripts/.binarykeyboard_console_state.json
+#   4. System PATH         — auto-discover from PATH
 #
 # Quick start:
-#   cp CMakeUserPresets.json.example CMakeUserPresets.json
-#   # Edit MRS_TOOLCHAIN_ROOT, then:
-#   cmake --preset local-release && cmake --build --preset local-release
+#   python tools/scripts/console.py
+#   # Configure toolchain once, then:
+#   cmake --preset release-5key && cmake --build --preset release-5key
 #
 # Download: https://www.mounriver.com/download
 # ===========================================================================
@@ -33,6 +34,21 @@ if(NOT DEFINED MRS_TOOLCHAIN_ROOT AND DEFINED ENV{MRS_TOOLCHAIN_ROOT})
     set(MRS_TOOLCHAIN_ROOT "${MRS_TOOLCHAIN_ROOT}" CACHE PATH "MounRiver Toolchain root directory")
 endif()
 
+# --- Shared console cache ---------------------------------------------------
+file(REAL_PATH "${CMAKE_CURRENT_LIST_DIR}/../../.." _bk_repo_root)
+set(_bk_state_file "${_bk_repo_root}/tools/scripts/.binarykeyboard_console_state.json")
+if(EXISTS "${_bk_state_file}")
+    file(READ "${_bk_state_file}" _bk_state_json)
+endif()
+
+if(NOT DEFINED MRS_TOOLCHAIN_ROOT AND DEFINED _bk_state_json)
+    string(JSON _bk_toolchain_root ERROR_VARIABLE _bk_toolchain_root_error GET "${_bk_state_json}" toolchain_root)
+    if(NOT _bk_toolchain_root_error AND _bk_toolchain_root AND NOT _bk_toolchain_root STREQUAL "null")
+        file(TO_CMAKE_PATH "${_bk_toolchain_root}" MRS_TOOLCHAIN_ROOT)
+        set(MRS_TOOLCHAIN_ROOT "${MRS_TOOLCHAIN_ROOT}" CACHE PATH "MounRiver Toolchain root directory")
+    endif()
+endif()
+
 # --- MRS_TOOLCHAIN_ROOT → TOOLCHAIN_DIR ------------------------------------
 if(NOT DEFINED TOOLCHAIN_DIR AND DEFINED MRS_TOOLCHAIN_ROOT)
     foreach(_sub IN ITEMS "RISC-V Embedded GCC/bin" "RISC-V Embedded GCC12/bin")
@@ -42,6 +58,18 @@ if(NOT DEFINED TOOLCHAIN_DIR AND DEFINED MRS_TOOLCHAIN_ROOT)
             break()
         endif()
     endforeach()
+endif()
+
+# --- Cached riscv_gcc path → TOOLCHAIN_DIR ----------------------------------
+if(NOT DEFINED TOOLCHAIN_DIR AND DEFINED _bk_state_json)
+    string(JSON _bk_cached_gcc ERROR_VARIABLE _bk_cached_gcc_error GET "${_bk_state_json}" tool_cache riscv_gcc)
+    if(NOT _bk_cached_gcc_error AND _bk_cached_gcc AND NOT _bk_cached_gcc STREQUAL "null")
+        file(TO_CMAKE_PATH "${_bk_cached_gcc}" _bk_cached_gcc_path)
+        if(EXISTS "${_bk_cached_gcc_path}")
+            get_filename_component(_bk_cached_gcc_dir "${_bk_cached_gcc_path}" DIRECTORY)
+            set(TOOLCHAIN_DIR "${_bk_cached_gcc_dir}" CACHE PATH "RISC-V toolchain bin directory" FORCE)
+        endif()
+    endif()
 endif()
 
 # --- Find the compiler ------------------------------------------------------
@@ -90,11 +118,11 @@ if(NOT DEFINED TOOLCHAIN_PREFIX)
         "\n"
         "  Fix (choose one):\n"
         "\n"
-        "    A) Set MRS_TOOLCHAIN_ROOT in CMakeUserPresets.json:\n"
-        "       cp CMakeUserPresets.json.example CMakeUserPresets.json\n"
-        "       Then edit MRS_TOOLCHAIN_ROOT to your toolchain path.\n"
+        "    A) Run python tools/scripts/console.py once and use 'Configure toolchain'.\n"
         "\n"
-        "    B) Add the compiler bin/ directory to your system PATH.\n"
+        "    B) Set MRS_TOOLCHAIN_ROOT in your shell or pass -DMRS_TOOLCHAIN_ROOT=...\n"
+        "\n"
+        "    C) Add the compiler bin/ directory to your system PATH.\n"
         "\n"
         "  Download: https://www.mounriver.com/download\n"
         "\n"
@@ -113,7 +141,6 @@ endif()
 # Tool paths
 # ---------------------------------------------------------------------------
 set(CMAKE_C_COMPILER   "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
-set(CMAKE_CXX_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}g++${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
 set(CMAKE_ASM_COMPILER "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}gcc${_tool_exe_suffix}"     CACHE FILEPATH "" FORCE)
 set(CROSS_OBJDUMP      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objdump${_tool_exe_suffix}" CACHE FILEPATH "" FORCE)
 set(CROSS_OBJCOPY      "${TOOLCHAIN_DIR}/${TOOLCHAIN_PREFIX}objcopy${_tool_exe_suffix}" CACHE FILEPATH "" FORCE)
@@ -146,19 +173,13 @@ set(CPU_FLAGS "-march=${_cpu_march} -mabi=ilp32 -mcmodel=medany -msmall-data-lim
 
 set(_common "${CPU_FLAGS} -ffunction-sections -fdata-sections -fno-common")
 set(CMAKE_C_FLAGS_INIT          "${_common}")
-set(CMAKE_CXX_FLAGS_INIT        "${_common} -fno-rtti -fno-exceptions")
 set(CMAKE_ASM_FLAGS_INIT        "${CPU_FLAGS} -x assembler-with-cpp")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${CPU_FLAGS} -specs=nano.specs -specs=nosys.specs -Wl,--gc-sections -Wl,--print-memory-usage -nostartfiles")
 
-set(CMAKE_C_FLAGS_DEBUG          "-Og -g3" CACHE INTERNAL "")
+set(CMAKE_C_FLAGS_DEBUG          "-Os -g3" CACHE INTERNAL "")
 set(CMAKE_C_FLAGS_RELEASE        "-O3"     CACHE INTERNAL "")
 set(CMAKE_C_FLAGS_MINSIZEREL     "-Os"     CACHE INTERNAL "")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g"  CACHE INTERNAL "")
-
-set(CMAKE_CXX_FLAGS_DEBUG          "-Og -g3" CACHE INTERNAL "")
-set(CMAKE_CXX_FLAGS_RELEASE        "-O3"     CACHE INTERNAL "")
-set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os"     CACHE INTERNAL "")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g"  CACHE INTERNAL "")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "MinSizeRel" CACHE STRING "Build type" FORCE)

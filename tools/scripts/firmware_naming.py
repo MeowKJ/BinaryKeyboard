@@ -29,10 +29,6 @@ def normalize_keyboard_name(keyboard: str) -> str:
     return value
 
 
-def ch592_model_from_preset(preset: str) -> str:
-    return "KNOB" if "knob" in preset.lower() else "5KEY"
-
-
 def ch592_model_from_keyboard(keyboard: str) -> str:
     keyboard_upper = normalize_keyboard_name(keyboard)
     if keyboard_upper == "BASIC":
@@ -48,21 +44,9 @@ def firmware_filename(chip: str, model: str, version: str, ext: str) -> str:
     return f"{chip.upper()}-{model.upper()}-{version}.{ext.lstrip('.')}"
 
 
-def ch592_filename_for_preset(preset: str, ext: str) -> str:
-    return firmware_filename("CH592F", ch592_model_from_preset(preset), ch592_version(), ext)
-
-
 def ch592_filename_for_keyboard(keyboard: str, ext: str) -> str:
     return firmware_filename("CH592F", ch592_model_from_keyboard(keyboard), ch592_version(), ext)
 
 
 def ch552_filename_for_keyboard(keyboard: str, ext: str) -> str:
     return firmware_filename("CH552G", ch552_model_from_keyboard(keyboard), ch552_version(), ext)
-
-
-def ch552_model_from_variant(variant: str) -> str:
-    return ch552_model_from_keyboard(variant)
-
-
-def ch552_filename_for_variant(variant: str, ext: str) -> str:
-    return ch552_filename_for_keyboard(variant, ext)

@@ -65,10 +65,11 @@ static const uint8_t hidInfo[HID_INFORMATION_LEN] = {
 
 // 复合 HID 报告描述符：键盘 + 鼠标 + 多媒体
 static const uint8_t hidReportMap[] = {
-    /* ========== 键盘报告 (Report ID 0) ========== */
+    /* ========== 键盘报告 (Report ID 1) ========== */
     0x05, 0x01,         // Usage Page (Generic Desktop)
     0x09, 0x06,         // Usage (Keyboard)
     0xA1, 0x01,         // Collection (Application)
+    0x85, HID_RPT_ID_KEY_IN, // Report ID (1)
     
     // 修饰键 (8 bits)
     0x05, 0x07,         //   Usage Page (Key Codes)
@@ -110,11 +111,11 @@ static const uint8_t hidReportMap[] = {
     
     0xC0,               // End Collection
     
-    /* ========== 鼠标报告 (Report ID 1) ========== */
+    /* ========== 鼠标报告 (Report ID 2) ========== */
     0x05, 0x01,         // Usage Page (Generic Desktop)
     0x09, 0x02,         // Usage (Mouse)
     0xA1, 0x01,         // Collection (Application)
-    0x85, 0x01,         //   Report ID (1)
+    0x85, HID_RPT_ID_MOUSE_IN, // Report ID (2)
     0x09, 0x01,         //   Usage (Pointer)
     0xA1, 0x00,         //   Collection (Physical)
     
@@ -147,11 +148,11 @@ static const uint8_t hidReportMap[] = {
     0xC0,               //   End Collection (Physical)
     0xC0,               // End Collection (Application)
     
-    /* ========== 多媒体报告 (Report ID 2) ========== */
+    /* ========== 多媒体报告 (Report ID 3) ========== */
     0x05, 0x0C,         // Usage Page (Consumer)
     0x09, 0x01,         // Usage (Consumer Control)
     0xA1, 0x01,         // Collection (Application)
-    0x85, 0x02,         //   Report ID (2)
+    0x85, HID_RPT_ID_CONSUMER_IN, // Report ID (3)
     
     0x15, 0x00,         //   Logical Minimum (0)
     0x26, 0xFF, 0x03,   //   Logical Maximum (1023)

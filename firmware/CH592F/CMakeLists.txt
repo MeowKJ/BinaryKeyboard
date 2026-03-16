@@ -143,6 +143,12 @@ set(CH592_VENDOR_DRIVER_SOURCES
     SDK/StdPeriphDriver/CH59x_usbdev.c
 )
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND CH592_VENDOR_DRIVER_SOURCES
+        SDK/StdPeriphDriver/CH59x_uart1.c
+    )
+endif()
+
 set(CH592_STARTUP_SOURCES
     # Startup (assembly)
     SDK/Startup/startup_CH592.S
@@ -187,11 +193,25 @@ target_include_directories(${TARGET_ELF} PRIVATE ${CH592_INCLUDE_DIRS})
 # Compiler options
 # ---------------------------------------------------------------------------
 set(CH592_COMPILE_DEFINITIONS
-    DEBUG=1
     ${KBD_LAYOUT_DEFINE}
     KBD_MODEL_NAME=\"${KBD_MODEL_UPPER}\"
     KBD_DEVICE_NAME=\"${KBD_DEVICE_NAME}\"
 )
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND CH592_COMPILE_DEFINITIONS
+        DEBUG=Debug_UART1
+        UART_LOG_ENABLE=1
+        KBD_DEBUG_BUILD=1
+        KBD_USB_LOG_ENABLE=1
+    )
+else()
+    list(APPEND CH592_COMPILE_DEFINITIONS
+        UART_LOG_ENABLE=0
+        KBD_DEBUG_BUILD=0
+        KBD_USB_LOG_ENABLE=0
+    )
+endif()
 
 set(CH592_C_COMPILE_OPTIONS
     -std=gnu99

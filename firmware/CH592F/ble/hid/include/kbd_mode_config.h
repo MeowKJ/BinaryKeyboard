@@ -79,7 +79,7 @@ typedef enum {
 #define KBD_BLE_CONN_TIMEOUT            500     /**< 5秒超时 */
 
 /** 配对模式 */
-#define KBD_BLE_PAIRING_MODE            GAPBOND_PAIRING_MODE_INITIATE
+#define KBD_BLE_PAIRING_MODE            GAPBOND_PAIRING_MODE_WAIT_FOR_REQ
 #define KBD_BLE_MITM_MODE               FALSE
 #define KBD_BLE_BONDING_MODE            TRUE
 #define KBD_BLE_IO_CAPABILITIES         GAPBOND_IO_CAP_NO_INPUT_NO_OUTPUT

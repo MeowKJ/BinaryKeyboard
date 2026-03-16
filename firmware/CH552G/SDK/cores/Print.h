@@ -60,7 +60,7 @@ uint8_t Print_print_ub(__data writefunc_p writefunc, __xdata unsigned long n,
                        __xdata uint8_t base);
 
 // print float values with two digits precision/specified number of digits
-uint8_t Print_print_fd(__data writefunc_p writefunc, __xdata double number,
+uint8_t Print_print_fd(__data writefunc_p writefunc, __xdata float number,
                        __xdata uint8_t digits);
 #define Print_print_f(W, N) Print_print_fd(W, N, 2)
 // inline uint8_t Print_print_f(writefunc_p writefunc, __xdata double number) {

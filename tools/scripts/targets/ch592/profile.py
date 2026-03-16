@@ -1,28 +1,25 @@
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import sys
 from pathlib import Path
 
-from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, preset_for, _resolve_preset
+from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, preset_for
+from common import display_path as _display_path
 from firmware_naming import ch592_filename_for_keyboard
+from i18n import t
 from targets.common import FLASH_SCRIPT, PROJECT_ROOT, SCRIPT_DIR, TargetActionSpec, TargetProfile
-from tool_cache import resolve_tool_path
+from tool_cache import get_cached_tool_path
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
-CH592_USER_PRESETS = FIRMWARE_DIR / "CMakeUserPresets.json"
-CH592_USER_PRESETS_EXAMPLE = FIRMWARE_DIR / "CMakeUserPresets.json.example"
+_MRS_TOOLCHAIN_BIN_DIRS = ("RISC-V Embedded GCC/bin", "RISC-V Embedded GCC12/bin")
+_RISCV_GCC_PREFIXES = ("riscv-none-embed-", "riscv-wch-elf-", "riscv-none-elf-")
 
 
 def _base_preset(state: dict) -> str:
     return preset_for(state["keyboard"], state["build_type"])
-
-
-def _resolved_preset_label(state: dict) -> str:
-    return _resolve_preset(_base_preset(state))
 
 
 def _normalize_state(state: dict) -> None:
@@ -33,7 +30,7 @@ def _normalize_state(state: dict) -> None:
 
 
 def _build_dir(state: dict) -> Path:
-    return FIRMWARE_DIR / "build" / _resolved_preset_label(state)
+    return FIRMWARE_DIR / "build" / _base_preset(state)
 
 
 def _artifact_path(state: dict) -> Path:
@@ -72,96 +69,162 @@ def _verify_command_display(state: dict) -> str:
     return f"python tools/scripts/flash.py verify --file {_display_path(_artifact_path(state))}"
 
 
-def _effective_toolchain(state: dict) -> str:
-    env = os.environ.get("MRS_TOOLCHAIN_ROOT", "").strip()
-    return state.get("toolchain_root", "").strip() or env
+def _gcc_binary_names() -> list[str]:
+    suffix = ".exe" if os.name == "nt" else ""
+    return [f"{prefix}gcc{suffix}" for prefix in _RISCV_GCC_PREFIXES]
+
+
+def _find_gcc_in_toolchain_dir(toolchain_dir: Path) -> str | None:
+    if not toolchain_dir.is_dir():
+        return None
+    for binary in _gcc_binary_names():
+        candidate = toolchain_dir / binary
+        if candidate.is_file():
+            return str(candidate.resolve())
+    return None
 
 
 def _find_gcc_in_toolchain(toolchain_root: str) -> str | None:
+    toolchain_dir = _toolchain_dir_from_root(toolchain_root)
+    if toolchain_dir is None:
+        return None
+    return _find_gcc_in_toolchain_dir(toolchain_dir)
+
+
+def _toolchain_dir_from_root(toolchain_root: str) -> Path | None:
     root = Path(toolchain_root)
     if not root.is_dir():
         return None
-    patterns = ["**/bin/riscv-none-embed-gcc", "**/bin/riscv-none-elf-gcc"]
-    if os.name == "nt":
-        patterns = [f"{pattern}.exe" for pattern in patterns] + patterns
-    candidates: list[Path] = []
-    for pattern in patterns:
-        candidates.extend(sorted(root.glob(pattern)))
-    binary = "riscv-none-embed-gcc.exe" if os.name == "nt" else "riscv-none-embed-gcc"
-    resolved = resolve_tool_path("riscv_gcc", binary, candidates=candidates)
-    return str(resolved) if resolved else None
+    for subdir in _MRS_TOOLCHAIN_BIN_DIRS:
+        candidate = root / subdir
+        if candidate.is_dir():
+            return candidate.resolve()
+    return None
+
+
+def _find_gcc_on_path() -> str | None:
+    for binary in _gcc_binary_names():
+        resolved = shutil.which(binary)
+        if resolved:
+            return str(Path(resolved).resolve())
+    return None
+
+
+def _resolve_toolchain(state: dict) -> dict[str, object]:
+    toolchain_root = state.get("toolchain_root", "").strip()
+    env_root = os.environ.get("MRS_TOOLCHAIN_ROOT", "").strip()
+    env_toolchain_dir = (
+        os.environ.get("RISCV_TOOLCHAIN_DIR", "").strip()
+        or os.environ.get("TOOLCHAIN_DIR", "").strip()
+    )
+    warnings: list[str] = []
+
+    if env_toolchain_dir:
+        toolchain_dir = Path(env_toolchain_dir)
+        gcc = _find_gcc_in_toolchain_dir(toolchain_dir)
+        if gcc:
+            return {
+                "source": "env RISCV_TOOLCHAIN_DIR/TOOLCHAIN_DIR",
+                "toolchain_dir": str(toolchain_dir.resolve()),
+                "gcc": gcc,
+                "warnings": warnings,
+            }
+        warnings.append(f"env RISCV_TOOLCHAIN_DIR/TOOLCHAIN_DIR has no riscv gcc: {env_toolchain_dir}")
+
+    explicit_root = env_root or toolchain_root
+    explicit_root_source = "env MRS_TOOLCHAIN_ROOT" if env_root else "console cache toolchain_root"
+    if explicit_root:
+        resolved_dir = _toolchain_dir_from_root(explicit_root)
+        if resolved_dir is None:
+            warnings.append(f"{explicit_root_source} has no supported GCC bin dir: {explicit_root}")
+        else:
+            gcc = _find_gcc_in_toolchain_dir(resolved_dir)
+            if gcc:
+                return {
+                    "source": explicit_root_source,
+                    "toolchain_dir": str(resolved_dir),
+                    "gcc": gcc,
+                    "warnings": warnings,
+                }
+            warnings.append(f"{explicit_root_source} has no riscv gcc under: {resolved_dir}")
+
+    cached_gcc = get_cached_tool_path("riscv_gcc")
+    if cached_gcc and cached_gcc.is_file():
+        return {
+            "source": "tool cache riscv_gcc",
+            "toolchain_dir": str(cached_gcc.parent.resolve()),
+            "gcc": str(cached_gcc.resolve()),
+            "warnings": warnings,
+        }
+
+    path_gcc = _find_gcc_on_path()
+    if path_gcc:
+        return {
+            "source": "system PATH",
+            "toolchain_dir": str(Path(path_gcc).resolve().parent),
+            "gcc": path_gcc,
+            "warnings": warnings,
+        }
+
+    return {
+        "source": "unresolved",
+        "toolchain_dir": "",
+        "gcc": "",
+        "warnings": warnings,
+    }
 
 
 def _target_details_lines(state: dict) -> list[str]:
-    toolchain = _effective_toolchain(state) or "(unset)"
-    preset_status = "present" if CH592_USER_PRESETS.is_file() else "missing — run Configure toolchain"
     return [
-        f"Target: {state['target']}",
-        f"Build dir: {_display_path(_build_dir(state))}",
-        f"Toolchain: {toolchain}",
-        f"CMakeUserPresets: {preset_status}",
-        f"Keyboard: {state['keyboard']}",
-        f"Profile: {state['build_type']}",
+        f"{t('detail.build_dir')}: {_display_path(_build_dir(state))}",
     ]
 
 
 def _detect_tool_lines(state: dict) -> list[str]:
-    toolchain = _effective_toolchain(state)
+    resolved = _resolve_toolchain(state)
     lines = [
         f"ninja: {shutil.which('ninja') or 'missing'}",
-        f"CMakeUserPresets: {'present' if CH592_USER_PRESETS.is_file() else 'missing'}",
-        f"MRS_TOOLCHAIN_ROOT: {toolchain or 'unset'}",
+        f"toolchain source: {resolved['source']}",
+        "toolchain dir:",
+        f"  {resolved['toolchain_dir'] or 'unresolved'}",
     ]
-    if toolchain:
-        lines.append(f"  riscv-gcc: {_find_gcc_in_toolchain(toolchain) or 'not found in toolchain path'}")
+    if resolved["gcc"]:
+        lines.append("riscv-gcc:")
+        lines.append(f"  {resolved['gcc']}")
+    for warning in resolved["warnings"]:
+        lines.append(f"note: {warning}")
     return lines
 
 
 def _doctor_lines(state: dict) -> list[str]:
     lines: list[str] = []
     ninja_path = shutil.which("ninja")
-    lines.append(f"[{'OK' if ninja_path else 'WARN'}] ninja: {ninja_path or 'missing'}")
-    if CH592_USER_PRESETS.is_file():
-        lines.append("[OK] CMakeUserPresets.json: present")
+    lines.append(f"[{'OK' if ninja_path else 'FAIL'}] ninja: {ninja_path or 'missing'}")
+    resolved = _resolve_toolchain(state)
+    for warning in resolved["warnings"]:
+        lines.append(f"[FAIL] {warning}")
+    if resolved["gcc"]:
+        lines.append(f"[OK] toolchain source: {resolved['source']}")
+        lines.append(f"[OK] toolchain dir:")
+        lines.append(f"      {resolved['toolchain_dir']}")
+        lines.append(f"[OK] riscv-gcc: {Path(str(resolved['gcc'])).name}")
     else:
-        lines.append("[WARN] CMakeUserPresets.json: missing — run 'Configure toolchain'")
-
-    toolchain = _effective_toolchain(state)
-    if toolchain:
-        if Path(toolchain).is_dir():
-            gcc = _find_gcc_in_toolchain(toolchain)
-            if gcc:
-                lines.append(f"[OK] toolchain: {toolchain}")
-                lines.append(f"[OK] riscv-gcc: {Path(gcc).name}")
-            else:
-                lines.append(f"[WARN] toolchain: {toolchain} (no riscv-*-elf-gcc found)")
-        else:
-            lines.append(f"[WARN] toolchain: {toolchain} (path does not exist)")
-    else:
-        lines.append("[WARN] toolchain: not configured")
+        lines.append("[FAIL] riscv-gcc: not found via env/tool cache/PATH")
     return lines
 
 
 def _home_actions(state: dict) -> list[TargetActionSpec]:
     return [
-        TargetActionSpec("toggle_target", f"Toggle target  [{state['target']}]", "Switch between CH592F and CH552G workflows."),
-        TargetActionSpec("cycle_keyboard", f"Cycle keyboard  [{state['keyboard']}]", "Switch between 5KEY and KNOB."),
-        TargetActionSpec("toggle_build_type", f"Toggle profile  [{state['build_type']}]", "Switch between release and debug."),
-        TargetActionSpec("configure_toolchain", "Configure toolchain", "Set MRS_TOOLCHAIN_ROOT and write CMakeUserPresets.json."),
-        TargetActionSpec("build", "Build selected target", "Run tools/scripts/ch592f.py build."),
-        TargetActionSpec("flash", "Flash selected target", "Build, then flash the resolved CH592F artifact."),
-        TargetActionSpec("show_commands", "Show build commands", "Print the resolved build / flash / verify commands."),
-        TargetActionSpec("generate_ide_config", "Generate IDE config", "Write VSCode C/C++ settings and a root compile_commands.json."),
-        TargetActionSpec("install_wchisp", "Install or update wchisp", "Run tools/scripts/setup.py."),
-        TargetActionSpec("probe", "Probe ISP devices", "List connected WCH ISP devices."),
+        TargetActionSpec("build", t("action.build"), t("hint.build_592")),
+        TargetActionSpec("flash", t("action.flash"), t("hint.flash_592")),
+        TargetActionSpec("clean", t("action.clean"), t("hint.clean")),
+        TargetActionSpec("toggle_target", t("action.toggle_target", target=state["target"]), t("hint.toggle_target")),
+        TargetActionSpec("cycle_keyboard", t("action.cycle_keyboard", keyboard=state["keyboard"]), t("hint.cycle_keyboard_592")),
+        TargetActionSpec("toggle_build_type", t("action.toggle_profile", profile=state["build_type"]), t("hint.toggle_profile")),
+        TargetActionSpec("show_commands", t("action.show_commands"), t("hint.show_commands")),
+        TargetActionSpec("configure_toolchain", t("action.configure_toolchain"), t("hint.configure_toolchain")),
+        TargetActionSpec("generate_ide_config", t("action.generate_ide"), t("hint.generate_ide")),
     ]
-
-
-def _display_path(path: Path) -> str:
-    try:
-        return str(path.relative_to(PROJECT_ROOT)).replace("\\", "/")
-    except ValueError:
-        return str(path).replace("\\", "/")
 
 
 CH592_PROFILE = TargetProfile(

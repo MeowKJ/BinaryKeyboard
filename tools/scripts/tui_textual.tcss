@@ -1,0 +1,197 @@
+/* BinaryKeyboard Console — Cute pastel theme ✦ */
+
+Screen {
+    background: #1e1e2e;
+}
+
+/* ── Title bar ──────────────────────────────────────────────────────────────── */
+#title-bar {
+    dock: top;
+    height: 1;
+    background: #313244;
+    color: #cba6f7;
+    text-style: bold;
+    content-align: center middle;
+}
+
+/* ── Parameter bar ──────────────────────────────────────────────────────────── */
+#param-bar {
+    dock: top;
+    height: 3;
+    width: 100%;
+    background: #1e1e2e;
+    color: #94e2d5;
+    text-style: bold;
+    text-align: center;
+    content-align: center middle;
+}
+
+/* ── Tab navigation ─────────────────────────────────────────────────────────── */
+ContentSwitcher {
+    height: 1fr;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+TabPane {
+    padding: 0;
+    height: 1fr;
+}
+
+Tabs {
+    background: #1e1e2e;
+    dock: top;
+}
+
+Tab {
+    background: #1e1e2e;
+    color: #6c7086;
+    padding: 0 2;
+}
+
+Tab.-active {
+    background: #313244;
+    color: #f5c2e7;
+    text-style: bold;
+}
+
+Tab:hover {
+    background: #45475a;
+    color: #cdd6f4;
+}
+
+Underline {
+    color: #f5c2e7;
+}
+
+/* ── Content panel ──────────────────────────────────────────────────────────── */
+.tab-body {
+    height: 1fr;
+    layout: vertical;
+    background: #1e1e2e;
+}
+
+ContentPanel {
+    height: 1fr;
+    padding: 1 2;
+    background: #1e1e2e;
+    overflow: hidden;
+}
+
+#content-home {
+    height: auto;
+}
+
+ScrollableContentPanel {
+    height: 1fr;
+    padding: 1 0 1 2;
+    background: #1e1e2e;
+    scrollbar-size-vertical: 1;
+    scrollbar-gutter: stable;
+    scrollbar-color: #45475a;
+    scrollbar-color-hover: #585b70;
+    scrollbar-color-active: #89b4fa;
+}
+
+ScrollableContentPanel .content-line {
+    width: 1fr;
+    height: auto;
+    padding: 0 2 0 0;
+}
+
+.content-line {
+    height: 1;
+    width: 1fr;
+    color: #cdd6f4;
+    padding: 0;
+    margin: 0;
+}
+
+.content-line.ok {
+    color: #a6e3a1;
+}
+
+.content-line.fail {
+    color: #f38ba8;
+}
+
+.content-line.warn {
+    color: #f9e2af;
+}
+
+.content-line.label-line {
+    color: #89b4fa;
+}
+
+.content-line.dim {
+    color: #585b70;
+}
+
+/* ── Action list ────────────────────────────────────────────────────────────── */
+ActionPanel {
+    height: 1fr;
+    background: #1e1e2e;
+    padding: 0;
+    scrollbar-size-vertical: 1;
+    scrollbar-color: #45475a;
+    scrollbar-color-hover: #585b70;
+    scrollbar-color-active: #89b4fa;
+}
+
+ActionPanel > ListItem {
+    height: 2;
+    padding: 0 1;
+    background: #1e1e2e;
+}
+
+ActionPanel > ListItem:hover {
+    background: #313244;
+}
+
+ActionPanel > ListItem.-highlight {
+    background: #45475a;
+}
+
+Rule {
+    color: #45475a;
+    margin: 0;
+}
+
+/* ── Status bar (footer) ────────────────────────────────────────────────────── */
+#status-bar {
+    dock: bottom;
+    height: 1;
+    background: #313244;
+    color: #a6adc8;
+    padding: 0 1;
+}
+
+/* ── Build progress bar ─────────────────────────────────────────────────────── */
+#build-progress-container {
+    dock: bottom;
+    height: auto;
+    display: none;
+    background: #181825;
+    padding: 0 1;
+}
+
+#build-progress-container.visible {
+    display: block;
+}
+
+#build-progress-label {
+    height: 1;
+    color: #cdd6f4;
+    text-style: bold;
+}
+
+ProgressBar Bar {
+    color: #a6e3a1;
+    background: #313244;
+}
+
+ProgressBar PercentageStatus {
+    color: #94e2d5;
+}

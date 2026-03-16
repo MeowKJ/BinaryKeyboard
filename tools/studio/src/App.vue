@@ -23,7 +23,7 @@
 
       <div class="welcome-content">
         <div class="logo-section">
-          <div class="logo-icon">🐱</div>
+          <div class="logo-icon"><CatEmoji /></div>
           <h1 class="app-title">BinaryKeyboard</h1>
           <p class="app-subtitle">开源二进制键盘改键工具</p>
         </div>
@@ -68,14 +68,6 @@
           </div>
         </div>
 
-        <p class="legacy-link-hint">
-          使用旧版固件？
-          <a href="https://binary-keyboard-git-main-backup-20260213-kjooks-projects.vercel.app" target="_blank"
-            rel="noopener" class="legacy-link">
-            前往旧版改键工具 <i class="pi pi-external-link"></i>
-          </a>
-        </p>
-
         <div class="welcome-version-card">
           <div class="version-card-header">
             <i class="pi pi-box"></i>
@@ -83,7 +75,7 @@
           </div>
           <div class="version-badges">
             <div class="version-badge studio-badge">
-              <div class="badge-icon">🐱</div>
+              <div class="badge-icon"><CatEmoji /></div>
               <div class="badge-info">
                 <span class="badge-label">Studio</span>
                 <span class="badge-version">v{{ releaseStore.studioVersion }}</span>
@@ -123,7 +115,7 @@
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
-          <span class="header-logo">🐱</span>
+          <span class="header-logo"><CatEmoji /></span>
           <span class="header-title">BinaryKeyboard</span>
         </div>
 
@@ -203,9 +195,9 @@
             <div class="deco-star deco-star-1">✨</div>
             <div class="deco-star deco-star-2">✨</div>
             <!-- 键盘装饰 -->
-            <span class="deco-emoji deco-cat-1">😺</span>
-            <span class="deco-emoji deco-cat-2">🐱</span>
-            <span class="deco-emoji deco-cat-3">😸</span>
+            <span class="deco-emoji deco-cat-1"><CatEmoji type="grinning" /></span>
+            <span class="deco-emoji deco-cat-2"><CatEmoji /></span>
+            <span class="deco-emoji deco-cat-3"><CatEmoji type="grinning-eyes" /></span>
             <!-- 小装饰 -->
             <span class="deco-mini deco-yarn">🧶</span>
             <span class="deco-mini deco-star-3">⭐</span>
@@ -263,6 +255,7 @@ import {
 import { createDeviceUiDefinition, hasUiSection } from '@/types/deviceUi';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import { getHidDevicePlugin } from '@/services/hid/registry';
+import CatEmoji from '@/components/CatEmoji.vue';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
@@ -801,12 +794,6 @@ body {
   color: var(--c-accent);
 }
 
-.legacy-link-hint {
-  margin: 2rem 0 0;
-  font-size: 0.8rem;
-  color: var(--c-text-muted);
-}
-
 .welcome-version-card {
   margin-top: 1.25rem;
   padding: 0;
@@ -940,23 +927,6 @@ body {
 
 .version-release-link .pi-external-link {
   font-size: 0.65rem;
-}
-
-.legacy-link {
-  color: var(--c-accent);
-  text-decoration: none;
-  font-weight: 600;
-  transition: opacity var(--transition-fast);
-}
-
-.legacy-link:hover {
-  opacity: 0.75;
-  text-decoration: underline;
-}
-
-.legacy-link i {
-  font-size: 0.75rem;
-  vertical-align: middle;
 }
 
 /* ==========================================
@@ -1934,6 +1904,11 @@ body {
   font-size: 2.5rem;
   opacity: 0.18;
   animation: emojiFloat 6s ease-in-out infinite 0.5s;
+}
+
+.deco-emoji :deep(.cat-emoji) {
+  width: 1em;
+  height: 1em;
 }
 
 @keyframes emojiFloat {

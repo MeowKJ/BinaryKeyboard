@@ -8,105 +8,12 @@ Supports: flash, verify, erase, reset, info, probe, eeprom, config
 from __future__ import annotations
 
 import argparse
-import ctypes
-import os
-import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
+from common import colorize as _c, die, find_wchisp, info, ok, sep, warn
 from firmware_naming import ch552_filename_for_keyboard, ch592_filename_for_keyboard
-
-
-SCRIPT_DIR = Path(__file__).parent.resolve()
-BIN_NAME = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
-
-
-def _enable_win_ansi() -> None:
-    if platform.system() == "Windows":
-        try:
-            kernel32 = ctypes.windll.kernel32
-            kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-        except Exception:
-            pass
-
-
-_enable_win_ansi()
-_USE_COLOR = sys.stdout.isatty()
-
-
-def _c(code: str, text: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
-
-
-def info(msg: str) -> None:
-    print(_c("36", "[INFO]"), msg)
-
-
-def ok(msg: str) -> None:
-    print(_c("32", "[ OK ]"), msg)
-
-
-def warn(msg: str) -> None:
-    print(_c("33", "[WARN]"), msg)
-
-
-def sep() -> None:
-    print(_c("2", "-" * 44))
-
-
-def die(msg: str) -> None:
-    print(_c("31", "[ERR ]"), msg, file=sys.stderr)
-    sys.exit(1)
-
-
-def find_wchisp() -> Optional[Path]:
-    env = os.environ.get("WCHISP_PATH")
-    if env:
-        p = Path(env)
-        if p.is_file():
-            return p
-
-    local = SCRIPT_DIR / BIN_NAME
-    if local.is_file():
-        return local
-
-    found = shutil.which("wchisp")
-    if found:
-        return Path(found)
-
-    system = platform.system()
-    home = Path.home()
-    candidates: list[Path] = []
-    if system == "Darwin":
-        candidates = [
-            home / "Downloads/wchisp-macos-arm64/wchisp",
-            home / "Downloads/wchisp-macos-x64/wchisp",
-            Path("/opt/homebrew/bin/wchisp"),
-            Path("/usr/local/bin/wchisp"),
-        ]
-    elif system == "Linux":
-        candidates = [
-            home / ".local/bin/wchisp",
-            Path("/usr/local/bin/wchisp"),
-            Path("/usr/bin/wchisp"),
-            home / "Downloads/wchisp-linux-x64/wchisp",
-            home / "Downloads/wchisp-linux-aarch64/wchisp",
-        ]
-    elif system == "Windows":
-        appdata = Path(os.environ.get("APPDATA", ""))
-        candidates = [
-            appdata / "wchisp/wchisp.exe",
-            Path("C:/Program Files/wchisp/wchisp.exe"),
-        ]
-
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-
-    return None
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -258,9 +165,9 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 examples:
-  python tools/scripts/flash.py flash --file firmware/CH592F/build/local-release-5key/{ch592_example}
+  python tools/scripts/flash.py flash --file firmware/CH592F/build/release-5key/{ch592_example}
   python tools/scripts/flash.py flash --file firmware/CH552G/build/basic/{ch552_example}
-  python tools/scripts/flash.py verify --file firmware/CH592F/build/local-release-5key/{ch592_example}
+  python tools/scripts/flash.py verify --file firmware/CH592F/build/release-5key/{ch592_example}
   python tools/scripts/flash.py eeprom dump --out data.bin
   python tools/scripts/flash.py info
         """,
