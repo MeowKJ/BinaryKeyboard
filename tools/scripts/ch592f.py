@@ -432,8 +432,7 @@ def show_artifact(keyboard: str, profile: str, artifact_type: str) -> int:
 
 def emit_size_json(keyboard: str, profile: str, out: Path) -> int:
     """Write build size metrics to a JSON file for CI consumption."""
-    preset = preset_for(keyboard, profile)
-    build_dir = build_dir_for(preset)
+    build_dir = build_dir_for(keyboard, profile)
     mem = _read_memory_lengths_from_linker(LINKER_SCRIPT)
     usage = _artifact_region_usage_from_objdump(build_dir)
     if not usage:
