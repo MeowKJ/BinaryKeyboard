@@ -103,7 +103,7 @@ set(CMAKE_ASM_OUTPUT_EXTENSION_REPLACE 1)
 # Flash:  16 KB total, ~2 KB bootloader → 14336 bytes user code
 # IRAM:   256 bytes (8051 internal)
 # XRAM:   1024 bytes, first USER_USB_RAM bytes reserved for USB buffers
-set(CH552_CODE_SIZE  "14208" CACHE STRING "Code (Flash) size in bytes – last 128 B reserved for macros (2 × 64 B)" FORCE)
+set(CH552_CODE_SIZE  "14144" CACHE STRING "Code (Flash) size in bytes – last 192 B reserved for macros (2 × 96 B)" FORCE)
 set(CH552_XRAM_SIZE  "1024"  CACHE STRING "Total XRAM size in bytes")
 set(CH552_USB_RAM    "148"   CACHE STRING "XRAM bytes reserved for USB buffers")
 math(EXPR CH552_USER_XRAM "${CH552_XRAM_SIZE} - ${CH552_USB_RAM}")
