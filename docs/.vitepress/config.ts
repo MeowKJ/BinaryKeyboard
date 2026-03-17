@@ -33,6 +33,7 @@ export default defineConfig({
         { text: '📡 无线版开发', link: '/wireless/dev' },
       ]},
       { text: '❓ FAQ', link: '/faq' },
+      { text: '🐱 MeowMacro', link: '/meowmacro' },
     ],
 
     sidebar: [
@@ -68,6 +69,7 @@ export default defineConfig({
         text: '📚 其他',
         collapsed: true,
         items: [
+          { text: 'MeowMacro 宏语言', link: '/meowmacro' },
           { text: '常见问题', link: '/faq' },
           { text: '更新日志', link: '/changelog' },
           { text: '许可与致谢', link: '/license' },
