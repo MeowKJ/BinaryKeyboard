@@ -12,7 +12,9 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview --host 0.0.0.0",
     "build-only": "vite build",
-    "type-check": "vue-tsc --build"
+    "type-check": "vue-tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@primeuix/themes": "^1.0.0",
@@ -36,6 +38,7 @@
     "vite": "^6.4.1",
     "vite-plugin-pwa": "^1.2.0",
     "vite-plugin-vue-devtools": "^8.1.0",
+    "vitest": "^4.1.0",
     "vue-tsc": "^3.2.5",
     "workbox-window": "^7.4.0"
   },
