@@ -54,6 +54,7 @@ set(CH552_KEYBOARD_SOURCES
     keyboard/KeyScanner.c
     keyboard/KeysDataHandler.c
     keyboard/EncoderHandler.c
+    keyboard/MacroStorage.c
     keyboard/rgb.c
     keyboard/LightingController.c
 )
