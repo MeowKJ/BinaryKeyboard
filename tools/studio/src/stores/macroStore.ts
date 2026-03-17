@@ -9,6 +9,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { hidService } from "@/services/HidService";
 import { showToast } from "@/services/toastService";
+import { useDeviceStore } from "@/stores/deviceStore";
 import type {
   MacroOverview,
   MacroData,
@@ -16,11 +17,15 @@ import type {
   MacroHeader,
 } from "@/types/protocol";
 import {
+  DeviceProtocol,
   MacroActionType,
   MACRO_SLOTS,
   MACRO_MAX_ACTIONS,
   MACRO_MAX_DATA_SIZE,
   MACRO_NAME_MAX_BYTES,
+  CH552_MACRO_SLOTS,
+  CH552_MACRO_MAX_ACTIONS,
+  CH552_MACRO_MAX_DATA_SIZE,
 } from "@/types/protocol";
 import { truncateUtf8ByBytes } from "@/utils/utf8";
 
@@ -38,7 +43,7 @@ const DELAY_ACTION_MAX_MS = 2550;
 // ============================================================================
 
 /** 扁平 MacroAction[] → MacroCard[] */
-function parseActions(actions: MacroAction[]): MacroCard[] {
+export function parseActions(actions: MacroAction[]): MacroCard[] {
   const cards: MacroCard[] = [];
   let i = 0;
   while (i < actions.length) {
@@ -70,7 +75,7 @@ function parseActions(actions: MacroAction[]): MacroCard[] {
 }
 
 /** MacroCard[] → 扁平 MacroAction[]（含末尾 END） */
-function flattenCards(cards: MacroCard[]): MacroAction[] {
+export function flattenCards(cards: MacroCard[]): MacroAction[] {
   const actions: MacroAction[] = [];
   for (const card of cards) {
     actions.push({ ...card.action });
@@ -90,7 +95,7 @@ function flattenCards(cards: MacroCard[]): MacroAction[] {
 }
 
 /** 计算卡片列表序列化后的总动作数和字节数 */
-function calcFlatSize(cards: MacroCard[]): {
+export function calcFlatSize(cards: MacroCard[]): {
   actionCount: number;
   dataSize: number;
 } {
@@ -106,6 +111,20 @@ function calcFlatSize(cards: MacroCard[]): {
 }
 
 export const useMacroStore = defineStore("macro", () => {
+  const deviceStore = useDeviceStore();
+
+  // ========================================
+  // 设备感知限制
+  // ========================================
+
+  const isCh552 = computed(() => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552);
+  const maxSlots = computed(() => isCh552.value ? CH552_MACRO_SLOTS : MACRO_SLOTS);
+  const maxActions = computed(() => isCh552.value ? CH552_MACRO_MAX_ACTIONS : MACRO_MAX_ACTIONS);
+  const maxDataSize = computed(() => isCh552.value ? CH552_MACRO_MAX_DATA_SIZE : MACRO_MAX_DATA_SIZE);
+  const maxNameBytes = computed(() => isCh552.value ? 0 : MACRO_NAME_MAX_BYTES);
+  /** CH552G 无 saveConfig (Flash 直接写入) */
+  const needsExplicitSave = computed(() => !isCh552.value);
+
   // ========================================
   // 状态
   // ========================================
@@ -144,11 +163,11 @@ export const useMacroStore = defineStore("macro", () => {
   const usedCount = computed(() => overview.value?.usedCount ?? 0);
 
   /** 总槽位数 */
-  const totalSlots = computed(() => overview.value?.totalSlots ?? MACRO_SLOTS);
+  const totalSlots = computed(() => overview.value?.totalSlots ?? maxSlots.value);
 
   /** 各槽位是否有效 */
   const slotValid = computed(
-    () => overview.value?.slotValid ?? new Array(MACRO_SLOTS).fill(false),
+    () => overview.value?.slotValid ?? new Array(maxSlots.value).fill(false),
   );
 
   /** 序列化后的动作数和数据大小 */
@@ -163,8 +182,8 @@ export const useMacroStore = defineStore("macro", () => {
   /** 编辑中的数据是否超限 */
   const editingOverLimit = computed(
     () =>
-      editingActionCount.value > MACRO_MAX_ACTIONS ||
-      editingDataSize.value > MACRO_MAX_DATA_SIZE,
+      editingActionCount.value > maxActions.value ||
+      editingDataSize.value > maxDataSize.value,
   );
 
   // ========================================
@@ -223,7 +242,10 @@ export const useMacroStore = defineStore("macro", () => {
   async function saveMacro(): Promise<void> {
     if (editingSlot.value < 0) return;
 
-    const safeName = truncateUtf8ByBytes(editingName.value, MACRO_NAME_MAX_BYTES);
+    const nameLimit = maxNameBytes.value;
+    const safeName = nameLimit > 0
+      ? truncateUtf8ByBytes(editingName.value, nameLimit)
+      : "";
     if (safeName !== editingName.value) {
       editingName.value = safeName;
     }
@@ -249,13 +271,15 @@ export const useMacroStore = defineStore("macro", () => {
       };
 
       await hidService.setMacroData(editingSlot.value, macro);
-      await hidService.saveConfig();
+      if (needsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
 
       loadedMacros.value.set(editingSlot.value, macro);
       macroHeaders.value.set(editingSlot.value, macro.header);
       await refreshOverview();
 
-      showToast("success", "保存成功", `宏 ${editingSlot.value} 已写入设备`);
+      showToast("success", "保存成功", `宏 ${editingSlot.value + 1} 已写入设备`);
     } catch (error) {
       showToast(
         "error",
@@ -273,7 +297,9 @@ export const useMacroStore = defineStore("macro", () => {
     isLoading.value = true;
     try {
       await hidService.deleteMacro(slot);
-      await hidService.saveConfig();
+      if (needsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
 
       loadedMacros.value.delete(slot);
       macroHeaders.value.delete(slot);
@@ -283,7 +309,7 @@ export const useMacroStore = defineStore("macro", () => {
         cancelEditing();
       }
 
-      showToast("success", "删除成功", `宏 ${slot} 已删除`);
+      showToast("success", "删除成功", `宏 ${slot + 1} 已删除`);
     } catch (error) {
       showToast(
         "error",
@@ -355,6 +381,13 @@ export const useMacroStore = defineStore("macro", () => {
   }
 
   return {
+    // 设备感知限制
+    isCh552,
+    maxSlots,
+    maxActions,
+    maxDataSize,
+    maxNameBytes,
+
     // 状态
     overview,
     loadedMacros,

@@ -235,10 +235,15 @@ static void ProcessPressEffects(kbd_rgb_config_t *cfg)
 
         if (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE)
         {
-            uint8_t r = ((uint16_t)s_press_color_r[i] * intensity) >> 8;
-            uint8_t g = ((uint16_t)s_press_color_g[i] * intensity) >> 8;
-            uint8_t b = ((uint16_t)s_press_color_b[i] * intensity) >> 8;
-            WS2812_Set(led_idx, r, g, b);
+            uint8_t pr = ((uint16_t)s_press_color_r[i] * intensity) >> 8;
+            uint8_t pg = ((uint16_t)s_press_color_g[i] * intensity) >> 8;
+            uint8_t pb = ((uint16_t)s_press_color_b[i] * intensity) >> 8;
+            uint8_t br, bg, bb;
+            SampleModeKeyColor(cfg, i, false, &br, &bg, &bb);
+            if (pr > br) br = pr;
+            if (pg > bg) bg = pg;
+            if (pb > bb) bb = pb;
+            WS2812_Set(led_idx, br, bg, bb);
         }
         else
         {
@@ -640,11 +645,8 @@ void KBD_RGB_Process(void)
     bool has_active_press =
         (cfg->press_effect != PRESS_EFFECT_NONE) && (s_press_active_count > 0);
 
-    /* LIGHT_FADE 始终以黑底运行：空闲时全灭，按下时仅叠加被触发按键 */
-    bool suppress_base = (cfg->press_effect == PRESS_EFFECT_LIGHT_FADE);
-
-    /* RGB 开关关闭或基底被抑制时，仅关闭按键灯；指示灯与层指示仍保持 */
-    if (!cfg->enabled || suppress_base)
+    /* RGB 开关关闭时，仅关闭按键灯；指示灯与层指示仍保持 */
+    if (!cfg->enabled)
     {
         if (WS2812_LED_NUM > 1)
         {

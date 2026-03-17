@@ -104,7 +104,7 @@ void USB_EP0_SETUP()
           }
           else if (UsbSetupBuf->wValueL == 3)
           {
-            pDescr = (__code uint8_t *)SerialDescriptor;
+            pDescr = (__code uint8_t *)ProductDescriptor;
           }
           else
           {

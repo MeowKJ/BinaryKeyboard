@@ -2,6 +2,10 @@
 
 #include "config.h"
 #include "KeysDataHandler.h"
+#include "MacroStorage.h"
+
+static void hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v,
+                       uint8_t *r, uint8_t *g, uint8_t *b) __reentrant;
 
 typedef struct
 {
@@ -49,9 +53,24 @@ static uint16_t millis16(void)
   return (uint16_t)millis();
 }
 
+static uint8_t hue_offset(uint8_t index)
+{
+#if NUM_LEDS == 4
+  static const uint8_t offsets[4] = {0, 63, 127, 191};
+  return offsets[index];
+#elif NUM_LEDS == 5
+  static const uint8_t offsets[5] = {0, 51, 102, 153, 204};
+  return offsets[index];
+#else
+  // Only used for non-standard LED counts.
+  return (uint8_t)(((uint16_t)index * 255u) / NUM_LEDS);
+#endif
+}
+
 static uint8_t scale8(uint8_t value, uint8_t scale)
 {
-  return (uint8_t)(((uint16_t)value * scale) / 255u);
+  // Approximate (value*scale)/255 without pulling in SDCC division helpers.
+  return (uint8_t)(((uint16_t)value * (uint16_t)(scale + 1u)) >> 8);
 }
 
 static uint16_t speedInterval(uint16_t slow, uint16_t fast)
@@ -60,7 +79,13 @@ static uint16_t speedInterval(uint16_t slow, uint16_t fast)
   {
     return fast;
   }
-  return (uint16_t)(slow - (((uint32_t)(slow - fast) * currentSpeed) / 255u));
+  // Approximate /255 with >>8 to avoid 32-bit division helpers.
+  {
+    uint8_t speed = currentSpeed;
+    uint16_t diff = (uint16_t)(slow - fast);
+    uint16_t scaled = (uint16_t)(((uint32_t)diff * (uint16_t)(speed + 1u)) >> 8);
+    return (uint16_t)(slow - scaled);
+  }
 }
 
 static uint8_t pressFadeStep(void)
@@ -169,7 +194,7 @@ static void sampleBaseColorForLogicalLed(
   case EFFECT_RAINBOW:
   {
     uint8_t hueBase = (uint8_t)(rgbState.rainbowHue16 >> 8);
-    uint8_t hue = (uint8_t)(hueBase + (uint8_t)((logicalIndex * 255u) / NUM_LEDS));
+    uint8_t hue = (uint8_t)(hueBase + hue_offset(logicalIndex));
     hsv_to_rgb(hue, 255, currentBrightness, r, g, b);
     break;
   }
@@ -240,9 +265,12 @@ static void applyPressEffects(void) __reentrant
 
     if (pressEffect == PRESS_EFFECT_LIGHT_FADE)
     {
-      logicalLedR[i] = scale8(rgbState.pressColorR[i], intensity);
-      logicalLedG[i] = scale8(rgbState.pressColorG[i], intensity);
-      logicalLedB[i] = scale8(rgbState.pressColorB[i], intensity);
+      uint8_t pr = scale8(rgbState.pressColorR[i], intensity);
+      uint8_t pg = scale8(rgbState.pressColorG[i], intensity);
+      uint8_t pb = scale8(rgbState.pressColorB[i], intensity);
+      if (pr > baseR) logicalLedR[i] = pr;
+      if (pg > baseG) logicalLedG[i] = pg;
+      if (pb > baseB) logicalLedB[i] = pb;
     }
     else
     {
@@ -285,11 +313,19 @@ static void applyLayerFlash(void)
 }
 
 // ==================== HSV 转 RGB（SDCC 兼容）====================
-void hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v,
-                uint8_t *r, uint8_t *g, uint8_t *b) __reentrant
+static void hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v,
+                       uint8_t *r, uint8_t *g, uint8_t *b) __reentrant
 {
-  uint8_t region = h / 43;
-  uint8_t remainder = (h - (region * 43)) * 6;
+  uint8_t region;
+  uint8_t base;
+  if (h < 43)      { region = 0; base = 0; }
+  else if (h < 86) { region = 1; base = 43; }
+  else if (h < 129){ region = 2; base = 86; }
+  else if (h < 172){ region = 3; base = 129; }
+  else if (h < 215){ region = 4; base = 172; }
+  else             { region = 5; base = 215; }
+
+  uint8_t remainder = (uint8_t)((h - base) * 6u);
 
   uint8_t p = (v * (255 - s)) >> 8;
   uint8_t q = (v * (255 - ((s * remainder) >> 8))) >> 8;
@@ -331,12 +367,12 @@ void hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v,
 }
 
 // ==================== 光效实现 ====================
-void effect_off()
+static void effect_off()
 {
   clearLogicalLeds();
 }
 
-void effect_static()
+static void effect_static()
 {
   setAllLogicalLeds(
       scale8(currentColorR, currentBrightness),
@@ -344,7 +380,7 @@ void effect_static()
       scale8(currentColorB, currentBrightness));
 }
 
-void effect_breath()
+static void effect_breath()
 {
   uint16_t now = millis16();
   if ((uint16_t)(now - rgbState.baseLastTime) >= speedInterval(28, 5))
@@ -363,7 +399,7 @@ void effect_breath()
       scale8(scale8(currentColorB, currentBrightness), rgbState.breathPhase));
 }
 
-void effect_blink()
+static void effect_blink()
 {
   uint16_t now = millis16();
   if ((uint16_t)(now - rgbState.blinkLastTime) >= speedInterval(700, 80))
@@ -382,23 +418,24 @@ void effect_blink()
   }
 }
 
-void effect_rainbow()
+static void effect_rainbow()
 {
   /* 每帧累加 8.8 定点数色相，消除整数步进的生硬跳变 */
-  uint16_t step = (uint16_t)(57u + ((uint32_t)370u * currentSpeed) / 255u);
+  uint8_t speed = currentSpeed;
+  uint16_t step = (uint16_t)(57u + (uint16_t)(((uint32_t)370u * (uint16_t)(speed + 1u)) >> 8));
   rgbState.rainbowHue16 += step;
 
   uint8_t hueBase = (uint8_t)(rgbState.rainbowHue16 >> 8);
   for (uint8_t i = 0; i < NUM_LEDS; i++)
   {
     uint8_t r, g, b;
-    uint8_t hue = (uint8_t)(hueBase + (uint8_t)((i * 255u) / NUM_LEDS));
+    uint8_t hue = (uint8_t)(hueBase + hue_offset(i));
     hsv_to_rgb(hue, 255, currentBrightness, &r, &g, &b);
     setLogicalLed(i, r, g, b);
   }
 }
 
-void effect_indicator()
+static void effect_indicator()
 {
   effect_off();
 }
@@ -448,11 +485,7 @@ void updateLEDs()
     return;
   }
 
-  // 按下亮起后渐灭采用黑底单键瞬态；按下熄灭仍叠加在基础效果上。
-  uint8_t enchantOnly = (rgbEnabled &&
-                         pressEffect == PRESS_EFFECT_LIGHT_FADE);
-
-  if (!rgbEnabled || effectMode == EFFECT_OFF || enchantOnly)
+  if (!rgbEnabled || effectMode == EFFECT_OFF)
   {
     effect_off();
   }
@@ -482,6 +515,27 @@ void updateLEDs()
   }
 
   applyPressEffects();
+
+  // 循环宏运行时对应按键快速闪烁
+  if (macro_is_running() && macro_is_looping())
+  {
+    uint8_t mk = macro_running_key();
+    if (mk < NUM_LEDS)
+    {
+      // 约 80ms 周期闪烁 (updateLEDs 每 10ms 调用一次)
+      static __xdata uint8_t macroFlashCnt;
+      macroFlashCnt++;
+      if (macroFlashCnt & 0x04) // 每 4 帧切换 ≈ 80ms
+      {
+        setLogicalLed(mk, 255, 255, 255);
+      }
+      else
+      {
+        setLogicalLed(mk, 0, 0, 0);
+      }
+    }
+  }
+
   flushLogicalLeds();
   neopixel_show_P1_5(ledData, NUM_LEDS * 3);
   delayMicroseconds(300);
@@ -538,28 +592,6 @@ void rgbRegisterKeyPress(uint8_t keyIndex)
 }
 
 // ==================== 灯效控制函数封装 ====================
-void increaseBrightness()
-{
-  uint16_t next = (uint16_t)currentBrightness + 16u;
-  currentBrightness = (uint8_t)(next > 255u ? 255u : next);
-}
-
-void decreaseBrightness()
-{
-  currentBrightness = (currentBrightness > 16u) ? (uint8_t)(currentBrightness - 16u) : 0u;
-}
-
-void increaseSpeed()
-{
-  uint16_t next = (uint16_t)currentSpeed + 16u;
-  currentSpeed = (uint8_t)(next > 255u ? 255u : next);
-}
-
-void decreaseSpeed()
-{
-  currentSpeed = (currentSpeed > 16u) ? (uint8_t)(currentSpeed - 16u) : 0u;
-}
-
 void nextEffect()
 {
   uint8_t next = (uint8_t)(effectMode + 1u);

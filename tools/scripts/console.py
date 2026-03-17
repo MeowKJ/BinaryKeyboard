@@ -84,7 +84,13 @@ def _ensure_venv_ready() -> None:
 
 def _reexec_in_venv(python_exe: Path) -> None:
     print(f"[console] Restarting with {python_exe}", file=sys.stderr)
-    os.execve(str(python_exe), [str(python_exe), str(SCRIPT_PATH)], _venv_env())
+    argv = [str(python_exe), str(SCRIPT_PATH), *sys.argv[1:]]
+
+    if os.name == "nt":
+        completed = subprocess.run(argv, env=_venv_env(), check=False)
+        raise SystemExit(completed.returncode)
+
+    os.execve(str(python_exe), argv, _venv_env())
 
 
 def main() -> None:

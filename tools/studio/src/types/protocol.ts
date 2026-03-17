@@ -92,7 +92,7 @@ export const CH552_CAPABILITIES = createDeviceCapabilities({
   rgb: true,
   rgbOverlay: true,
   fnKeys: false,
-  macroActions: false,
+  macroActions: true,
   wheelClickAction: false,
   battery: false,
   logs: false,
@@ -445,6 +445,12 @@ export const MACRO_SLOTS = 8;
 export const MACRO_MAX_ACTIONS = 1000;
 export const MACRO_MAX_DATA_SIZE = 2024; // 2048 - 24 header
 export const MACRO_NAME_MAX_BYTES = 16;
+
+/** CH552G 精简宏参数 (Flash 存储, 每槽 64B, 无名称) */
+export const CH552_MACRO_SLOTS = 2;
+export const CH552_MACRO_MAX_ACTIONS = 47; // (96 - 2) / 2
+export const CH552_MACRO_MAX_DATA_SIZE = 94; // 96 - 2 header
+export const CH552_MACRO_SLOT_SIZE = 96;
 
 /** 宏触发模式 */
 export enum MacroTrigger {

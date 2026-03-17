@@ -189,12 +189,18 @@ jobs:
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
           SHA=$(git rev-parse --short HEAD)
+          TAG="binarykeyboard-${DATE}-${SHA}"
+          PREV_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags \
+            | grep '^binarykeyboard-' \
+            | grep -Fvx "$TAG" \
+            | head -n 1 || true)
           STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
           CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
           CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
-          echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
 
           # Collect tool versions
           CMAKE_VER=$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || echo "N/A")
@@ -221,14 +227,18 @@ jobs:
             echo
             echo "### 📦 固件文件"
             echo
-            echo "| 文件 | 大小 | Flash 占用 | 说明 |"
-            echo "|------|------|-----------|------|"
+            echo "| 文件 | 大小 | Flash 占用 | RAM 占用 | 说明 |"
+            echo "|------|------|-----------|----------|------|"
             for f in dist/*.bin; do
               [ -f "$f" ] || continue
               fname=$(basename "$f")
               fsize_bytes=$(stat -c%s "$f")
               fsize=$(numfmt --to=iec-i --suffix=B "$fsize_bytes")
+              chip=${fname%%-*}
+              keyboard_tmp=${fname#${chip}-}
+              keyboard=${keyboard_tmp%%-*}
               desc=""
+              ram_info="—"
               flash_total=0
               case "$fname" in
                 CH592F*) desc="📡 无线"; flash_total=$CH592F_FLASH ;;
@@ -250,12 +260,37 @@ jobs:
               else
                 flash_info="—"
               fi
-              echo "| \`${fname}\` | ${fsize} | ${flash_info} | ${desc} |"
+              if ls sizes/*.json >/dev/null 2>&1; then
+                ram_info=$(python3 - "$chip" "$keyboard" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+chip = sys.argv[1]
+keyboard = sys.argv[2]
+
+for path in Path("sizes").glob("*.json"):
+    data = json.loads(path.read_text())
+    if data.get("chip") != chip or data.get("keyboard") != keyboard:
+        continue
+    regions = data.get("regions", {})
+    ram = regions.get("RAM") or regions.get("XRAM") or {}
+    used = ram.get("used")
+    total = ram.get("total")
+    if used is None or not total:
+        print("—")
+    else:
+        pct = used / total * 100
+        print(f"{used / 1024:.1f} / {total / 1024:.1f} KB ({pct:.1f}%)")
+    break
+else:
+    print("—")
+PY
+)
+              fi
+              echo "| \`${fname}\` | ${fsize} | ${flash_info} | ${ram_info} | ${desc} |"
             done
             echo
-            if ls sizes/*.json >/dev/null 2>&1; then
-              python3 tools/scripts/render_size_table.py sizes/*.json
-            fi
             echo "### 🔧 构建环境"
             echo
             echo "| 属性 | 值 |"
@@ -267,6 +302,25 @@ jobs:
             echo "| SDCC | \`${SDCC_VER}\` |"
             echo "| CMake | \`${CMAKE_VER}\` |"
             echo "| Python | \`${PYTHON_VER}\` |"
+            echo
+            echo "### 📝 变更记录"
+            echo
+            if [ -n "$PREV_TAG" ]; then
+              COMMIT_RANGE="${PREV_TAG}..HEAD"
+              COMMIT_COUNT=$(git rev-list --count "${COMMIT_RANGE}")
+              echo "> 共 ${COMMIT_COUNT} 个 commit，自 \`${PREV_TAG}\` 以来。"
+              echo "> [完整对比](https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG})"
+            else
+              COMMIT_RANGE="HEAD"
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              echo "> 首次自动发布，当前共 ${COMMIT_COUNT} 个 commit。"
+            fi
+            echo
+            # 列出合并的 PR（标题 + PR号 + 作者）
+            git log --reverse --merges --pretty=format:'- %s (@%an)' "${COMMIT_RANGE}" 2>/dev/null | head -50 || true
+            # 列出非合并的直接提交
+            git log --reverse --no-merges --pretty=format:'- %s ([`%h`](https://github.com/${{ github.repository }}/commit/%H))' "${COMMIT_RANGE}"
+            echo
             echo
             echo "<details><summary>🔒 SHA-256 校验值</summary>"
             echo
@@ -285,7 +339,8 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
-          generate_release_notes: true
           body_path: release-notes-header.md
+          generate_release_notes: true
+          append_body: true
           prerelease: false
           files: dist/*.bin

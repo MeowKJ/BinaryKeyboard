@@ -175,7 +175,7 @@
             </h3>
             <div class="macro-slot-grid">
               <button
-                v-for="i in 8"
+                v-for="i in macroStore.maxSlots"
                 :key="i"
                 class="macro-slot-btn"
                 :class="{ 'has-data': macroStore.slotValid[i - 1] }"

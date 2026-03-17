@@ -2,11 +2,19 @@ import {
   ActionType,
   CH552_CAPABILITIES,
   CH552_FRAME_SIZE,
+  CH552_MACRO_SLOTS,
+  CH552_MACRO_SLOT_SIZE,
+  CH552_MACRO_MAX_ACTIONS,
   DeviceProtocol,
   KeyboardType,
   KeyboardTypeInfo,
+  MacroActionType,
   MouseButton,
   PressEffect,
+  type MacroAction,
+  type MacroData,
+  type MacroHeader,
+  type MacroOverview,
   type RgbConfig,
   WheelDirection,
   createDeviceCapabilities,
@@ -43,13 +51,31 @@ enum Ch552Command {
   READ_META = 0x05,
   READ_RGB = 0x06,
   WRITE_RGB = 0x07,
+  MACRO = 0x40,
 }
+
+/** CH552G 宏 HID 子命令 */
+enum Ch552MacroSub {
+  INFO = 0,
+  READ = 1,
+  ERASE = 2,
+  WRITE = 3,
+}
+
+/** CH552G 宏头部字节数 (valid + action_count) */
+const CH552_MACRO_HEADER_SIZE = 2;
+const CH552_MACRO_VALID_MARKER = 0xaa;
+/** 单次 READ 最大字节数 (CustomBuf 限制) */
+const CH552_MACRO_READ_CHUNK = 26;
+/** 单次 WRITE 最大字节数 */
+const CH552_MACRO_WRITE_CHUNK = 22;
 
 enum LegacyCh552KeyType {
   INVALID = 0x00,
   KEYBOARD = 0x01,
   MEDIA = 0x02,
   MOUSE = 0x03,
+  MACRO = 0x05, // valueHi=trigger, valueLo=slot
 }
 
 export interface Ch552ConfigBlob {
@@ -107,6 +133,11 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return {
       getRgbConfig: () => this.getRgbConfig(transport),
       setRgbConfig: (config) => this.setRgbConfig(transport, config),
+      getMacroOverview: () => this.getMacroOverview(transport),
+      getMacroInfo: (slot) => this.getMacroInfo(transport, slot),
+      getMacroData: (slot) => this.getMacroData(transport, slot),
+      setMacroData: (slot, macro) => this.setMacroData(transport, slot, macro),
+      deleteMacro: (slot) => this.deleteMacro(transport, slot),
     };
   }
 
@@ -299,7 +330,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       versionPatch: meta?.firmwarePatch ?? semver.patch,
       maxLayers: blob.maxLayers,
       maxKeys: CH552_SLOT_COUNT,
-      macroSlots: 0,
+      macroSlots: CH552_MACRO_SLOTS,
       keyboardType,
       actualKeyCount: KeyboardTypeInfo[keyboardType].keys,
       fnKeyCount: 0,
@@ -353,7 +384,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       rgb: false,
       rgbOverlay: false,
       fnKeys: false,
-      macroActions: false,
+      macroActions: version >= FW_VERSION_RGB,
       wheelClickAction: false,
       battery: false,
       logs: false,
@@ -379,6 +410,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       case Ch552Command.READ_META: return 'CH552_READ_META';
       case Ch552Command.READ_RGB: return 'CH552_READ_RGB';
       case Ch552Command.WRITE_RGB: return 'CH552_WRITE_RGB';
+      case Ch552Command.MACRO: return 'CH552_MACRO';
       default: return `CH552_CMD_${cmd.toString(16)}`;
     }
   }
@@ -399,6 +431,11 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         return '读取 RGB 配置';
       case Ch552Command.WRITE_RGB:
         return `写入 RGB: enabled=${frame[1] ?? 0} mode=${frame[2] ?? 0} press=${frame[10] ?? 0}`;
+      case Ch552Command.MACRO: {
+        const sub = frame[1] ?? 0;
+        const names = ['INFO', 'READ', 'ERASE', 'WRITE'];
+        return `宏 ${names[sub] ?? sub} slot=${frame[2] ?? 0}`;
+      }
       default:
         return `cmd=${this.hexByte(frame[0] ?? 0)}`;
     }
@@ -424,6 +461,17 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
 
     if (frame[0] === Ch552Command.READ_RGB) {
       return `RGB mode=${frame[2] ?? 0} bright=${frame[3] ?? 0} press=${frame[10] ?? 0}`;
+    }
+
+    if (frame[0] === Ch552Command.MACRO) {
+      const sub = frame[1] ?? 0;
+      if (sub === Ch552MacroSub.INFO) {
+        return `宏概览: slots=${frame[3] ?? 0} size=${frame[4] ?? 0} valid=[${frame[5] ?? 0},${frame[6] ?? 0}]`;
+      }
+      if (sub === Ch552MacroSub.READ) {
+        return `宏数据: len=${frame[3] ?? 0}`;
+      }
+      return `宏响应 sub=${sub}`;
     }
 
     return `cmd=${this.hexByte(frame[0] ?? 0)}`;
@@ -481,6 +529,9 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         }
         return createEmptyAction();
       }
+      case LegacyCh552KeyType.MACRO:
+        // valueHi=trigger, valueLo=slot
+        return { type: ActionType.MACRO, modifier: (value >> 8) & 0xff, param1: value & 0xff, param2: 0 };
       default:
         return createEmptyAction();
     }
@@ -501,6 +552,9 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
           return { type: LegacyCh552KeyType.MOUSE, value: MouseButton.MIDDLE };
         }
         return { type: LegacyCh552KeyType.MOUSE, value: (this.wheelDirectionToScroll(action.param1) & 0xff) << 8 };
+      case ActionType.MACRO:
+        // modifier=trigger, param1=slot
+        return { type: LegacyCh552KeyType.MACRO, value: ((action.modifier & 0xff) << 8) | (action.param1 & 0xff) };
       default:
         throw new Error('当前 CH552G 固件不支持该动作类型');
     }
@@ -616,6 +670,168 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private async setRgbConfig(transport: CodecTransport<Uint8Array>, config: RgbConfig): Promise<void> {
     await transport.sendNoWait(this.buildWriteRgbFrame(config));
     await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  // ==========================================================================
+  // 宏操作 (CH552G: 2 slots × 64B, 无名称, Flash 存储)
+  // ==========================================================================
+
+  /**
+   * 构建 CH552G 宏命令帧
+   *
+   * transport reportId=0x04 映射到 Ep1Buffer[0]=4,
+   * frame 内容从 Ep1Buffer[1] 开始:
+   *   frame[0] → Ep1Buffer[1] = cmd (0x40)
+   *   frame[1] → Ep1Buffer[2] = sub
+   *   frame[2] → Ep1Buffer[3] = slot
+   *   frame[3] → Ep1Buffer[4] = (unused)
+   *   frame[4] → Ep1Buffer[5] = offset  (READ/WRITE)
+   *   frame[5] → Ep1Buffer[6] = length  (READ/WRITE)
+   *   frame[6..] → Ep1Buffer[7..] = data (WRITE)
+   */
+  private buildMacroFrame(sub: Ch552MacroSub, slot: number, offset?: number, length?: number, data?: Uint8Array): Uint8Array {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.MACRO;
+    frame[1] = sub;
+    frame[2] = slot;
+    // frame[3] unused (Ep1Buffer[4])
+    if (offset !== undefined) frame[4] = offset;
+    if (length !== undefined) frame[5] = length;
+    if (data) frame.set(data, 6);
+    return frame;
+  }
+
+  private async sendMacroCmd(
+    transport: CodecTransport<Uint8Array>,
+    sub: Ch552MacroSub,
+    slot: number,
+    offset?: number,
+    length?: number,
+    data?: Uint8Array,
+  ): Promise<Uint8Array> {
+    const frame = this.buildMacroFrame(sub, slot, offset, length, data);
+    return this.readWithRetry('CH552G 宏命令超时', () =>
+      transport.sendAndWait(frame, {
+        timeout: 2000,
+        timeoutLabel: 'CH552G 宏命令超时',
+      }),
+    );
+  }
+
+  private async getMacroOverview(transport: CodecTransport<Uint8Array>): Promise<MacroOverview> {
+    const resp = await this.sendMacroCmd(transport, Ch552MacroSub.INFO, 0);
+    // CustomBuf: [0]=0x40, [1]=sub, [2]=0, [3]=slotCount, [4]=slotSize, [5]=valid0, [6]=valid1
+    const totalSlots = resp[3] ?? CH552_MACRO_SLOTS;
+    const slotValid: boolean[] = [];
+    let usedCount = 0;
+    for (let i = 0; i < totalSlots; i++) {
+      const valid = (resp[5 + i] ?? 0) !== 0;
+      slotValid.push(valid);
+      if (valid) usedCount++;
+    }
+    return { totalSlots, usedCount, slotValid };
+  }
+
+  private async getMacroInfo(transport: CodecTransport<Uint8Array>, slot: number): Promise<MacroHeader> {
+    if (slot >= CH552_MACRO_SLOTS) {
+      throw new Error(`CH552G 宏槽位 ${slot} 超出范围 (最大 ${CH552_MACRO_SLOTS - 1})`);
+    }
+    // 读取槽位头部 2 字节: [valid, actionCount]
+    const resp = await this.sendMacroCmd(transport, Ch552MacroSub.READ, slot, 0, CH552_MACRO_HEADER_SIZE);
+    // CustomBuf: [0]=0x40, [1]=1, [2]=0, [3]=len, [4..]=data
+    const len = resp[3] ?? 0;
+    const valid = len >= 2 && resp[4] === CH552_MACRO_VALID_MARKER ? 1 : 0;
+    const actionCount = valid ? (resp[5] ?? 0) : 0;
+    const dataSize = actionCount * 2;
+    return { valid, id: slot, actionCount, dataSize, name: '' };
+  }
+
+  private async getMacroData(transport: CodecTransport<Uint8Array>, slot: number): Promise<MacroData> {
+    const header = await this.getMacroInfo(transport, slot);
+    if (!header.valid || header.actionCount === 0) {
+      return { header, actions: [{ type: MacroActionType.END, param: 0 }] };
+    }
+
+    // 读取动作数据（跳过 2 字节头部）
+    const totalBytes = header.actionCount * 2;
+    const raw = new Uint8Array(totalBytes);
+    let readOffset = 0;
+
+    while (readOffset < totalBytes) {
+      const chunkSize = Math.min(CH552_MACRO_READ_CHUNK, totalBytes - readOffset);
+      const flashOffset = CH552_MACRO_HEADER_SIZE + readOffset;
+      const resp = await this.sendMacroCmd(transport, Ch552MacroSub.READ, slot, flashOffset, chunkSize);
+      const readLen = resp[3] ?? 0;
+      for (let i = 0; i < readLen && readOffset + i < totalBytes; i++) {
+        raw[readOffset + i] = resp[4 + i] ?? 0;
+      }
+      readOffset += readLen || chunkSize;
+    }
+
+    const actions: MacroAction[] = [];
+    for (let i = 0; i + 1 < raw.length; i += 2) {
+      const type = raw[i] as MacroActionType;
+      const param = raw[i + 1];
+      actions.push({ type, param });
+      if (type === MacroActionType.END) break;
+    }
+    if (actions.length === 0 || actions[actions.length - 1].type !== MacroActionType.END) {
+      actions.push({ type: MacroActionType.END, param: 0 });
+    }
+
+    return { header, actions };
+  }
+
+  private async setMacroData(
+    transport: CodecTransport<Uint8Array>,
+    slot: number,
+    macro: MacroData,
+  ): Promise<void> {
+    if (slot >= CH552_MACRO_SLOTS) {
+      throw new Error(`CH552G 宏槽位 ${slot} 超出范围`);
+    }
+
+    // 序列化动作 (不含 END — 固件用 actionCount 控制)
+    const actionsNoEnd = macro.actions.filter((a) => a.type !== MacroActionType.END);
+    if (actionsNoEnd.length > CH552_MACRO_MAX_ACTIONS) {
+      throw new Error(`动作数 ${actionsNoEnd.length} 超过 CH552G 上限 ${CH552_MACRO_MAX_ACTIONS}`);
+    }
+
+    // 构建完整槽位数据: [valid, count, ...actions]
+    const slotData = new Uint8Array(CH552_MACRO_HEADER_SIZE + actionsNoEnd.length * 2);
+    slotData[0] = CH552_MACRO_VALID_MARKER;
+    slotData[1] = actionsNoEnd.length;
+    for (let i = 0; i < actionsNoEnd.length; i++) {
+      slotData[CH552_MACRO_HEADER_SIZE + i * 2] = actionsNoEnd[i].type;
+      slotData[CH552_MACRO_HEADER_SIZE + i * 2 + 1] = actionsNoEnd[i].param;
+    }
+
+    // 先擦除
+    await this.sendMacroCmd(transport, Ch552MacroSub.ERASE, slot);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // 分块写入 (firmware 每次最多写 22 字节)
+    let writeOffset = 0;
+    while (writeOffset < slotData.length) {
+      const chunkSize = Math.min(CH552_MACRO_WRITE_CHUNK, slotData.length - writeOffset);
+      await this.sendMacroCmd(
+        transport,
+        Ch552MacroSub.WRITE,
+        slot,
+        writeOffset,
+        chunkSize,
+        slotData.slice(writeOffset, writeOffset + chunkSize),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      writeOffset += chunkSize;
+    }
+  }
+
+  private async deleteMacro(transport: CodecTransport<Uint8Array>, slot: number): Promise<void> {
+    if (slot >= CH552_MACRO_SLOTS) {
+      throw new Error(`CH552G 宏槽位 ${slot} 超出范围`);
+    }
+    await this.sendMacroCmd(transport, Ch552MacroSub.ERASE, slot);
   }
 
   private async readWithRetry<T>(label: string, task: () => Promise<T>): Promise<T> {
