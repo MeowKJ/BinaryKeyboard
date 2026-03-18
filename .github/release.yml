@@ -13,7 +13,7 @@ changelog:
         - firmware
         - ch592f
         - ch552g
-    - title: Studio And Tools
+    - title: Studio and Tools
       labels:
         - studio
         - tooling
@@ -23,6 +23,6 @@ changelog:
       labels:
         - bug
         - fix
-    - title: Other Changes
+    - title: Pull Requests
       labels:
         - "*"
