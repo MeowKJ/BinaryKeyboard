@@ -193,10 +193,11 @@ jobs:
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
           SHA=$(git rev-parse --short HEAD)
-          TAG="binarykeyboard-${DATE}-${SHA}"
+          TAG="binarykeyboard-${DATE}"
           PREV_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags \
             | grep '^binarykeyboard-' \
             | grep -Fvx "$TAG" \
+            | grep -Ev "^${TAG}-[0-9a-f]+$" \
             | head -n 1 || true)
           STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
           CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
@@ -205,6 +206,57 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Clean same-day releases and tags
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git tag -l "${TAG}*" | xargs -r git tag -d
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from urllib import request, error
+
+          repo = os.environ["REPO"]
+          tag = os.environ["TAG"]
+          token = os.environ["GITHUB_TOKEN"]
+
+          def api(path: str, method: str = "GET", data: dict | None = None):
+              payload = None if data is None else json.dumps(data).encode()
+              req = request.Request(
+                  f"https://api.github.com{path}",
+                  data=payload,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "Content-Type": "application/json",
+                  },
+                  method=method,
+              )
+              try:
+                  with request.urlopen(req) as resp:
+                      text = resp.read().decode()
+                      return json.loads(text) if text else None
+              except error.HTTPError as exc:
+                  if exc.code == 404:
+                      return None
+                  raise
+
+          releases = api(f"/repos/{repo}/releases?per_page=100") or []
+          for release in releases:
+              tag_name = release.get("tag_name", "")
+              if tag_name == tag or tag_name.startswith(f"{tag}-"):
+                  api(f"/repos/{repo}/releases/{release['id']}", method="DELETE")
+
+          refs = api(f"/repos/{repo}/git/matching-refs/tags/{tag}") or []
+          for ref in refs:
+              ref_name = ref.get("ref", "")
+              if ref_name == f"refs/tags/{tag}" or ref_name.startswith(f"refs/tags/{tag}-"):
+                  api(f"/repos/{repo}/git/{ref_name}", method="DELETE")
+          PYEOF
 
           # Build release notes from size reports + hex files
           {
