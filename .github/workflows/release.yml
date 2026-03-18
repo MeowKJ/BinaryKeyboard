@@ -208,9 +208,7 @@ jobs:
 
           # Build release notes from size reports + hex files
           {
-            echo "## BinaryKeyboard 自动发布"
-            echo
-            echo "> 此 Release 由 GitHub Actions 自动构建并发布，基于 \`main\` 分支最新提交。"
+            echo "## BinaryKeyboard 发布"
             echo
             echo "---"
             echo
@@ -312,8 +310,12 @@ jobs:
           export COMMIT_RANGE
           export SHA
           export DATE_DISPLAY
+          export TAG
+          export PREV_TAG
+          export GITHUB_SHA
+          export GITHUB_TOKEN="${{ github.token }}"
 
-          python3 - <<'PYEOF' >> release-notes-header.md
+          python3 - <<'PYEOF' > release-notes-commits.md
           import os
           import re
           import subprocess
@@ -346,6 +348,7 @@ jobs:
                   "git",
                   "log",
                   "--reverse",
+                  "--no-merges",
                   "--pretty=format:%H%x09%h%x09%an%x09%ae%x09%s",
                   commit_range,
               ],
@@ -361,8 +364,6 @@ jobs:
                   f"- {subject} by {author_display} "
                   f"([`{short_sha}`](https://github.com/{repo}/commit/{full_sha}))"
               )
-          print()
-          print("下方的 GitHub 自动生成部分会继续展示 `What's Changed`、分类后的 PR 以及 `Full Changelog`。")
           PYEOF
 
           {
@@ -393,15 +394,93 @@ jobs:
             echo '```'
             echo
             echo "</details>"
-          } >> release-notes-header.md
+          } > release-notes-footer.md
+
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from pathlib import Path
+          from urllib import request
+
+          repo = os.environ["REPO"]
+          tag = os.environ["TAG"]
+          prev_tag = os.environ.get("PREV_TAG", "").strip()
+          target = os.environ["GITHUB_SHA"]
+          token = os.environ["GITHUB_TOKEN"]
+
+          payload = {
+              "tag_name": tag,
+              "target_commitish": target,
+          }
+          if prev_tag:
+              payload["previous_tag_name"] = prev_tag
+
+          req = request.Request(
+              f"https://api.github.com/repos/{repo}/releases/generate-notes",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "Content-Type": "application/json",
+              },
+              method="POST",
+          )
+          with request.urlopen(req) as resp:
+              body = json.load(resp)["body"].strip()
+
+          Path("release-notes-generated.md").write_text(body + "\n")
+          PYEOF
+
+          python3 - <<'PYEOF'
+          from pathlib import Path
+
+          header = Path("release-notes-header.md").read_text().strip()
+          generated = Path("release-notes-generated.md").read_text().strip()
+          commits = Path("release-notes-commits.md").read_text().strip()
+          footer = Path("release-notes-footer.md").read_text().strip()
+
+          generated = generated.replace(
+              "<!-- Release notes generated using configuration in .github/release.yml at main -->",
+              "",
+          ).strip()
+
+          if "### Pull Requests" not in generated and "### Other Changes" in generated:
+              generated = generated.replace("### Other Changes", "### Pull Requests", 1)
+
+          marker = "**Full Changelog**:"
+          if marker in generated:
+              main_notes, tail = generated.rsplit(marker, 1)
+              generated = main_notes.rstrip()
+              full_changelog = marker + tail
+          else:
+              full_changelog = ""
+
+          contributors_marker = "## New Contributors"
+          if contributors_marker in generated:
+              main_notes, tail = generated.split(contributors_marker, 1)
+              generated = main_notes.rstrip()
+              contributors = contributors_marker + tail
+          else:
+              contributors = ""
+
+          parts = [header, generated]
+          if commits:
+              parts.append(commits)
+          if contributors:
+              parts.append(contributors.strip())
+          if full_changelog:
+              parts.append(full_changelog.strip())
+          parts.append(footer)
+
+          Path("release-notes.md").write_text("\n\n".join(part for part in parts if part) + "\n")
+          PYEOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
-          body_path: release-notes-header.md
-          generate_release_notes: true
-          append_body: true
+          body_path: release-notes.md
           prerelease: false
           files: dist/*.hex

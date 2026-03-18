@@ -23,6 +23,6 @@ changelog:
       labels:
         - bug
         - fix
-    - title: Other Changes
+    - title: Pull Requests
       labels:
         - "*"
