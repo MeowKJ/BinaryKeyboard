@@ -41,8 +41,15 @@ message(STATUS "Keyboard: ${KEYBOARD_UPPER}")
 # ---------------------------------------------------------------------------
 # Source files
 # ---------------------------------------------------------------------------
-set(CH552_RUNTIME_SOURCES
-    SDK/cores/main.c
+set(CH552_BSP_SOURCES
+    bsp/ch552_sys.c
+    bsp/ch552_timer.c
+    bsp/ch552_eeprom.c
+    bsp/ch552_flash.c
+)
+
+set(CH552_APP_SOURCES
+    app/entry.c
     app/main.c
 )
 
@@ -65,21 +72,16 @@ set(CH552_USB_SOURCES
     usb/USBHandler.c
 )
 
-set(CH552_SDK_CORE_SOURCES
-    SDK/cores/wiring.c
-    SDK/cores/eeprom.c
-)
-
 set(CH552_LED_SOURCES
     SDK/libraries/WS2812/template/optionalLink_WS2812_P1_5.c
 )
 
 set(CH552_SOURCES
-    ${CH552_RUNTIME_SOURCES}
+    ${CH552_BSP_SOURCES}
+    ${CH552_APP_SOURCES}
     ${CH552_HAL_SOURCES}
     ${CH552_KEYBOARD_SOURCES}
     ${CH552_USB_SOURCES}
-    ${CH552_SDK_CORE_SOURCES}
     ${CH552_LED_SOURCES}
 )
 
@@ -92,9 +94,11 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${CH552_SOURCES})
 # ---------------------------------------------------------------------------
 set(CH552_INCLUDE_DIRS
     ${GENERATED_DIR}
-    # ch55xduino SDK headers
-    SDK/cores
+    # BSP (ch552_defs.h etc.)
+    bsp
+    # SDK headers (ch5xx.h, WS2812, usbCommonDescriptors)
     SDK/variants/ch552
+    SDK/cores
     SDK/libraries/WS2812
     SDK/libraries/WS2812/template
     # Application headers

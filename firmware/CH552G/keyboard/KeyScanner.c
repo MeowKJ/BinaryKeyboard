@@ -1,5 +1,4 @@
-#include <Arduino.h>
-#include <string.h>
+#include "ch552_defs.h"
 
 #include "KeyScanner.h"
 

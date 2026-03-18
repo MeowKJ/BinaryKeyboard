@@ -12,7 +12,7 @@
 #define _WS2812_H_INCLUDED
 
 // clang-format off
-#include <Arduino.h>
+#include "ch552_defs.h"
 #include "template/WS2812_pins_header.h"
 // clang-format on
 

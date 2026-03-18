@@ -2,7 +2,7 @@
 #error "This program needs to be compiled with a USER USB setting"
 #endif
 
-#include <Arduino.h>
+#include "ch552_defs.h"
 
 #include "CustomUSBHID.h"
 #include "EncoderHandler.h"
