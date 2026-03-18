@@ -1,7 +1,7 @@
 #ifndef __RGB_H__
 #define __RGB_H__
 
-#include <Arduino.h>
+#include "ch552_defs.h"
 #include <WS2812.h>
 
 enum
@@ -9,9 +9,9 @@ enum
   EFFECT_OFF,
   EFFECT_STATIC,
   EFFECT_BREATH,
-  EFFECT_BLINK,
+  EFFECT_BLINK,     // removed, kept for protocol compat
   EFFECT_RAINBOW,
-  EFFECT_INDICATOR,
+  EFFECT_INDICATOR, // removed, kept for protocol compat
   EFFECT_COUNT
 };
 
