@@ -14,7 +14,12 @@ static uint8_t page_is_blank(uint16_t page_addr)
     return 1;
 }
 
-static uint8_t read_entry_meta(uint16_t pos, uint16_t end, uint8_t *marker_out, uint8_t *count_out, uint16_t *next_pos_out)
+/* Output via static xdata to avoid 3 generic-pointer params (saves ~9B IRAM/OSEG) */
+static __xdata uint8_t  _meta_marker;
+static __xdata uint8_t  _meta_count;
+static __xdata uint16_t _meta_next;
+
+static uint8_t read_entry_meta(uint16_t pos, uint16_t end)
 {
     uint8_t marker;
     uint8_t count;
@@ -37,9 +42,9 @@ static uint8_t read_entry_meta(uint16_t pos, uint16_t end, uint8_t *marker_out, 
     if (next_pos <= pos || next_pos > end)
         return 0;
 
-    *marker_out = marker;
-    *count_out = count;
-    *next_pos_out = next_pos;
+    _meta_marker = marker;
+    _meta_count = count;
+    _meta_next = next_pos;
     return 1;
 }
 
@@ -72,20 +77,16 @@ uint16_t meowfs_find_macro(uint8_t index)
 
     while (pos + MEOWFS_HEADER_SIZE <= end)
     {
-        uint8_t marker;
-        uint8_t count;
-        uint16_t next_pos;
-
-        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+        if (!read_entry_meta(pos, end))
             break;
 
-        if (marker == MEOWFS_VALID_MARKER)
+        if (_meta_marker == MEOWFS_VALID_MARKER)
         {
             if (found == index)
                 return pos;
             found++;
         }
-        pos = next_pos;
+        pos = _meta_next;
     }
     return 0;
 }
@@ -98,16 +99,12 @@ uint8_t meowfs_macro_count(void)
 
     while (pos + MEOWFS_HEADER_SIZE <= end)
     {
-        uint8_t marker;
-        uint8_t count;
-        uint16_t next_pos;
-
-        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+        if (!read_entry_meta(pos, end))
             break;
 
-        if (marker == MEOWFS_VALID_MARKER)
+        if (_meta_marker == MEOWFS_VALID_MARKER)
             n++;
-        pos = next_pos;
+        pos = _meta_next;
     }
     return n;
 }
@@ -119,13 +116,9 @@ uint16_t meowfs_used_bytes(void)
 
     while (pos + MEOWFS_HEADER_SIZE <= end)
     {
-        uint8_t marker;
-        uint8_t count;
-        uint16_t next_pos;
-
-        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+        if (!read_entry_meta(pos, end))
             break;
-        pos = next_pos;
+        pos = _meta_next;
     }
     return (uint16_t)(pos - MEOWFS_BASE);
 }

@@ -5,7 +5,7 @@
 
 // ==================== MeowFS — Dynamic Macro File System ====================
 //
-// Flash area at tail of user flash: 1024 bytes (16 × 64B pages)
+// Flash area at tail of user flash: 768 bytes (12 × 64B pages)
 // Macros stored sequentially with variable size, no fixed slot limit.
 //
 // Layout:
@@ -22,8 +22,8 @@
 // Compact: Studio reads valid macros, erases all, re-writes.
 //
 
-#define MEOWFS_BASE       0x3400
-#define MEOWFS_SIZE       1024
+#define MEOWFS_BASE       0x3500
+#define MEOWFS_SIZE       768
 #define MEOWFS_PAGE_SIZE  64
 #define MEOWFS_PAGES      (MEOWFS_SIZE / MEOWFS_PAGE_SIZE)
 
