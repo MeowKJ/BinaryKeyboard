@@ -44,9 +44,9 @@ extern "C" {
 #define KBD_MAX_KEYS 8    /**< 单层最大按键数 (支持所有类型) */
 #define KBD_MAX_FN_KEYS 4 /**< 最大 FN 键数 */
 
-#define KBD_MACRO_SLOTS 8          /**< 宏槽位总数 */
-#define KBD_MACRO_MAX_SIZE 2048    /**< 单个宏最大字节数 (2KB) */
-#define KBD_MACRO_MAX_ACTIONS 1000 /**< 单个宏最大动作数 */
+#define KBD_MACRO_SLOTS 255        /**< 宏逻辑索引上限 (param1 为 uint8_t) */
+#define KBD_MACRO_MAX_SIZE 8192    /**< MeowFS 总容量 (8KB) */
+#define KBD_MACRO_MAX_ACTIONS 255  /**< 单个宏最大动作数 */
 #define KBD_MACRO_VALID_MAGIC 0xAA /**< 宏有效标记 */
 
 /**
@@ -76,7 +76,9 @@ extern "C" {
 #define KBD_FLASH_RGB 0x00340        /**< RGB 配置偏移 (32B, 槽位内偏移) */
 #define KBD_FLASH_RESERVED 0x00400   /**< 单配置槽大小 / 下一页起始 (1KB) */
 #define KBD_FLASH_MACRO_BASE 0x01000 /**< 宏数据区起始（0x0000~0x0BFF 配置槽；0x0C00~0x0FFF runtime 热数据） */
-#define KBD_FLASH_MACRO_SLOT 0x00800 /**< 单宏槽位 (2KB) */
+#define KBD_FLASH_MACRO_SIZE 0x02000 /**< MeowFS 宏数据区大小 (8KB) */
+#define KBD_FLASH_MACRO_PAGE 0x00100 /**< MeowFS 页大小 (256B) */
+#define KBD_FLASH_MACRO_HEADER 0x0002 /**< MeowFS 头部大小 (marker + count) */
 
 /** @} */ /* end of KBD_Flash */
 

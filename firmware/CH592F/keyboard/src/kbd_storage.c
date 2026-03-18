@@ -80,12 +80,6 @@ static kbd_fnkey_config_t s_fnkey_config;
 /** @brief RGB 配置 (RAM 缓存) */
 static kbd_rgb_config_t s_rgb_config;
 
-/** @brief 宏写入状态：当前槽位 (0xFF=空闲) */
-static uint8_t s_macro_write_slot = 0xFF;
-
-/** @brief 宏写入状态：总数据大小 */
-static uint16_t s_macro_write_size = 0;
-
 /** @brief 当前已加载配置所在槽位（0~3，0xFF=未加载） */
 static uint8_t s_config_active_slot = KBD_CFG_INVALID_SLOT;
 
@@ -313,15 +307,6 @@ static void LoadDefaults(void) {
   memcpy(&s_keymap_config, &s_default_keymap, sizeof(kbd_keymap_t));
   memcpy(&s_fnkey_config, &s_default_fnkey, sizeof(kbd_fnkey_config_t));
   memcpy(&s_rgb_config, &s_default_rgb, sizeof(kbd_rgb_config_t));
-}
-
-/**
- * @brief 获取宏槽位的 Flash 地址
- * @param[in] slot 槽位号
- * @return Flash 地址
- */
-static uint32_t GetMacroSlotAddr(uint8_t slot) {
-  return KBD_FLASH_MACRO_BASE + (slot * KBD_FLASH_MACRO_SLOT);
 }
 
 typedef struct {
@@ -796,10 +781,8 @@ int KBD_Config_Reset(void) {
 
   LoadDefaults();
 
-  /* 清除所有宏 */
-  for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
-    Kbd_Macro_Delete(i);
-  }
+  /* 清除整个 MeowFS 宏区 */
+  Kbd_Macro_EraseAll();
 
   return KBD_Config_Save();
 }
@@ -877,179 +860,251 @@ const kbd_action_t *KBD_GetKeyAction(uint8_t key_index) {
 /*                              宏操作函数 */
 /*============================================================================*/
 
-int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header) {
-  if (slot >= KBD_MACRO_SLOTS) {
+static bool IsMeowFsMarker(uint8_t marker) {
+  return marker == 0xFF || marker == 0x00 || marker == KBD_MACRO_VALID_MAGIC;
+}
+
+static int MeowFs_ReadHeader(uint16_t offset, uint8_t *marker,
+                             uint8_t *action_count) {
+  uint8_t header[KBD_FLASH_MACRO_HEADER];
+  if (offset + KBD_FLASH_MACRO_HEADER > KBD_FLASH_MACRO_SIZE) {
     return -1;
   }
 
-  __attribute__((aligned(4))) kbd_macro_header_t h;
-  EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
+  EEPROM_READ(KBD_FLASH_MACRO_BASE + offset, header, sizeof(header));
+  *marker = header[0];
+  *action_count = header[1];
+  return 0;
+}
 
-  if (h.valid != KBD_MACRO_VALID_MAGIC) {
+static int MeowFs_FindMacro(uint8_t index, uint16_t *entry_offset,
+                            uint8_t *action_count) {
+  uint16_t offset = 0;
+  uint8_t current = 0;
+
+  while (offset + KBD_FLASH_MACRO_HEADER <= KBD_FLASH_MACRO_SIZE) {
+    uint8_t marker = 0xFF;
+    uint8_t count = 0;
+    if (MeowFs_ReadHeader(offset, &marker, &count) != 0) {
+      return -1;
+    }
+    if (marker == 0xFF) {
+      return -2;
+    }
+    if (!IsMeowFsMarker(marker)) {
+      return -1;
+    }
+
+    uint16_t entry_size =
+        KBD_FLASH_MACRO_HEADER + ((uint16_t)count * sizeof(kbd_macro_action_t));
+    if (offset + entry_size > KBD_FLASH_MACRO_SIZE) {
+      return -1;
+    }
+
+    if (marker == KBD_MACRO_VALID_MAGIC) {
+      if (current == index) {
+        if (entry_offset) {
+          *entry_offset = offset;
+        }
+        if (action_count) {
+          *action_count = count;
+        }
+        return 0;
+      }
+      current++;
+    }
+
+    offset += entry_size;
+  }
+
+  return -2;
+}
+
+static int MeowFs_ReadRawInternal(uint16_t offset, uint8_t *buf, uint16_t len) {
+  if (offset >= KBD_FLASH_MACRO_SIZE) {
+    return -1;
+  }
+
+  if (offset + len > KBD_FLASH_MACRO_SIZE) {
+    len = (uint16_t)(KBD_FLASH_MACRO_SIZE - offset);
+  }
+
+  EEPROM_READ(KBD_FLASH_MACRO_BASE + offset, buf, len);
+  return len;
+}
+
+static int MeowFs_WriteRawInternal(uint16_t offset, const uint8_t *buf,
+                                   uint16_t len) {
+  while (len > 0) {
+    uint16_t page_offset = offset & (KBD_FLASH_MACRO_PAGE - 1u);
+    uint16_t chunk = (uint16_t)(KBD_FLASH_MACRO_PAGE - page_offset);
+    uint32_t page_addr =
+        KBD_FLASH_MACRO_BASE + (offset & ~(KBD_FLASH_MACRO_PAGE - 1u));
+    __attribute__((aligned(4))) uint8_t page[KBD_FLASH_MACRO_PAGE];
+
+    if (chunk > len) {
+      chunk = len;
+    }
+
+    EEPROM_READ(page_addr, page, sizeof(page));
+    memcpy(page + page_offset, buf, chunk);
+    EEPROM_ERASE(page_addr, KBD_FLASH_MACRO_PAGE);
+    EEPROM_WRITE(page_addr, page, sizeof(page));
+
+    offset = (uint16_t)(offset + chunk);
+    buf += chunk;
+    len = (uint16_t)(len - chunk);
+  }
+
+  return 0;
+}
+
+int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header) {
+  uint16_t entry_offset = 0;
+  uint8_t action_count = 0;
+
+  if (MeowFs_FindMacro(slot, &entry_offset, &action_count) != 0) {
     return -2;
   }
 
   if (header) {
-    memcpy(header, &h, sizeof(kbd_macro_header_t));
+    memset(header, 0, sizeof(*header));
+    header->valid = KBD_MACRO_VALID_MAGIC;
+    header->id = slot;
+    header->action_count = action_count;
+    header->data_size = (uint16_t)(action_count * sizeof(kbd_macro_action_t));
   }
+
   return 0;
 }
 
 int Kbd_Macro_Read(uint8_t slot, uint16_t offset, uint8_t *buf, uint16_t len) {
-  if (slot >= KBD_MACRO_SLOTS) {
-    return -1;
-  }
+  uint16_t entry_offset = 0;
+  uint8_t action_count = 0;
+  uint16_t data_size = 0;
 
-  __attribute__((aligned(4))) kbd_macro_header_t h;
-  EEPROM_READ(GetMacroSlotAddr(slot), &h, sizeof(h));
-
-  if (h.valid != KBD_MACRO_VALID_MAGIC) {
+  if (MeowFs_FindMacro(slot, &entry_offset, &action_count) != 0) {
     return -2;
   }
 
-  uint32_t data_addr =
-      GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
-  uint16_t avail = h.data_size - offset;
-  if (avail < len) {
-    len = avail;
+  data_size = (uint16_t)(action_count * sizeof(kbd_macro_action_t));
+  if (offset >= data_size) {
+    return 0;
+  }
+  if (offset + len > data_size) {
+    len = (uint16_t)(data_size - offset);
   }
 
-  EEPROM_READ(data_addr, buf, len);
-  return len;
+  return MeowFs_ReadRawInternal(
+      (uint16_t)(entry_offset + KBD_FLASH_MACRO_HEADER + offset), buf, len);
 }
 
-int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header) {
-  if (slot >= KBD_MACRO_SLOTS) {
+int Kbd_Macro_ReadRaw(uint16_t offset, uint8_t *buf, uint16_t len) {
+  return MeowFs_ReadRawInternal(offset, buf, len);
+}
+
+int Kbd_Macro_WriteRaw(uint16_t offset, const uint8_t *buf, uint16_t len) {
+  if (offset + len > KBD_FLASH_MACRO_SIZE) {
+    return -1;
+  }
+  return MeowFs_WriteRawInternal(offset, buf, len);
+}
+
+int Kbd_Macro_ErasePage(uint8_t page_index) {
+  if (page_index >= (KBD_FLASH_MACRO_SIZE / KBD_FLASH_MACRO_PAGE)) {
     return -1;
   }
 
-  /* 检查大小限制 */
-  if (header->data_size > KBD_MACRO_MAX_SIZE - sizeof(kbd_macro_header_t)) {
-    LOG_W(TAG, "Macro too large: %d bytes", header->data_size);
-    return KBD_RESP_ERR_TOO_LARGE;
-  }
-
-  if (header->action_count > KBD_MACRO_MAX_ACTIONS) {
-    LOG_W(TAG, "Too many macro actions: %d", header->action_count);
-    return KBD_RESP_ERR_TOO_LARGE;
-  }
-
-  /* 准备槽位 */
-  uint32_t slot_addr = GetMacroSlotAddr(slot);
-  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
-
-  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  /* 清除当前槽位 */
-  uint32_t offset_in_block = slot_addr - block_addr;
-  memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
-
-  /* 写入头部 (暂时标记为无效) */
-  kbd_macro_header_t temp_header;
-  memcpy(&temp_header, header, sizeof(kbd_macro_header_t));
-  temp_header.valid = 0x00;
-  memcpy(block + offset_in_block, &temp_header, sizeof(kbd_macro_header_t));
-
-  /* 写回块 */
-  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  s_macro_write_slot = slot;
-  s_macro_write_size = header->data_size;
-
-  LOG_D(TAG, "Macro write start: slot=%d size=%d", slot, header->data_size);
+  EEPROM_ERASE(KBD_FLASH_MACRO_BASE +
+                   ((uint32_t)page_index * KBD_FLASH_MACRO_PAGE),
+               KBD_FLASH_MACRO_PAGE);
   return 0;
 }
 
-int Kbd_Macro_WriteChunk(uint8_t slot, uint16_t offset, const uint8_t *buf,
-                         uint16_t len) {
-  if (slot != s_macro_write_slot) {
-    return -1;
+int Kbd_Macro_EraseAll(void) {
+  for (uint8_t page = 0; page < (KBD_FLASH_MACRO_SIZE / KBD_FLASH_MACRO_PAGE);
+       page++) {
+    if (Kbd_Macro_ErasePage(page) != 0) {
+      return -1;
+    }
   }
-
-  if (offset + len > s_macro_write_size) {
-    return -2;
-  }
-
-  uint32_t data_addr =
-      GetMacroSlotAddr(slot) + sizeof(kbd_macro_header_t) + offset;
-  uint32_t block_addr = data_addr & ~(EEPROM_BLOCK_SIZE - 1);
-
-  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  memcpy(block + (data_addr - block_addr), buf, len);
-
-  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  return 0;
-}
-
-int Kbd_Macro_EndWrite(uint8_t slot) {
-  if (slot != s_macro_write_slot) {
-    return -1;
-  }
-
-  /* 标记为有效 */
-  uint32_t slot_addr = GetMacroSlotAddr(slot);
-  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
-
-  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  uint32_t offset_in_block = slot_addr - block_addr;
-  block[offset_in_block] = KBD_MACRO_VALID_MAGIC;
-
-  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  s_macro_write_slot = 0xFF;
-  s_macro_write_size = 0;
-
-  LOG_I(TAG, "Macro write done: slot=%d", slot);
   return 0;
 }
 
 int Kbd_Macro_Delete(uint8_t slot) {
-  if (slot >= KBD_MACRO_SLOTS) {
+  uint16_t entry_offset = 0;
+  uint8_t action_count = 0;
+  uint8_t deleted_marker = 0x00;
+
+  if (MeowFs_FindMacro(slot, &entry_offset, &action_count) != 0) {
     return -1;
   }
 
-  uint32_t slot_addr = GetMacroSlotAddr(slot);
-  uint32_t block_addr = slot_addr & ~(EEPROM_BLOCK_SIZE - 1);
-
-  __attribute__((aligned(4))) uint8_t block[EEPROM_BLOCK_SIZE];
-  EEPROM_READ(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  uint32_t offset_in_block = slot_addr - block_addr;
-  memset(block + offset_in_block, 0xFF, KBD_FLASH_MACRO_SLOT);
-
-  EEPROM_ERASE(block_addr, EEPROM_BLOCK_SIZE);
-  EEPROM_WRITE(block_addr, block, EEPROM_BLOCK_SIZE);
-
-  LOG_D(TAG, "Macro deleted: slot=%d", slot);
-  return 0;
+  (void)action_count;
+  return MeowFs_WriteRawInternal(entry_offset, &deleted_marker, 1);
 }
 
 bool Kbd_Macro_IsValid(uint8_t slot) {
-  if (slot >= KBD_MACRO_SLOTS) {
-    return false;
-  }
-
-  __attribute__((aligned(4))) uint8_t valid;
-  EEPROM_READ(GetMacroSlotAddr(slot), &valid, 1);
-
-  return (valid == KBD_MACRO_VALID_MAGIC);
+  return MeowFs_FindMacro(slot, NULL, NULL) == 0;
 }
 
 uint8_t Kbd_Macro_GetUsedCount(void) {
+  uint16_t offset = 0;
   uint8_t count = 0;
-  for (uint8_t i = 0; i < KBD_MACRO_SLOTS; i++) {
-    if (Kbd_Macro_IsValid(i)) {
+
+  while (offset + KBD_FLASH_MACRO_HEADER <= KBD_FLASH_MACRO_SIZE) {
+    uint8_t marker = 0xFF;
+    uint8_t action_count = 0;
+    if (MeowFs_ReadHeader(offset, &marker, &action_count) != 0) {
+      break;
+    }
+    if (marker == 0xFF) {
+      break;
+    }
+    if (!IsMeowFsMarker(marker)) {
+      break;
+    }
+
+    if (marker == KBD_MACRO_VALID_MAGIC) {
       count++;
     }
+
+    offset +=
+        (uint16_t)(KBD_FLASH_MACRO_HEADER +
+                   ((uint16_t)action_count * sizeof(kbd_macro_action_t)));
   }
+
   return count;
 }
+
+uint16_t Kbd_Macro_GetUsedBytes(void) {
+  uint16_t offset = 0;
+
+  while (offset + KBD_FLASH_MACRO_HEADER <= KBD_FLASH_MACRO_SIZE) {
+    uint8_t marker = 0xFF;
+    uint8_t action_count = 0;
+    if (MeowFs_ReadHeader(offset, &marker, &action_count) != 0) {
+      break;
+    }
+    if (marker == 0xFF) {
+      break;
+    }
+    if (!IsMeowFsMarker(marker)) {
+      break;
+    }
+
+    offset +=
+        (uint16_t)(KBD_FLASH_MACRO_HEADER +
+                   ((uint16_t)action_count * sizeof(kbd_macro_action_t)));
+  }
+
+  return offset;
+}
+
+uint16_t Kbd_Macro_GetFreeBytes(void) {
+  return (uint16_t)(KBD_FLASH_MACRO_SIZE - Kbd_Macro_GetUsedBytes());
+}
+
+uint16_t Kbd_Macro_GetTotalSize(void) { return KBD_FLASH_MACRO_SIZE; }
+
+uint16_t Kbd_Macro_GetPageSize(void) { return KBD_FLASH_MACRO_PAGE; }

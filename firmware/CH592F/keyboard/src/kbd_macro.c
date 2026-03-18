@@ -80,11 +80,6 @@ void KBD_Macro_Init(void)
 
 int KBD_Macro_Execute(uint8_t slot, kbd_macro_trigger_t trigger)
 {
-    if (slot >= KBD_MACRO_SLOTS) {
-        LOG_W(TAG, "Invalid slot %d", slot);
-        return -1;
-    }
-
     /* 若已在运行，先取消 */
     if (s_state != MACRO_IDLE) {
         KBD_Macro_Cancel();
