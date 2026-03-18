@@ -69,6 +69,7 @@ export default defineConfig({
         text: '📚 其他',
         collapsed: true,
         items: [
+          { text: '💾 MeowFS 宏存储', link: '/meowfs' },
           { text: 'MeowMacro 宏语言', link: '/meowmacro' },
           { text: '常见问题', link: '/faq' },
           { text: '更新日志', link: '/changelog' },
