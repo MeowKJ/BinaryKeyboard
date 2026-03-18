@@ -208,13 +208,13 @@ jobs:
 
           # Build release notes from size reports + hex files
           {
-            echo "## 🐱 BinaryKeyboard 自动发布"
+            echo "## BinaryKeyboard 自动发布"
             echo
             echo "> 此 Release 由 GitHub Actions 自动构建并发布，基于 \`main\` 分支最新提交。"
             echo
             echo "---"
             echo
-            echo "### 📋 版本信息"
+            echo "### 版本信息"
             echo
             echo "| 组件 | 版本 | 说明 |"
             echo "|:-----|:-----|:-----|"
@@ -224,7 +224,7 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 📦 固件文件"
+            echo "### 固件文件"
             echo
             echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
             echo "|:-----|:----------|:---------|:-----|"
@@ -294,32 +294,83 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 📝 变更记录"
+            echo "### 变更范围"
             echo
             if [ -n "$PREV_TAG" ]; then
               COMMIT_RANGE="${PREV_TAG}..HEAD"
-              COMMIT_COUNT=$(git rev-list --count "${COMMIT_RANGE}")
-              echo "> 共 **${COMMIT_COUNT}** 个提交，自 [\`${PREV_TAG}\`](https://github.com/${REPO}/releases/tag/${PREV_TAG}) 以来"
-              echo "> [📊 完整对比](https://github.com/${REPO}/compare/${PREV_TAG}...${TAG})"
+              COMMIT_COUNT=$(git rev-list --count "${PREV_TAG}..HEAD")
+              echo "- 自 [\`${PREV_TAG}\`](https://github.com/${REPO}/releases/tag/${PREV_TAG}) 以来共 **${COMMIT_COUNT}** 个提交"
+              echo "- 完整对比: https://github.com/${REPO}/compare/${PREV_TAG}...${TAG}"
             else
               COMMIT_RANGE="HEAD"
               COMMIT_COUNT=$(git rev-list --count HEAD)
-              echo "> 🎉 首次自动发布，当前共 **${COMMIT_COUNT}** 个提交"
+              echo "- 首次自动发布，当前共 **${COMMIT_COUNT}** 个提交"
             fi
             echo
-            # Merged PRs
-            PR_LOG=$(git log --reverse --merges --pretty=format:'- %s (@%an)' "${COMMIT_RANGE}" 2>/dev/null | head -30 || true)
-            if [ -n "$PR_LOG" ]; then
-              echo "$PR_LOG"
-              echo
-            fi
-            # Direct commits
-            git log --reverse --no-merges --pretty=format:'- %s ([`%h`](https://github.com/'"${REPO}"'/commit/%H))' "${COMMIT_RANGE}" | head -50
+          } >> release-notes-header.md
+
+          export COMMIT_RANGE
+          export SHA
+          export DATE_DISPLAY
+
+          python3 - <<'PYEOF' >> release-notes-header.md
+          import os
+          import re
+          import subprocess
+
+          repo = os.environ["REPO"]
+          commit_range = os.environ["COMMIT_RANGE"]
+
+          email_aliases = {
+              "ijink@qq.com": "MeowKJ",
+              "ijink@icloud.com": "MeowKJ",
+              "41898282+github-actions[bot]@users.noreply.github.com": "github-actions[bot]",
+          }
+
+          def github_username_from_email(email: str) -> str | None:
+              if email in email_aliases:
+                  return email_aliases[email]
+              m = re.match(r"(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$", email)
+              if m:
+                  return m.group(1)
+              return None
+
+          def render_author(author: str, email: str) -> str:
+              username = github_username_from_email(email)
+              if username:
+                  return f"@{username}"
+              return author.strip()
+
+          log = subprocess.check_output(
+              [
+                  "git",
+                  "log",
+                  "--reverse",
+                  "--pretty=format:%H%x09%h%x09%an%x09%ae%x09%s",
+                  commit_range,
+              ],
+              text=True,
+          )
+
+          print("### 提交记录")
+          print()
+          for line in log.splitlines():
+              full_sha, short_sha, author, email, subject = line.split("\t", 4)
+              author_display = render_author(author, email)
+              print(
+                  f"- {subject} by {author_display} "
+                  f"([`{short_sha}`](https://github.com/{repo}/commit/{full_sha}))"
+              )
+          print()
+          print("下方的 GitHub 自动生成部分会继续展示 `What's Changed`、分类后的 PR 以及 `Full Changelog`。")
+          PYEOF
+
+          {
             echo
             echo
             echo "---"
             echo
-            echo "<details><summary>🔧 构建环境</summary>"
+            echo "<details><summary>构建环境</summary>"
             echo
             echo "| 属性 | 值 |"
             echo "|:-----|:---|"
@@ -332,7 +383,7 @@ jobs:
             echo
             echo "</details>"
             echo
-            echo "<details><summary>🔒 SHA-256 校验值</summary>"
+            echo "<details><summary>SHA-256 校验值</summary>"
             echo
             echo '```'
             for f in dist/*.hex; do
