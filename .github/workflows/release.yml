@@ -9,9 +9,7 @@ on:
       - "config/**"
       - "tools/studio/**"
       - "tools/scripts/**"
-      - ".github/workflows/firmware-build.yml"
       - ".github/workflows/release.yml"
-      - ".github/release.yml"
   workflow_dispatch:
 
 env:
@@ -156,6 +154,88 @@ jobs:
       - name: Build
         run: pnpm --dir tools/studio run build
 
+  build-studio-electron-mac:
+    name: Build Studio Electron (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron
+        working-directory: tools/studio
+        run: pnpm run build:electron
+
+      - name: Package (arm64 + x64 DMG)
+        working-directory: tools/studio
+        run: pnpm exec electron-builder --mac --arm64 --x64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-mac-${{ github.sha }}
+          path: tools/studio/release/*.dmg
+          retention-days: 7
+
+  build-studio-electron-win:
+    name: Build Studio Electron (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron
+        working-directory: tools/studio
+        run: pnpm run build:electron
+
+      - name: Package (x64 + ia32 + arm64 portable)
+        working-directory: tools/studio
+        run: pnpm exec electron-builder --win --x64 --ia32 --arm64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-win-${{ github.sha }}
+          path: tools/studio/release/*.exe
+          retention-days: 7
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -163,6 +243,8 @@ jobs:
       - build-ch592f
       - build-ch552g
       - build-studio
+      - build-studio-electron-mac
+      - build-studio-electron-win
     permissions:
       contents: write
 
@@ -187,16 +269,24 @@ jobs:
           path: sizes
           merge-multiple: true
 
+      - name: Download Electron artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: electron-*-${{ github.sha }}
+          path: dist
+          merge-multiple: true
+
       - name: Generate version tag
         id: version
         run: |
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
           SHA=$(git rev-parse --short HEAD)
-          TAG="binarykeyboard-${DATE}-${SHA}"
+          TAG="binarykeyboard-${DATE}"
           PREV_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags \
             | grep '^binarykeyboard-' \
             | grep -Fvx "$TAG" \
+            | grep -Ev "^${TAG}-[0-9a-f]+$" \
             | head -n 1 || true)
           STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
           CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
@@ -205,6 +295,57 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Clean same-day releases and tags
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.tag }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git tag -l "${TAG}*" | xargs -r git tag -d
+          python3 - <<'PYEOF'
+          import json
+          import os
+          from urllib import request, error
+
+          repo = os.environ["REPO"]
+          tag = os.environ["TAG"]
+          token = os.environ["GITHUB_TOKEN"]
+
+          def api(path: str, method: str = "GET", data: dict | None = None):
+              payload = None if data is None else json.dumps(data).encode()
+              req = request.Request(
+                  f"https://api.github.com{path}",
+                  data=payload,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "Content-Type": "application/json",
+                  },
+                  method=method,
+              )
+              try:
+                  with request.urlopen(req) as resp:
+                      text = resp.read().decode()
+                      return json.loads(text) if text else None
+              except error.HTTPError as exc:
+                  if exc.code == 404:
+                      return None
+                  raise
+
+          releases = api(f"/repos/{repo}/releases?per_page=100") or []
+          for release in releases:
+              tag_name = release.get("tag_name", "")
+              if tag_name == tag or tag_name.startswith(f"{tag}-"):
+                  api(f"/repos/{repo}/releases/{release['id']}", method="DELETE")
+
+          refs = api(f"/repos/{repo}/git/matching-refs/tags/{tag}") or []
+          for ref in refs:
+              ref_name = ref.get("ref", "")
+              if ref_name == f"refs/tags/{tag}" or ref_name.startswith(f"refs/tags/{tag}-"):
+                  api(f"/repos/{repo}/git/{ref_name}", method="DELETE")
+          PYEOF
 
           # Build release notes from size reports + hex files
           {
@@ -219,6 +360,18 @@ jobs:
             echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
             echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
             echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
+            echo
+            echo "---"
+            echo
+            echo "### 🖥️ Studio 桌面版"
+            echo
+            echo "| 平台 | 架构 | 格式 |"
+            echo "|:-----|:-----|:-----|"
+            echo "| macOS | Apple Silicon (arm64) | DMG |"
+            echo "| macOS | Intel (x64) | DMG |"
+            echo "| Windows | x64 | 便携式 EXE |"
+            echo "| Windows | x86 / 32位 (ia32) | 便携式 EXE |"
+            echo "| Windows | ARM64 | 便携式 EXE |"
             echo
             echo "---"
             echo
@@ -483,4 +636,7 @@ jobs:
           name: ${{ steps.version.outputs.name }}
           body_path: release-notes.md
           prerelease: false
-          files: dist/*.hex
+          files: |
+            dist/*.hex
+            dist/*.dmg
+            dist/*.exe

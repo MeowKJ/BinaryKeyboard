@@ -1,10 +1,18 @@
 import { defineConfig } from 'vitepress'
+import { meowMacroLanguage } from './meowmacro-language'
 
 export default defineConfig({
   lang: 'zh-CN',
   title: 'BinaryKeyboard',
   description: '可爱二进制键盘 - 开源迷你宏键盘项目',
   base: '/BinaryKeyboard/',
+
+  markdown: {
+    languages: [[meowMacroLanguage]],
+    languageAlias: {
+      meow: 'meowmacro',
+    },
+  },
   
   head: [
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
@@ -53,6 +61,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: '快速开始', link: '/wireless/' },
+          { text: '物料清单 (BOM)', link: '/wireless/bom' },
           { text: '硬件复刻', link: '/wireless/make' },
           { text: '刷写固件', link: '/wireless/flash' },
           { text: '改键软件', link: '/wireless/remap' },
@@ -69,7 +78,7 @@ export default defineConfig({
         text: '📚 其他',
         collapsed: true,
         items: [
-          { text: '💾 MeowFS 宏存储', link: '/meowfs' },
+          { text: 'MeowFS 宏存储', link: '/meowfs' },
           { text: 'MeowMacro 宏语言', link: '/meowmacro' },
           { text: '常见问题', link: '/faq' },
           { text: '更新日志', link: '/changelog' },
