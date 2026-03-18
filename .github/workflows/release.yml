@@ -349,7 +349,7 @@ jobs:
 
           # Build release notes from size reports + hex files
           {
-            echo "## BinaryKeyboard 发布"
+            echo "## 🐱 BinaryKeyboard 自动发布 🐱"
             echo
             echo "---"
             echo
@@ -375,7 +375,7 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 固件文件"
+            echo "### 📦 固件文件"
             echo
             echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
             echo "|:-----|:----------|:---------|:-----|"
