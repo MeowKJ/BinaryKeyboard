@@ -9,9 +9,7 @@ on:
       - "config/**"
       - "tools/studio/**"
       - "tools/scripts/**"
-      - ".github/workflows/firmware-build.yml"
       - ".github/workflows/release.yml"
-      - ".github/release.yml"
   workflow_dispatch:
 
 env:
@@ -156,6 +154,88 @@ jobs:
       - name: Build
         run: pnpm --dir tools/studio run build
 
+  build-studio-electron-mac:
+    name: Build Studio Electron (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron
+        working-directory: tools/studio
+        run: pnpm run build:electron
+
+      - name: Package (arm64 + x64 DMG)
+        working-directory: tools/studio
+        run: pnpm exec electron-builder --mac --arm64 --x64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-mac-${{ github.sha }}
+          path: tools/studio/release/*.dmg
+          retention-days: 7
+
+  build-studio-electron-win:
+    name: Build Studio Electron (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: tools/studio/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: tools/studio
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Electron
+        working-directory: tools/studio
+        run: pnpm run build:electron
+
+      - name: Package (x64 + ia32 + arm64 portable)
+        working-directory: tools/studio
+        run: pnpm exec electron-builder --win --x64 --ia32 --arm64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-win-${{ github.sha }}
+          path: tools/studio/release/*.exe
+          retention-days: 7
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -163,6 +243,8 @@ jobs:
       - build-ch592f
       - build-ch552g
       - build-studio
+      - build-studio-electron-mac
+      - build-studio-electron-win
     permissions:
       contents: write
 
@@ -185,6 +267,13 @@ jobs:
         with:
           pattern: size-*
           path: sizes
+          merge-multiple: true
+
+      - name: Download Electron artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: electron-*-${{ github.sha }}
+          path: dist
           merge-multiple: true
 
       - name: Generate version tag
@@ -221,6 +310,18 @@ jobs:
             echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
             echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
             echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
+            echo
+            echo "---"
+            echo
+            echo "### 🖥️ Studio 桌面版"
+            echo
+            echo "| 平台 | 架构 | 格式 |"
+            echo "|:-----|:-----|:-----|"
+            echo "| macOS | Apple Silicon (arm64) | DMG |"
+            echo "| macOS | Intel (x64) | DMG |"
+            echo "| Windows | x64 | 便携式 EXE |"
+            echo "| Windows | x86 / 32位 (ia32) | 便携式 EXE |"
+            echo "| Windows | ARM64 | 便携式 EXE |"
             echo
             echo "---"
             echo
@@ -353,4 +454,7 @@ jobs:
           generate_release_notes: true
           append_body: true
           prerelease: false
-          files: dist/*.hex
+          files: |
+            dist/*.hex
+            dist/*.dmg
+            dist/*.exe

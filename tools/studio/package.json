@@ -3,6 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "sync-versions": "node ./scripts/sync-versions.mjs",
     "predev": "pnpm run sync-versions",
@@ -14,7 +15,31 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:electron-renderer": "cross-env VITE_BASE_URL=./ vite build",
+    "build:electron-main": "tsc -p tsconfig.electron.json",
+    "build:electron": "run-s sync-versions build:electron-renderer build:electron-main",
+    "dist:mac": "pnpm run build:electron && electron-builder --mac",
+    "dist:win": "pnpm run build:electron && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.binarykeyboard.studio",
+    "productName": "BinaryKeyboard Studio",
+    "copyright": "Copyright © 2025 喵喵的帕斯",
+    "files": ["dist/**", "dist-electron/**"],
+    "directories": { "output": "release" },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+    },
+    "dmg": {
+      "title": "BinaryKeyboard Studio",
+      "window": { "width": 540, "height": 280 }
+    },
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64", "ia32", "arm64"] }]
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
   "dependencies": {
     "@primeuix/themes": "^1.0.0",
@@ -32,6 +57,9 @@
     "@types/node": "^22.13.4",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/tsconfig": "^0.7.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
     "npm-run-all2": "^8.0.4",
     "typescript": "~5.7.3",
     "unplugin-vue-components": "^28.4.1",
@@ -43,6 +71,7 @@
     "workbox-window": "^7.4.0"
   },
   "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"],
     "overrides": {
       "@babel/helpers": "7.26.10",
       "@rollup/plugin-babel": "7.0.0",

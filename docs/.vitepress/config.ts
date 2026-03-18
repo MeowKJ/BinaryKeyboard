@@ -53,6 +53,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: '快速开始', link: '/wireless/' },
+          { text: '物料清单 (BOM)', link: '/wireless/bom' },
           { text: '硬件复刻', link: '/wireless/make' },
           { text: '刷写固件', link: '/wireless/flash' },
           { text: '改键软件', link: '/wireless/remap' },
