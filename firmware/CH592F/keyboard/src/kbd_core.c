@@ -438,22 +438,27 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
     /* RGB 控制 */
     case KBD_FN_RGB_TOGGLE:
         KBD_RGB_Toggle();
+        KBD_Config_Save();
         break;
 
     case KBD_FN_RGB_MODE_NEXT:
         KBD_RGB_NextMode();
+        KBD_Config_Save();
         break;
 
     case KBD_FN_RGB_MODE_PREV:
         KBD_RGB_PrevMode();
+        KBD_Config_Save();
         break;
 
     case KBD_FN_RGB_BRIGHT_UP:
         KBD_RGB_BrightnessUp(16);
+        KBD_Config_Save();
         break;
 
     case KBD_FN_RGB_BRIGHT_DOWN:
         KBD_RGB_BrightnessDown(16);
+        KBD_Config_Save();
         break;
 
     /* 层控制 */
