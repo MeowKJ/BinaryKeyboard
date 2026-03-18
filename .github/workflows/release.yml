@@ -94,10 +94,14 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install SDCC
+      - name: Install SDCC 4.5.0
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sdcc ninja-build
+          SDCC_VER="4.5.0"
+          wget -q "https://sourceforge.net/projects/sdcc/files/sdcc-linux-amd64/${SDCC_VER}/sdcc-${SDCC_VER}-amd64-unknown-linux2.5.tar.bz2/download" -O sdcc.tar.bz2
+          tar xjf sdcc.tar.bz2
+          echo "${PWD}/sdcc-${SDCC_VER}/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -q
+          sudo apt-get install -y ninja-build
 
       - name: Build
         run: python3 tools/scripts/ch552g.py build --keyboard ${{ matrix.keyboard }}
@@ -228,59 +232,59 @@ jobs:
 
           # Generate file table rows from size reports + hex files
           python3 - <<'PYEOF' >> release-notes-header.md
-import json, os
-from pathlib import Path
+          import json, os
+          from pathlib import Path
 
-sizes_dir = Path("sizes")
-dist_dir = Path("dist")
+          sizes_dir = Path("sizes")
+          dist_dir = Path("dist")
 
-chip_labels = {"CH592F": "📡 无线", "CH552G": "🔌 有线"}
-kb_labels = {"5KEY": "五键", "KNOB": "旋钮", "BASIC": "基础"}
+          chip_labels = {"CH592F": "📡 无线", "CH552G": "🔌 有线"}
+          kb_labels = {"5KEY": "五键", "KNOB": "旋钮", "BASIC": "基础"}
 
-rows = []
-for p in sorted(sizes_dir.glob("*.json")):
-    data = json.loads(p.read_text())
-    chip = data.get("chip", "")
-    keyboard = data.get("keyboard", "")
+          rows = []
+          for p in sorted(sizes_dir.glob("*.json")):
+              data = json.loads(p.read_text())
+              chip = data.get("chip", "")
+              keyboard = data.get("keyboard", "")
 
-    hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
-    if not hex_files:
-        continue
-    fname = hex_files[0].name
+              hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
+              if not hex_files:
+                  continue
+              fname = hex_files[0].name
 
-    regions = data.get("regions", {})
+              regions = data.get("regions", {})
 
-    flash = regions.get("FLASH") or regions.get("CODE") or {}
-    flash_used = flash.get("used")
-    flash_total = flash.get("total")
-    if flash_used is not None and flash_total:
-        pct = flash_used * 100 // flash_total
-        bar_len = max(1, pct // 5)
-        bar = "█" * bar_len + "░" * (20 - bar_len)
-        flash_info = f"{bar} {pct}% ({flash_used/1024:.1f}/{flash_total/1024:.0f} KB)"
-    else:
-        flash_info = "—"
+              flash = regions.get("FLASH") or regions.get("CODE") or {}
+              flash_used = flash.get("used")
+              flash_total = flash.get("total")
+              if flash_used is not None and flash_total:
+                  pct = flash_used * 100 // flash_total
+                  bar_len = max(1, pct // 5)
+                  bar = "█" * bar_len + "░" * (20 - bar_len)
+                  flash_info = f"{bar} {pct}% ({flash_used/1024:.1f}/{flash_total/1024:.0f} KB)"
+              else:
+                  flash_info = "—"
 
-    ram = regions.get("RAM") or regions.get("XRAM") or regions.get("DSEG") or {}
-    ram_used = ram.get("used")
-    ram_total = ram.get("total")
-    if ram_used is not None and ram_total:
-        ram_pct = ram_used * 100 / ram_total
-        ram_info = f"{ram_used/1024:.1f} / {ram_total/1024:.1f} KB ({ram_pct:.0f}%)"
-    else:
-        ram_info = "—"
+              ram = regions.get("RAM") or regions.get("XRAM") or regions.get("DSEG") or {}
+              ram_used = ram.get("used")
+              ram_total = ram.get("total")
+              if ram_used is not None and ram_total:
+                  ram_pct = ram_used * 100 / ram_total
+                  ram_info = f"{ram_used/1024:.1f} / {ram_total/1024:.1f} KB ({ram_pct:.0f}%)"
+              else:
+                  ram_info = "—"
 
-    desc = chip_labels.get(chip, chip)
-    kb_label = kb_labels.get(keyboard, keyboard)
-    desc = f"{desc} · {kb_label}"
+              desc = chip_labels.get(chip, chip)
+              kb_label = kb_labels.get(keyboard, keyboard)
+              desc = f"{desc} · {kb_label}"
 
-    order = (0 if chip == "CH552G" else 1, keyboard)
-    rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
+              order = (0 if chip == "CH552G" else 1, keyboard)
+              rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
 
-rows.sort(key=lambda x: x[0])
-for _, row in rows:
-    print(row)
-PYEOF
+          rows.sort(key=lambda x: x[0])
+          for _, row in rows:
+              print(row)
+          PYEOF
 
           REPO="${{ github.repository }}"
           export REPO
