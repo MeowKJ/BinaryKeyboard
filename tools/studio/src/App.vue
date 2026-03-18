@@ -173,16 +173,20 @@
               <i class="pi pi-code"></i>
               宏管理
             </h3>
+            <div class="macro-panel-meta">
+              <span>{{ macroStore.usedCount }} 个宏</span>
+              <span v-if="macroStore.fsTotalBytes">· 剩余 {{ macroStore.fsFreeBytes }}B / {{ macroStore.fsTotalBytes }}B</span>
+            </div>
             <div class="macro-slot-grid">
               <button
-                v-for="i in 8"
+                v-for="i in macroStore.maxSlots"
                 :key="i"
                 class="macro-slot-btn"
                 :class="{ 'has-data': macroStore.slotValid[i - 1] }"
                 @click="openMacroEditor(i - 1)"
               >
                 <span class="macro-slot-idx">{{ i }}</span>
-                <span class="macro-slot-name">{{ macroStore.slotValid[i - 1] ? macroStore.getSlotDisplayName(i - 1) : '空' }}</span>
+                <span class="macro-slot-name">{{ macroStore.getSlotDisplayName(i - 1) }}</span>
               </button>
             </div>
           </div>
@@ -384,7 +388,8 @@ const keyboardCardSubtitle = computed(() => {
     return '预览布局模式';
   }
   if (deviceStore.supportsMultiLayer) {
-    return '点击按键进行编辑 · 按住 FN + 按键N 切换到层N';
+    const modifierLabel = deviceStore.deviceInfo?.protocol === 'ch552' ? 'FUNC' : 'FN';
+    return `点击按键进行编辑 · 按住 ${modifierLabel} + 按键N 切换到层N`;
   }
   return '点击按键进行编辑 · 当前设备仅支持单层键位映射';
 });
@@ -1159,6 +1164,16 @@ body {
 }
 
 /* 宏管理面板 */
+.macro-panel-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: -0.35rem 0 0.75rem;
+  color: var(--c-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .macro-slot-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

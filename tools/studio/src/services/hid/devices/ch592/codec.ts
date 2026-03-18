@@ -3,7 +3,6 @@ import {
   Command,
   DeviceProtocol,
   FRAME_SIZE,
-  MACRO_SLOTS,
   MAX_FN_KEYS,
   MAX_KEYS,
   MacroActionType,
@@ -27,7 +26,6 @@ import {
 } from '@/types/protocol';
 import { FIRMWARE_VERSION_META } from '@/generated/versionConfig';
 import { parseLogFrame, parseReceiveFrame, parseSendFrame } from '@/utils/protocolParser';
-import { decodeUtf8CString, truncateUtf8ByBytes } from '@/utils/utf8';
 import type { BatteryInfo, HidOptionalOperations } from '../../common/types';
 import type {
   CodecInboundPacket,
@@ -37,12 +35,40 @@ import type {
 } from '../../common/codecTypes';
 
 const RESP_HEADER_SIZE = 3;
+const CH592_MEOWFS_HEADER_SIZE = 2;
+const CH592_MEOWFS_ACTION_SIZE = 2;
+const CH592_MEOWFS_MAX_ACTIONS = 255;
+const CH592_MEOWFS_APPEND_SLOTS = 1;
+const CH592_MEOWFS_READ_CHUNK = 59;
+const CH592_MEOWFS_WRITE_CHUNK = 58;
+
+enum Ch592MacroSetSub {
+  ERASE = 0,
+  WRITE = 1,
+}
+
+interface MeowFsMacroEntry {
+  actionCount: number;
+  actions: MacroAction[];
+}
+
+interface MeowFsCache {
+  fsTotal: number;
+  fsFree: number;
+  pageSize: number;
+  macros: MeowFsMacroEntry[];
+}
 
 export class Ch592Codec implements DeviceCodec<DataView> {
   readonly protocol = DeviceProtocol.CH592;
   readonly protocolLabel = 'CH592F HID';
   readonly capabilities = CH592_CAPABILITIES;
   readonly chipFamily = FIRMWARE_VERSION_META.CH592F.chipFamily;
+  private meowfsCache: MeowFsCache | null = null;
+
+  resetState(): void {
+    this.meowfsCache = null;
+  }
 
   getOptionalOperations(transport: CodecTransport<DataView>): HidOptionalOperations {
     return {
@@ -400,57 +426,61 @@ export class Ch592Codec implements DeviceCodec<DataView> {
   // ==========================================================================
 
   private async getMacroOverview(transport: CodecTransport<DataView>): Promise<MacroOverview> {
-    const resp = await this.sendCommand(transport, Command.MACRO_INFO, 0xff);
-    const d = this.expectOk(resp, 'MACRO_INFO');
-    const totalSlots = resp.getUint8(d + 1);
-    const usedCount = resp.getUint8(d + 2);
-    const slotValid: boolean[] = [];
-    for (let i = 0; i < totalSlots; i++) {
-      slotValid.push(resp.getUint8(d + 3 + i) !== 0);
-    }
-    return { totalSlots, usedCount, slotValid };
+    this.meowfsCache = null;
+    const cache = await this.ensureMeowFsCache(transport);
+    const count = cache.macros.length;
+    const totalSlots = count + CH592_MEOWFS_APPEND_SLOTS;
+    return {
+      totalSlots,
+      usedCount: count,
+      slotValid: [
+        ...new Array(count).fill(true),
+        ...new Array(totalSlots - count).fill(false),
+      ],
+      dynamic: true,
+      fsTotal: cache.fsTotal,
+      fsFree: cache.fsFree,
+    };
   }
 
   private async getMacroInfo(transport: CodecTransport<DataView>, slot: number): Promise<MacroHeader> {
-    const resp = await this.sendCommand(transport, Command.MACRO_INFO, slot);
-    const d = this.expectOk(resp, 'MACRO_INFO');
-    return this.parseMacroHeader(resp, d + 1);
+    const cache = await this.ensureMeowFsCache(transport);
+    if (slot >= cache.macros.length) {
+      return { valid: 0, id: slot, actionCount: 0, dataSize: 0, name: '' };
+    }
+
+    const macro = cache.macros[slot];
+    return {
+      valid: 1,
+      id: slot,
+      actionCount: macro.actionCount,
+      dataSize: macro.actionCount * CH592_MEOWFS_ACTION_SIZE,
+      name: '',
+    };
   }
 
   private async getMacroData(transport: CodecTransport<DataView>, slot: number): Promise<MacroData> {
-    const header = await this.getMacroInfo(transport, slot);
-    const raw = new Uint8Array(header.dataSize);
-    let offset = 0;
-
-    while (offset < header.dataSize) {
-      const chunkSize = Math.min(56, header.dataSize - offset);
-      const reqData = new Uint8Array([
-        (offset >> 8) & 0xff,
-        offset & 0xff,
-        chunkSize,
-      ]);
-
-      const resp = await this.sendCommand(transport, Command.MACRO_GET, slot, reqData);
-      const d = this.expectOk(resp, 'MACRO_GET');
-      const readLen = resp.getUint8(d + 3);
-      const isLast = resp.getUint8(d + 4) !== 0;
-
-      for (let i = 0; i < readLen; i++) {
-        raw[offset + i] = resp.getUint8(d + 5 + i);
-      }
-      offset += readLen;
-      if (isLast) break;
+    const cache = await this.ensureMeowFsCache(transport);
+    if (slot >= cache.macros.length) {
+      return {
+        header: { valid: 0, id: slot, actionCount: 0, dataSize: 0, name: '' },
+        actions: [{ type: MacroActionType.END, param: 0 }],
+      };
     }
 
-    const actions: MacroAction[] = [];
-    for (let i = 0; i + 1 < raw.length; i += 2) {
-      const type = raw[i] as MacroActionType;
-      const param = raw[i + 1];
-      actions.push({ type, param });
-      if (type === MacroActionType.END) break;
-    }
-
-    return { header, actions };
+    const macro = cache.macros[slot];
+    const actions = macro.actions.map((action) => ({ ...action }));
+    actions.push({ type: MacroActionType.END, param: 0 });
+    return {
+      header: {
+        valid: 1,
+        id: slot,
+        actionCount: macro.actionCount,
+        dataSize: macro.actionCount * CH592_MEOWFS_ACTION_SIZE,
+        name: '',
+      },
+      actions,
+    };
   }
 
   private async setMacroData(
@@ -458,79 +488,196 @@ export class Ch592Codec implements DeviceCodec<DataView> {
     slot: number,
     macro: MacroData,
   ): Promise<void> {
-    // 序列化动作
-    const actionData = new Uint8Array(macro.actions.length * 2);
-    for (let i = 0; i < macro.actions.length; i++) {
-      actionData[i * 2] = macro.actions[i].type;
-      actionData[i * 2 + 1] = macro.actions[i].param;
+    const cache = await this.ensureMeowFsCache(transport);
+    const macros = cache.macros.map((entry) => ({
+      actionCount: entry.actionCount,
+      actions: entry.actions.map((action) => ({ ...action })),
+    }));
+
+    const actionsNoEnd = macro.actions.filter((action) => action.type !== MacroActionType.END);
+    if (actionsNoEnd.length > CH592_MEOWFS_MAX_ACTIONS) {
+      throw new Error(`动作数 ${actionsNoEnd.length} 超过上限 ${CH592_MEOWFS_MAX_ACTIONS}`);
     }
 
-    // Begin (seq=0): [seq(1), header(24)]
-    const headerPayload = this.buildMacroHeaderPayload(macro.header, actionData.length);
-    const beginData = new Uint8Array(1 + 24);
-    beginData[0] = 0; // seq
-    beginData.set(headerPayload, 1);
-    const beginResp = await this.sendCommand(transport, Command.MACRO_SET, slot, beginData);
-    this.expectOk(beginResp, 'MACRO_SET begin');
+    const newEntry: MeowFsMacroEntry = {
+      actionCount: actionsNoEnd.length,
+      actions: actionsNoEnd,
+    };
 
-    // Chunks (seq=1..N): [seq(1), offset_hi(1), offset_lo(1), len(1), data...]
-    let offset = 0;
-    let seq = 1;
-    const maxChunkData = FRAME_SIZE - 3 - 4; // 64 - 3 header - 4 chunk header = 57
-    while (offset < actionData.length) {
-      const chunkSize = Math.min(maxChunkData, actionData.length - offset);
-      const chunkFrame = new Uint8Array(4 + chunkSize);
-      chunkFrame[0] = seq;
-      chunkFrame[1] = (offset >> 8) & 0xff;
-      chunkFrame[2] = offset & 0xff;
-      chunkFrame[3] = chunkSize;
-      chunkFrame.set(actionData.slice(offset, offset + chunkSize), 4);
-
-      const resp = await this.sendCommand(transport, Command.MACRO_SET, slot, chunkFrame);
-      this.expectOk(resp, 'MACRO_SET chunk');
-
-      offset += chunkSize;
-      seq++;
+    if (slot < macros.length) {
+      macros[slot] = newEntry;
+    } else if (slot === macros.length) {
+      macros.push(newEntry);
+    } else {
+      throw new Error(`无效的宏索引 ${slot}`);
     }
 
-    // End (seq=0xFF): [seq(1)]
-    const endData = new Uint8Array([0xff]);
-    const endResp = await this.sendCommand(transport, Command.MACRO_SET, slot, endData);
-    this.expectOk(endResp, 'MACRO_SET end');
+    const serialized = this.serializeMacros(macros);
+    if (serialized.length > cache.fsTotal) {
+      throw new Error(`宏数据总计 ${serialized.length} 字节，超过 MeowFS 容量 ${cache.fsTotal} 字节`);
+    }
+
+    await this.eraseAllFs(transport);
+    await this.writeFsChunked(transport, 0, serialized);
+    this.meowfsCache = null;
   }
 
   private async deleteMacro(transport: CodecTransport<DataView>, slot: number): Promise<void> {
     const resp = await this.sendCommand(transport, Command.MACRO_DEL, slot);
     this.expectOk(resp, 'MACRO_DEL');
+    this.meowfsCache = null;
   }
 
-  private parseMacroHeader(resp: DataView, offset: number): MacroHeader {
-    const valid = resp.getUint8(offset);
-    const id = resp.getUint8(offset + 1);
-    const actionCount = resp.getUint8(offset + 2) | (resp.getUint8(offset + 3) << 8);
-    const dataSize = resp.getUint8(offset + 4) | (resp.getUint8(offset + 5) << 8);
-    // offset+6, +7 reserved
-    const nameBytes = new Uint8Array(16);
-    for (let i = 0; i < 16; i++) {
-      nameBytes[i] = resp.getUint8(offset + 8 + i);
+  private async readFsChunked(
+    transport: CodecTransport<DataView>,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    const result = new Uint8Array(length);
+    let pos = 0;
+
+    while (pos < length) {
+      const chunkLen = Math.min(CH592_MEOWFS_READ_CHUNK, length - pos);
+      const absOffset = offset + pos;
+      const resp = await this.sendCommand(
+        transport,
+        Command.MACRO_GET,
+        0,
+        new Uint8Array([
+          (absOffset >> 8) & 0xff,
+          absOffset & 0xff,
+          chunkLen,
+        ]),
+      );
+      const d = this.expectOk(resp, 'MACRO_GET');
+      const readLen = resp.getUint8(d + 1);
+      for (let i = 0; i < readLen && pos + i < length; i++) {
+        result[pos + i] = resp.getUint8(d + 2 + i);
+      }
+      pos += readLen || chunkLen;
     }
-    const name = decodeUtf8CString(nameBytes);
-    return { valid, id, actionCount, dataSize, name };
+
+    return result;
   }
 
-  private buildMacroHeaderPayload(header: MacroHeader, dataSize: number): Uint8Array {
-    const buf = new Uint8Array(24);
-    buf[0] = 0xaa; // valid magic
-    buf[1] = header.id;
-    buf[2] = header.actionCount & 0xff;
-    buf[3] = (header.actionCount >> 8) & 0xff;
-    buf[4] = dataSize & 0xff;
-    buf[5] = (dataSize >> 8) & 0xff;
-    // buf[6], buf[7] reserved
-    const nameBytes = new TextEncoder().encode(
-      truncateUtf8ByBytes(header.name, 16),
+  private async writeFsChunked(
+    transport: CodecTransport<DataView>,
+    offset: number,
+    data: Uint8Array,
+  ): Promise<void> {
+    let pos = 0;
+
+    while (pos < data.length) {
+      const chunkLen = Math.min(CH592_MEOWFS_WRITE_CHUNK, data.length - pos);
+      const absOffset = offset + pos;
+      const payload = new Uint8Array(3 + chunkLen);
+      payload[0] = (absOffset >> 8) & 0xff;
+      payload[1] = absOffset & 0xff;
+      payload[2] = chunkLen;
+      payload.set(data.subarray(pos, pos + chunkLen), 3);
+
+      const resp = await this.sendCommand(
+        transport,
+        Command.MACRO_SET,
+        Ch592MacroSetSub.WRITE,
+        payload,
+      );
+      this.expectOk(resp, 'MACRO_SET WRITE');
+      pos += chunkLen;
+    }
+  }
+
+  private async eraseAllFs(transport: CodecTransport<DataView>): Promise<void> {
+    const resp = await this.sendCommand(
+      transport,
+      Command.MACRO_SET,
+      Ch592MacroSetSub.ERASE,
+      new Uint8Array([0xff]),
     );
-    buf.set(nameBytes.slice(0, 16), 8);
+    this.expectOk(resp, 'MACRO_SET ERASE');
+  }
+
+  private parseFsData(raw: Uint8Array): MeowFsMacroEntry[] {
+    const macros: MeowFsMacroEntry[] = [];
+    let pos = 0;
+
+    while (pos + CH592_MEOWFS_HEADER_SIZE <= raw.length) {
+      const marker = raw[pos];
+      if (marker === 0xff) {
+        break;
+      }
+
+      const actionCount = raw[pos + 1];
+      const entrySize =
+        CH592_MEOWFS_HEADER_SIZE + actionCount * CH592_MEOWFS_ACTION_SIZE;
+      if (pos + entrySize > raw.length) {
+        break;
+      }
+
+      if (marker === 0xaa) {
+        const actions: MacroAction[] = [];
+        for (let i = 0; i < actionCount; i++) {
+          actions.push({
+            type: raw[pos + CH592_MEOWFS_HEADER_SIZE + i * 2] as MacroActionType,
+            param: raw[pos + CH592_MEOWFS_HEADER_SIZE + i * 2 + 1],
+          });
+        }
+        macros.push({ actionCount, actions });
+      }
+
+      pos += entrySize;
+    }
+
+    return macros;
+  }
+
+  private serializeMacros(macros: MeowFsMacroEntry[]): Uint8Array {
+    let totalSize = 0;
+    for (const macro of macros) {
+      totalSize +=
+        CH592_MEOWFS_HEADER_SIZE +
+        macro.actionCount * CH592_MEOWFS_ACTION_SIZE;
+    }
+
+    const buf = new Uint8Array(totalSize);
+    let pos = 0;
+    for (const macro of macros) {
+      buf[pos] = 0xaa;
+      buf[pos + 1] = macro.actionCount;
+      for (let i = 0; i < macro.actionCount; i++) {
+        buf[pos + CH592_MEOWFS_HEADER_SIZE + i * 2] = macro.actions[i].type;
+        buf[pos + CH592_MEOWFS_HEADER_SIZE + i * 2 + 1] = macro.actions[i].param;
+      }
+      pos +=
+        CH592_MEOWFS_HEADER_SIZE +
+        macro.actionCount * CH592_MEOWFS_ACTION_SIZE;
+    }
+
     return buf;
+  }
+
+  private async ensureMeowFsCache(
+    transport: CodecTransport<DataView>,
+  ): Promise<MeowFsCache> {
+    if (this.meowfsCache) {
+      return this.meowfsCache;
+    }
+
+    const resp = await this.sendCommand(transport, Command.MACRO_INFO, 0);
+    const d = this.expectOk(resp, 'MACRO_INFO');
+    const fsTotal = resp.getUint16(d + 1, false);
+    const pageSize = resp.getUint16(d + 3, false);
+    const macroCount = resp.getUint8(d + 5);
+    const fsFree = resp.getUint16(d + 6, false);
+    const usedBytes = Math.max(0, fsTotal - fsFree);
+
+    let macros: MeowFsMacroEntry[] = [];
+    if (macroCount > 0 && usedBytes > 0) {
+      const raw = await this.readFsChunked(transport, 0, usedBytes);
+      macros = this.parseFsData(raw);
+    }
+
+    this.meowfsCache = { fsTotal, fsFree, pageSize, macros };
+    return this.meowfsCache;
   }
 }

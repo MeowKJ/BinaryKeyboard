@@ -232,20 +232,20 @@ const kbd_action_t* KBD_GetKeyAction(uint8_t key_index);
  */
 
 /**
- * @brief 获取宏槽位信息
+ * @brief 获取宏信息
  *
- * @param[in]  slot   槽位号 (0 ~ KBD_MACRO_SLOTS-1)
+ * @param[in]  slot   宏索引（按有效条目顺序）
  * @param[out] header 输出宏头部信息 (可为 NULL)
  * @return 0 成功
- * @return -1 槽位号无效
- * @return -2 槽位为空
+ * @return -1 索引无效
+ * @return -2 宏不存在
  */
 int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header);
 
 /**
  * @brief 读取宏数据
  *
- * @param[in]  slot   槽位号
+ * @param[in]  slot   宏索引
  * @param[in]  offset 数据偏移量
  * @param[out] buf    输出缓冲区
  * @param[in]  len    请求读取长度
@@ -255,62 +255,84 @@ int Kbd_Macro_GetInfo(uint8_t slot, kbd_macro_header_t *header);
 int Kbd_Macro_Read(uint8_t slot, uint16_t offset, uint8_t *buf, uint16_t len);
 
 /**
- * @brief 开始写入宏
- *
- * @param[in] slot   槽位号
- * @param[in] header 宏头部信息
- * @return 0 成功
- * @return KBD_RESP_ERR_TOO_LARGE 宏数据过大
- * @return 负数 其他错误
+ * @brief 读取 MeowFS 原始数据
+ * @param[in]  offset 区域内偏移
+ * @param[out] buf    输出缓冲区
+ * @param[in]  len    请求长度
+ * @return 实际读取长度
+ * @return 负数 错误
  */
-int Kbd_Macro_BeginWrite(uint8_t slot, const kbd_macro_header_t *header);
+int Kbd_Macro_ReadRaw(uint16_t offset, uint8_t *buf, uint16_t len);
 
 /**
- * @brief 写入宏数据块
+ * @brief 写入 MeowFS 原始数据
  *
- * @param[in] slot   槽位号
  * @param[in] offset 数据偏移量
  * @param[in] buf    数据缓冲区
  * @param[in] len    数据长度
  * @return 0 成功
  * @return 负数 错误
  */
-int Kbd_Macro_WriteChunk(uint8_t slot, uint16_t offset, const uint8_t *buf, uint16_t len);
+int Kbd_Macro_WriteRaw(uint16_t offset, const uint8_t *buf, uint16_t len);
 
 /**
- * @brief 完成宏写入
- *
- * 标记宏为有效状态
- *
- * @param[in] slot 槽位号
+ * @brief 擦除指定 MeowFS 页
+ * @param[in] page_index 页索引（0 ~ page_count-1）
  * @return 0 成功
  * @return 负数 错误
  */
-int Kbd_Macro_EndWrite(uint8_t slot);
+int Kbd_Macro_ErasePage(uint8_t page_index);
+
+/**
+ * @brief 擦除整个 MeowFS 区域
+ * @return 0 成功
+ * @return 负数 错误
+ */
+int Kbd_Macro_EraseAll(void);
 
 /**
  * @brief 删除宏
  *
- * @param[in] slot 槽位号
+ * @param[in] slot 宏索引
  * @return 0 成功
  * @return 负数 错误
  */
 int Kbd_Macro_Delete(uint8_t slot);
 
 /**
- * @brief 检查宏槽位是否有效
+ * @brief 检查宏索引是否有效
  *
- * @param[in] slot 槽位号
+ * @param[in] slot 宏索引
  * @return true 有效
  * @return false 无效或为空
  */
 bool Kbd_Macro_IsValid(uint8_t slot);
 
 /**
- * @brief 获取已使用的宏槽位数
- * @return 已使用槽位数量
+ * @brief 获取已使用的宏数量
+ * @return 有效宏数量
  */
 uint8_t Kbd_Macro_GetUsedCount(void);
+
+/**
+ * @brief 获取已占用字节数（含已删除条目）
+ */
+uint16_t Kbd_Macro_GetUsedBytes(void);
+
+/**
+ * @brief 获取剩余可用字节数
+ */
+uint16_t Kbd_Macro_GetFreeBytes(void);
+
+/**
+ * @brief 获取 MeowFS 总容量
+ */
+uint16_t Kbd_Macro_GetTotalSize(void);
+
+/**
+ * @brief 获取 MeowFS 页大小
+ */
+uint16_t Kbd_Macro_GetPageSize(void);
 
 /** @} */ /* end of KBD_Storage_Macro */
 

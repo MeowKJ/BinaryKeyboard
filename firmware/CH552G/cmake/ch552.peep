@@ -1,0 +1,73 @@
+// BinaryKeyboard CH552G — extra peephole rules for SDCC MCS-51
+// These supplement SDCC's built-in rules with patterns it sometimes misses.
+
+// Remove dead accumulator load before another load
+replace restart {
+	mov	a,%1
+	mov	a,%2
+} by {
+	;	peep: removed dead 'mov a,%1'
+	mov	a,%2
+}
+
+// mov rN,a followed by mov dpl,rN → mov dpl,a
+replace restart {
+	mov	%1,a
+	mov	dpl,%1
+} by {
+	;	peep: bypass register to dpl
+	mov	dpl,a
+} if notVolatile(%1)
+
+// mov rN,a followed by mov dph,rN → mov dph,a
+replace restart {
+	mov	%1,a
+	mov	dph,%1
+} by {
+	;	peep: bypass register to dph
+	mov	dph,a
+} if notVolatile(%1)
+
+// Simplify conditional jump: jz L1; sjmp L2; L1: → jnz L2; L1:
+replace restart {
+	jz	%1
+	sjmp	%2
+%1:
+} by {
+	;	peep: inverted conditional
+	jnz	%2
+%1:
+}
+
+// Simplify conditional jump: jnz L1; sjmp L2; L1: → jz L2; L1:
+replace restart {
+	jnz	%1
+	sjmp	%2
+%1:
+} by {
+	;	peep: inverted conditional
+	jz	%2
+%1:
+}
+
+// Simplify conditional jump: jc L1; sjmp L2; L1: → jnc L2; L1:
+replace restart {
+	jc	%1
+	sjmp	%2
+%1:
+} by {
+	;	peep: inverted conditional
+	jnc	%2
+%1:
+}
+
+// jnc L1; sjmp L2; L1: → jc L2; L1:
+replace restart {
+	jnc	%1
+	sjmp	%2
+%1:
+} by {
+	;	peep: inverted conditional
+	jc	%2
+%1:
+}

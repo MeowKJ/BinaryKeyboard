@@ -6,6 +6,7 @@
 #include "USBConstant.h"
 #include "USBHandler.h"
 #include "KeysDataHandler.h"
+#include "MacroStorage.h"
 #include "config.h"
 #include "rgb.h"
 // clang-format on
@@ -25,142 +26,7 @@ __xdata uint16_t HIDConsumer[4] = {0x0, 0x0, 0x0, 0x0};
 __xdata uint8_t HIDMouse[4] = {0x0, 0x0, 0x0, 0x0};
 __xdata uint8_t CustomBuf[31] = {0x01};
 
-#define SHIFT 0x80
-__code uint8_t _asciimap[128] = {
-    0x00, // NUL
-    0x00, // SOH
-    0x00, // STX
-    0x00, // ETX
-    0x00, // EOT
-    0x00, // ENQ
-    0x00, // ACK
-    0x00, // BEL
-    0x2a, // BS	Backspace
-    0x2b, // TAB	Tab
-    0x28, // LF	Enter
-    0x00, // VT
-    0x00, // FF
-    0x00, // CR
-    0x00, // SO
-    0x00, // SI
-    0x00, // DEL
-    0x00, // DC1
-    0x00, // DC2
-    0x00, // DC3
-    0x00, // DC4
-    0x00, // NAK
-    0x00, // SYN
-    0x00, // ETB
-    0x00, // CAN
-    0x00, // EM
-    0x00, // SUB
-    0x00, // ESC
-    0x00, // FS
-    0x00, // GS
-    0x00, // RS
-    0x00, // US
-
-    0x2c,         //  ' '
-    0x1e | SHIFT, // !
-    0x34 | SHIFT, // "
-    0x20 | SHIFT, // #
-    0x21 | SHIFT, // $
-    0x22 | SHIFT, // %
-    0x24 | SHIFT, // &
-    0x34,         // '
-    0x26 | SHIFT, // (
-    0x27 | SHIFT, // )
-    0x25 | SHIFT, // *
-    0x2e | SHIFT, // +
-    0x36,         // ,
-    0x2d,         // -
-    0x37,         // .
-    0x38,         // /
-    0x27,         // 0
-    0x1e,         // 1
-    0x1f,         // 2
-    0x20,         // 3
-    0x21,         // 4
-    0x22,         // 5
-    0x23,         // 6
-    0x24,         // 7
-    0x25,         // 8
-    0x26,         // 9
-    0x33 | SHIFT, // :
-    0x33,         // ;
-    0x36 | SHIFT, // <
-    0x2e,         // =
-    0x37 | SHIFT, // >
-    0x38 | SHIFT, // ?
-    0x1f | SHIFT, // @
-    0x04 | SHIFT, // A
-    0x05 | SHIFT, // B
-    0x06 | SHIFT, // C
-    0x07 | SHIFT, // D
-    0x08 | SHIFT, // E
-    0x09 | SHIFT, // F
-    0x0a | SHIFT, // G
-    0x0b | SHIFT, // H
-    0x0c | SHIFT, // I
-    0x0d | SHIFT, // J
-    0x0e | SHIFT, // K
-    0x0f | SHIFT, // L
-    0x10 | SHIFT, // M
-    0x11 | SHIFT, // N
-    0x12 | SHIFT, // O
-    0x13 | SHIFT, // P
-    0x14 | SHIFT, // Q
-    0x15 | SHIFT, // R
-    0x16 | SHIFT, // S
-    0x17 | SHIFT, // T
-    0x18 | SHIFT, // U
-    0x19 | SHIFT, // V
-    0x1a | SHIFT, // W
-    0x1b | SHIFT, // X
-    0x1c | SHIFT, // Y
-    0x1d | SHIFT, // Z
-    0x2f,         // [
-    0x31,         // bslash
-    0x30,         // ]
-    0x23 | SHIFT, // ^
-    0x2d | SHIFT, // _
-    0x35,         // `
-    0x04,         // a
-    0x05,         // b
-    0x06,         // c
-    0x07,         // d
-    0x08,         // e
-    0x09,         // f
-    0x0a,         // g
-    0x0b,         // h
-    0x0c,         // i
-    0x0d,         // j
-    0x0e,         // k
-    0x0f,         // l
-    0x10,         // m
-    0x11,         // n
-    0x12,         // o
-    0x13,         // p
-    0x14,         // q
-    0x15,         // r
-    0x16,         // s
-    0x17,         // t
-    0x18,         // u
-    0x19,         // v
-    0x1a,         // w
-    0x1b,         // x
-    0x1c,         // y
-    0x1d,         // z
-    0x2f | SHIFT, // {
-    0x31 | SHIFT, // |
-    0x30 | SHIFT, // }
-    0x35 | SHIFT, // ~
-    0             // DEL
-};
-
 typedef void (*pTaskFn)(void);
-
-void delayMicroseconds(uint16_t us);
 
 void USBInit()
 {
@@ -179,6 +45,88 @@ void USB_EP1_IN()
   UpPoint1_Busy = 0;                                       // Clear busy flag
 }
 
+// MeowFS HID 命令处理
+// 统一入口 0x40, Ep1Buffer 格式:
+// [0]=4, [1]=0x40, [2]=sub, [3..]=params
+// sub: 0=INFO, 1=READ, 2=ERASE, 3=WRITE, 4=DELETE
+static void handle_macro_cmd(void)
+{
+  __xdata uint8_t sub = Ep1Buffer[2];
+
+  CustomBuf[0] = HOST_CMD_MACRO_INFO;
+  CustomBuf[1] = sub;
+  CustomBuf[2] = 0;
+
+  if (sub == 0)
+  {
+    // FS_INFO: total, page_size, macro_count, free
+    uint16_t used = meowfs_used_bytes();
+    uint16_t free = (uint16_t)(MEOWFS_SIZE - used);
+    CustomBuf[3] = (uint8_t)(MEOWFS_SIZE >> 8);
+    CustomBuf[4] = (uint8_t)(MEOWFS_SIZE);
+    CustomBuf[5] = MEOWFS_PAGE_SIZE;
+    CustomBuf[6] = meowfs_macro_count();
+    CustomBuf[7] = (uint8_t)(free >> 8);
+    CustomBuf[8] = (uint8_t)(free);
+  }
+  else if (sub == 1)
+  {
+    // FS_READ: [3]=off_hi, [4]=off_lo, [5]=len
+    __xdata uint16_t off = ((uint16_t)Ep1Buffer[3] << 8) | Ep1Buffer[4];
+    __xdata uint8_t len = Ep1Buffer[5];
+    if (len > 26)
+      len = 26;
+    if (off + len > MEOWFS_SIZE)
+      len = (uint8_t)(MEOWFS_SIZE - off);
+    CustomBuf[3] = len;
+    for (__xdata uint8_t i = 0; i < len; i++)
+      CustomBuf[4 + i] = flash_read_byte(MEOWFS_BASE + off + i);
+  }
+  else if (sub == 2)
+  {
+    // FS_ERASE: [3]=page_index (0xFF = erase all)
+    __xdata uint8_t page = Ep1Buffer[3];
+    if (page == 0xFF)
+    {
+      meowfs_format();
+    }
+    else if (page < MEOWFS_PAGES)
+    {
+      flash_erase_page(MEOWFS_BASE + (uint16_t)page * MEOWFS_PAGE_SIZE);
+    }
+    CustomBuf[3] = flash_read_byte(MEOWFS_BASE);
+    CustomBuf[4] = flash_read_byte(MEOWFS_BASE + 1);
+  }
+  else if (sub == 3)
+  {
+    // FS_WRITE: [3]=off_hi, [4]=off_lo, [5]=len, [6..]=data
+    __xdata uint16_t off = ((uint16_t)Ep1Buffer[3] << 8) | Ep1Buffer[4];
+    __xdata uint8_t len = Ep1Buffer[5];
+    if (len > 22)
+      len = 22;
+    if (off + len > MEOWFS_SIZE)
+      len = (uint8_t)(MEOWFS_SIZE - off);
+    for (__xdata uint8_t i = 0; i < len; i += 2)
+    {
+      __xdata uint8_t hi = (i + 1 < len) ? Ep1Buffer[7 + i] : 0xFF;
+      flash_write_word(MEOWFS_BASE + off + i, Ep1Buffer[6 + i], hi);
+    }
+  }
+  else if (sub == 4)
+  {
+    // FS_DELETE: [3]=macro_index → mark header as deleted
+    __xdata uint8_t index = Ep1Buffer[3];
+    __xdata uint16_t addr = meowfs_find_macro(index);
+    if (addr != 0)
+    {
+      uint8_t count = flash_read_byte(addr + 1);
+      flash_write_word(addr, 0x00, count);
+    }
+  }
+
+  USB_EP1_send(5);
+}
+
 void USB_EP1_OUT()
 {
   if (U_TOG_OK) // Discard unsynchronized packets
@@ -193,7 +141,8 @@ void USB_EP1_OUT()
       if (cmd == HOST_CMD_READ)
       {
         // 0x01: 读取系统信息 + layer 0
-        send_custom_data(HOST_CMD_READ);
+        fillSysInfoResponse(CustomBuf);
+        USB_EP1_send(5);
       }
       else if (cmd == HOST_CMD_WRITE)
       {
@@ -216,7 +165,10 @@ void USB_EP1_OUT()
       {
         // 0x03: 读取指定层
         uint8_t layer = Ep1Buffer[2];
-        send_custom_data(HOST_CMD_READ_LAYER + (layer << 4));
+        if (layer >= MAX_LAYERS)
+          layer = 0;
+        fillLayerResponse(CustomBuf, layer);
+        USB_EP1_send(5);
       }
       else if (cmd == HOST_CMD_SET_LAYER)
       {
@@ -230,28 +182,36 @@ void USB_EP1_OUT()
       }
       else if (cmd == HOST_CMD_READ_META)
       {
-        // 0x05: 读取固件/协议/存储元信息
-        send_custom_data(HOST_CMD_READ_META);
+        // 0x05: 读取固件/协议/存储元信息 (inline)
+        memset(CustomBuf, 0, sizeof(CustomBuf));
+        CustomBuf[0] = HOST_CMD_READ_META;
+        CustomBuf[1] = FW_VERSION_MAJOR;
+        CustomBuf[2] = FW_VERSION_MINOR;
+        CustomBuf[3] = FW_VERSION_PATCH;
+        USB_EP1_send(5);
       }
       else if (cmd == HOST_CMD_READ_RGB)
       {
         // 0x06: 读取 RGB 配置
-        send_custom_data(HOST_CMD_READ_RGB);
+        fillRgbResponse(CustomBuf);
+        USB_EP1_send(5);
       }
       else if (cmd == HOST_CMD_WRITE_RGB)
       {
-        // 0x07: 写入 RGB 配置 — [cmd, enabled, mode, brightness, speed, colorR, colorG, colorB, indicatorEnabled, indicatorBrightness, pressEffect]
-        applyRgbConfig(
-            Ep1Buffer[2],
-            Ep1Buffer[3],
-            Ep1Buffer[4],
-            Ep1Buffer[5],
-            Ep1Buffer[6],
-            Ep1Buffer[7],
-            Ep1Buffer[8],
-            Ep1Buffer[9],
-            Ep1Buffer[10],
-            Ep1Buffer[11]);
+        applyRgbConfig();
+      }
+      else if (cmd == HOST_CMD_FACTORY_RESET)
+      {
+        KeysDataFactoryReset();
+        memset(CustomBuf, 0, sizeof(CustomBuf));
+        CustomBuf[0] = HOST_CMD_FACTORY_RESET;
+        CustomBuf[1] = flash_read_byte(MEOWFS_BASE);
+        CustomBuf[2] = flash_read_byte(MEOWFS_BASE + 1);
+        USB_EP1_send(5);
+      }
+      else if (cmd >= HOST_CMD_MACRO_INFO)
+      {
+        handle_macro_cmd();
       }
     }
   }
@@ -275,145 +235,40 @@ uint8_t USB_EP1_send(__data uint8_t reportID)
       return 0;
   }
 
-  if (reportID == 1)
+  __xdata uint8_t *src;
+  __data uint8_t len;
+  switch (reportID)
   {
-    Ep1Buffer[64 + 0] = 1;
-    for (__data uint8_t i = 0; i < sizeof(HIDKey); i++)
-    { // load data for
-      // upload
-      Ep1Buffer[64 + 1 + i] = HIDKey[i];
-    }
-    UEP1_T_LEN = 1 + sizeof(HIDKey); // data length
-  }
-  else if (reportID == 2)
-  {
-    Ep1Buffer[64 + 0] = 2;
-    for (__data uint8_t i = 0; i < sizeof(HIDConsumer);
-         i++)
-    { // load data for upload
-      Ep1Buffer[64 + 1 + i] = ((uint8_t *)HIDConsumer)[i];
-    }
-    UEP1_T_LEN = 1 + sizeof(HIDConsumer); // data length
-  }
-  else if (reportID == 3)
-  {
-    Ep1Buffer[64 + 0] = 3;
-    for (__data uint8_t i = 0; i < sizeof(HIDMouse);
-         i++)
-    { // load data for upload
-      Ep1Buffer[64 + 1 + i] = ((uint8_t *)HIDMouse)[i];
-    }
-    UEP1_T_LEN = 1 + sizeof(HIDMouse); // data length
-  }
-  else if (reportID == 5)
-  {
-    Ep1Buffer[64 + 0] = 5;
-    for (__data uint8_t i = 0; i < sizeof(CustomBuf);
-         i++)
-    { // load data for upload
-      Ep1Buffer[64 + 1 + i] = ((uint8_t *)CustomBuf)[i];
-    }
-    UEP1_T_LEN = 1 + sizeof(CustomBuf); // data length
-  }
-  else
-  {
+  case 1:
+    src = HIDKey;
+    len = sizeof(HIDKey);
+    break;
+  case 2:
+    src = (uint8_t *)HIDConsumer;
+    len = sizeof(HIDConsumer);
+    break;
+  case 3:
+    src = (uint8_t *)HIDMouse;
+    len = sizeof(HIDMouse);
+    break;
+  case 5:
+    src = CustomBuf;
+    len = sizeof(CustomBuf);
+    break;
+  default:
     UEP1_T_LEN = 0;
+    return 0;
   }
+  Ep1Buffer[64] = reportID;
+  for (__data uint8_t i = 0; i < len; i++)
+  {
+    Ep1Buffer[64 + 1 + i] = src[i];
+  }
+  UEP1_T_LEN = 1 + len;
 
   UpPoint1_Busy = 1;
   UEP1_CTRL = UEP1_CTRL & ~MASK_UEP_T_RES | UEP_T_RES_ACK; // upload data and respond ACK
 
-  return 1;
-}
-
-uint8_t Keyboard_press(__data uint8_t k)
-{
-  __data uint8_t i;
-  if (k >= 136)
-  { // it's a non-printing key (not a modifier)
-    k = k - 136;
-  }
-  else if (k >= 128)
-  { // it's a modifier key
-    HIDKey[0] |= (1 << (k - 128));
-    k = 0;
-  }
-  else
-  { // it's a printing key
-    k = _asciimap[k];
-    if (!k)
-    {
-      // setWriteError();
-      return 0;
-    }
-    if (k & 0x80)
-    {                    // it's a capital letter or other character reached with shift
-      HIDKey[0] |= 0x02; // the left shift modifier
-      k &= 0x7F;
-    }
-  }
-
-  // Add k to the key report only if it's not already present
-  // and if there is an empty slot.
-  if (HIDKey[2] != k && HIDKey[3] != k && HIDKey[4] != k && HIDKey[5] != k && HIDKey[6] != k && HIDKey[7] != k)
-  {
-
-    for (i = 2; i < 8; i++)
-    {
-      if (HIDKey[i] == 0x00)
-      {
-        HIDKey[i] = k;
-        break;
-      }
-    }
-    if (i == 8)
-    {
-      // setWriteError();
-      return 0;
-    }
-  }
-  USB_EP1_send(1);
-  return 1;
-}
-
-uint8_t Keyboard_release(__data uint8_t k)
-{
-  __data uint8_t i;
-  if (k >= 136)
-  { // it's a non-printing key (not a modifier)
-    k = k - 136;
-  }
-  else if (k >= 128)
-  { // it's a modifier key
-    HIDKey[0] &= ~(1 << (k - 128));
-    k = 0;
-  }
-  else
-  { // it's a printing key
-    k = _asciimap[k];
-    if (!k)
-    {
-      return 0;
-    }
-    if (k & 0x80)
-    {                       // it's a capital letter or other character reached with shift
-      HIDKey[0] &= ~(0x02); // the left shift modifier
-      k &= 0x7F;
-    }
-  }
-
-  // Test the key report to see if k is present.  Clear it if it exists.
-  // Check all positions in case the key is present more than once (which it
-  // shouldn't be)
-  for (i = 2; i < 8; i++)
-  {
-    if (0 != k && HIDKey[i] == k)
-    {
-      HIDKey[i] = 0x00;
-    }
-  }
-
-  USB_EP1_send(1);
   return 1;
 }
 
@@ -424,14 +279,6 @@ void Keyboard_releaseAll(void)
     HIDKey[i] = 0;
   }
   USB_EP1_send(1);
-}
-
-uint8_t Keyboard_write(__data uint8_t c)
-{
-  __data uint8_t p = Keyboard_press(c); // Keydown
-  Keyboard_release(c);                  // Keyup
-  return p;                             // just return the result of press() since release() almost always
-                                        // returns 1
 }
 
 uint8_t Keyboard_rawPress(__data uint8_t k, __data uint8_t mod)
@@ -494,22 +341,6 @@ void Keyboard_sendReport(__data uint8_t mod, __near uint8_t *keys)
 
   // 发送报告
   USB_EP1_send(1);
-}
-
-void Keyboard_print(const char *str)
-{
-  // using a generic pointer to handle pointer in any address space
-  __data uint8_t c;
-  while ((c = *str++))
-  {
-    Keyboard_write(c);
-  }
-}
-
-uint8_t Keyboard_getLEDStatus()
-{
-  // keyboardLedStatus is updated from USB_EP1_OUT
-  return keyboardLedStatus;
 }
 
 uint8_t Consumer_press(__data uint16_t k)
@@ -595,22 +426,6 @@ void Mouse_releaseAll(void)
   USB_EP1_send(3);
 }
 
-uint8_t Mouse_click(__data uint8_t k)
-{
-  Mouse_press(k);
-  delayMicroseconds(10000);
-  Mouse_release(k);
-  return 1;
-}
-
-uint8_t Mouse_move(__data int8_t x, __xdata int8_t y)
-{
-  HIDMouse[1] = x;
-  HIDMouse[2] = y;
-  USB_EP1_send(3);
-  return 1;
-}
-
 uint8_t Mouse_scroll(__data int8_t tilt)
 {
   if (tilt == 0)
@@ -618,43 +433,5 @@ uint8_t Mouse_scroll(__data int8_t tilt)
   HIDMouse[3] = tilt;
   USB_EP1_send(3);
   HIDMouse[3] = 0;
-  return 1;
-}
-
-uint8_t send_test()
-{
-  for (uint8_t i = 0; i < 31; i++)
-  {
-    CustomBuf[i] = i;
-  }
-  USB_EP1_send(5);
-  return 1;
-}
-
-uint8_t send_custom_data(__data uint8_t cmd)
-{
-  if (cmd == HOST_CMD_READ)
-  {
-    // 系统信息 + layer 0
-    fillSysInfoResponse(CustomBuf);
-    USB_EP1_send(5);
-  }
-  else if (cmd == HOST_CMD_READ_META)
-  {
-    fillMetaResponse(CustomBuf);
-    USB_EP1_send(5);
-  }
-  else if ((cmd & 0x0F) == HOST_CMD_READ_LAYER)
-  {
-    // 读取指定层
-    uint8_t layer = (cmd >> 4) & 0x0F;
-    fillLayerResponse(CustomBuf, layer);
-    USB_EP1_send(5);
-  }
-  else if (cmd == HOST_CMD_READ_RGB)
-  {
-    fillRgbResponse(CustomBuf);
-    USB_EP1_send(5);
-  }
   return 1;
 }

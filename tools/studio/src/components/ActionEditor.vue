@@ -170,7 +170,7 @@
               <label class="section-label">选择宏</label>
               <div class="macro-grid">
                 <button
-                  v-for="i in 8"
+                  v-for="i in macroStore.maxSlots"
                   :key="i"
                   class="option-btn macro-btn"
                   :class="{
@@ -179,7 +179,7 @@
                   }"
                   @click="macroId = i - 1"
                 >
-                  {{ macroSlotLabel(i - 1) }}
+                  {{ macroStore.getSlotDisplayName(i - 1) }}
                 </button>
               </div>
             </div>
@@ -228,6 +228,8 @@
 import { ref, computed, watch } from 'vue';
 import {
   ActionType,
+  KeyboardType,
+  KeyboardTypeInfo,
   Modifier,
   MouseButton,
   WheelDirection,
@@ -277,7 +279,16 @@ const layerTarget = ref(0);
 const macroId = ref(0);
 const macroTrigger = ref<MacroTrigger>(MacroTrigger.ONCE);
 const allowLayerActions = computed(() => deviceStore.supportsLayerKeyActions);
-const allowMacroActions = computed(() => deviceStore.supportsMacroActions);
+const allowMacroActions = computed(() => {
+  if (!deviceStore.supportsMacroActions) return false;
+  // 旋钮款: 编码器虚拟键 (index >= physical) 不支持绑定宏
+  const info = deviceStore.deviceInfo;
+  if (info && info.keyboardType === KeyboardType.KNOB) {
+    const physical = KeyboardTypeInfo[KeyboardType.KNOB].physical;
+    if (props.keyIndex >= physical) return false;
+  }
+  return true;
+});
 
 const macroTriggerOptions = [
   { value: MacroTrigger.ONCE, label: '单次' },
@@ -285,11 +296,6 @@ const macroTriggerOptions = [
   { value: MacroTrigger.HOLD_FINISH, label: '按住·跑完' },
   { value: MacroTrigger.TOGGLE, label: '切换循环' },
 ];
-
-function macroSlotLabel(idx: number): string {
-  if (!macroStore.overview || !macroStore.slotValid[idx]) return `宏 ${idx + 1}`;
-  return macroStore.getSlotDisplayName(idx);
-}
 
 const modifierOptions = [
   { label: 'LCtrl', mask: Modifier.LCTRL },
@@ -351,6 +357,19 @@ watch(() => props.visible, (visible) => {
   }
 });
 
+watch(
+  () => macroStore.maxSlots,
+  (slotCount) => {
+    if (slotCount <= 0) {
+      macroId.value = 0;
+      return;
+    }
+    if (macroId.value >= slotCount) {
+      macroId.value = slotCount - 1;
+    }
+  },
+);
+
 function initFromAction(action: KeyAction) {
   editAction.value = { ...action };
 
@@ -382,7 +401,7 @@ function initFromAction(action: KeyAction) {
         break;
       }
       activeTab.value = 'macro';
-      macroId.value = action.param1;
+      macroId.value = Math.min(action.param1, Math.max(0, macroStore.maxSlots - 1));
       macroTrigger.value = action.modifier as MacroTrigger;
       break;
     default:
@@ -738,6 +757,24 @@ function setModifier(mask: number, enabled: boolean): void {
   border: 1px solid var(--c-border) !important;
   border-radius: var(--radius-md) !important;
   padding: 4px !important;
+}
+
+.action-editor-dialog .p-tablist-content,
+.action-editor-dialog .p-tablist-tab-list,
+.action-editor-dialog .p-tablist-viewport {
+  background: transparent !important;
+}
+
+.action-editor-dialog .p-tablist-nav-button {
+  background: var(--c-bg-tertiary) !important;
+  color: var(--c-text-muted) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.action-editor-dialog .p-tablist-nav-button:hover {
+  background: var(--c-bg-hover) !important;
+  color: var(--c-text-secondary) !important;
 }
 
 .action-editor-dialog .p-tab {

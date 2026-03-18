@@ -218,7 +218,7 @@ static void HandleSysInfo(const kbd_cmd_frame_t *frame)
   resp[7] = KBD_VERSION_PATCH;
   resp[8] = KBD_GetDefaultLayers();
   resp[9] = KBD_MAX_KEYS;
-  resp[10] = KBD_MACRO_SLOTS;
+  resp[10] = Kbd_Macro_GetUsedCount();
   resp[11] = (uint8_t)KBD_GetType(); /* 键盘类型 */
   resp[12] = KBD_GetTotalKeyCount(); /* 实际键位数 */
   resp[13] = KBD_FN_NUM_KEYS;        /* FN 键数量 */
@@ -476,44 +476,20 @@ static void HandleRgbSet(const kbd_cmd_frame_t *frame)
  */
 static void HandleMacroInfo(const kbd_cmd_frame_t *frame)
 {
-  uint8_t slot = frame->sub;
+  uint16_t total = Kbd_Macro_GetTotalSize();
+  uint16_t page = Kbd_Macro_GetPageSize();
+  uint16_t free = Kbd_Macro_GetFreeBytes();
+  uint8_t resp[8];
 
-  if (slot == 0xFF)
-  {
-    /* 获取所有槽位概览 */
-    uint8_t resp[12];
-    resp[0] = KBD_RESP_OK;
-    resp[1] = KBD_MACRO_SLOTS;
-    resp[2] = Kbd_Macro_GetUsedCount();
-
-    for (uint8_t i = 0; i < KBD_MACRO_SLOTS && i < 8; i++)
-    {
-      resp[3 + i] = Kbd_Macro_IsValid(i) ? 1 : 0;
-    }
-
-    KBD_Command_SendResponse(KBD_CMD_MACRO_INFO, 0xFF, resp,
-                             3 + KBD_MACRO_SLOTS);
-  }
-  else
-  {
-    /* 获取指定槽位详情 */
-    kbd_macro_header_t header;
-    int ret = Kbd_Macro_GetInfo(slot, &header);
-
-    if (ret == 0)
-    {
-      uint8_t resp[28];
-      resp[0] = KBD_RESP_OK;
-      memcpy(&resp[1], &header, sizeof(kbd_macro_header_t));
-      KBD_Command_SendResponse(KBD_CMD_MACRO_INFO, slot, resp,
-                               1 + sizeof(kbd_macro_header_t));
-    }
-    else
-    {
-      uint8_t resp[1] = {KBD_RESP_ERR_NOT_FOUND};
-      KBD_Command_SendResponse(KBD_CMD_MACRO_INFO, slot, resp, 1);
-    }
-  }
+  resp[0] = KBD_RESP_OK;
+  resp[1] = (uint8_t)(total >> 8);
+  resp[2] = (uint8_t)(total & 0xFF);
+  resp[3] = (uint8_t)(page >> 8);
+  resp[4] = (uint8_t)(page & 0xFF);
+  resp[5] = Kbd_Macro_GetUsedCount();
+  resp[6] = (uint8_t)(free >> 8);
+  resp[7] = (uint8_t)(free & 0xFF);
+  KBD_Command_SendResponse(KBD_CMD_MACRO_INFO, frame->sub, resp, sizeof(resp));
 }
 
 /**
@@ -521,29 +497,25 @@ static void HandleMacroInfo(const kbd_cmd_frame_t *frame)
  */
 static void HandleMacroGet(const kbd_cmd_frame_t *frame)
 {
-  uint8_t slot = frame->sub;
   uint16_t offset = (frame->data[0] << 8) | frame->data[1];
   uint8_t req_len = frame->data[2];
 
-  if (req_len > 56)
-    req_len = 56;
+  if (req_len > 59)
+    req_len = 59;
 
   uint8_t resp[64];
-  int read_len = Kbd_Macro_Read(slot, offset, &resp[5], req_len);
+  int read_len = Kbd_Macro_ReadRaw(offset, &resp[2], req_len);
 
   if (read_len >= 0)
   {
     resp[0] = KBD_RESP_OK;
-    resp[1] = (offset >> 8) & 0xFF;
-    resp[2] = offset & 0xFF;
-    resp[3] = (uint8_t)read_len;
-    resp[4] = (read_len < req_len) ? 1 : 0;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_GET, slot, resp, 5 + read_len);
+    resp[1] = (uint8_t)read_len;
+    KBD_Command_SendResponse(KBD_CMD_MACRO_GET, frame->sub, resp, 2 + read_len);
   }
   else
   {
     resp[0] = KBD_RESP_ERR_NOT_FOUND;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_GET, slot, resp, 1);
+    KBD_Command_SendResponse(KBD_CMD_MACRO_GET, frame->sub, resp, 1);
   }
 }
 
@@ -552,58 +524,35 @@ static void HandleMacroGet(const kbd_cmd_frame_t *frame)
  */
 static void HandleMacroSet(const kbd_cmd_frame_t *frame)
 {
-  uint8_t slot = frame->sub;
-  uint8_t seq = frame->data[0];
+  uint8_t resp[1];
 
-  if (seq == 0)
+  if (frame->sub == 0)
   {
-    /* 开始写入 */
-    kbd_macro_header_t header;
-    memcpy(&header, &frame->data[1], sizeof(kbd_macro_header_t));
-
-    int ret = Kbd_Macro_BeginWrite(slot, &header);
-
-    uint8_t resp[2];
-    if (ret == 0)
-    {
-      resp[0] = KBD_RESP_OK;
-    }
-    else if (ret == KBD_RESP_ERR_TOO_LARGE)
-    {
-      resp[0] = KBD_RESP_ERR_TOO_LARGE;
-    }
-    else
-    {
-      resp[0] = KBD_RESP_ERR_FLASH;
-    }
-    resp[1] = seq;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, slot, resp, 2);
-    LOG_D(TAG, "Macro write begin: slot=%d ret=%d", slot, ret);
-  }
-  else if (seq == 0xFF)
-  {
-    /* 完成写入 */
-    int ret = Kbd_Macro_EndWrite(slot);
-
-    uint8_t resp[2];
+    uint8_t page = frame->data[0];
+    int ret = (page == 0xFF) ? Kbd_Macro_EraseAll() : Kbd_Macro_ErasePage(page);
     resp[0] = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
-    resp[1] = seq;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, slot, resp, 2);
-    LOG_D(TAG, "Macro write end: slot=%d ret=%d", slot, ret);
+    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    return;
   }
-  else
+
+  if (frame->sub == 1)
   {
-    /* 数据块 */
-    uint16_t offset = (frame->data[1] << 8) | frame->data[2];
-    uint8_t len = frame->data[3];
+    uint16_t offset = (frame->data[0] << 8) | frame->data[1];
+    uint8_t len = frame->data[2];
+    if (len > (uint8_t)(frame->len - 3))
+    {
+      len = (uint8_t)(frame->len - 3);
+    }
 
-    int ret = Kbd_Macro_WriteChunk(slot, offset, &frame->data[4], len);
-
-    uint8_t resp[2];
-    resp[0] = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
-    resp[1] = seq;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, slot, resp, 2);
+    resp[0] = (Kbd_Macro_WriteRaw(offset, &frame->data[3], len) == 0)
+                  ? KBD_RESP_OK
+                  : KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    return;
   }
+
+  resp[0] = KBD_RESP_ERR_PARAM;
+  KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
 }
 
 /**

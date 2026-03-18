@@ -1,4 +1,4 @@
-#include <Arduino.h>
+#include "ch552_defs.h"
 
 #include "EncoderHandler.h"
 

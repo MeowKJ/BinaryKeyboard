@@ -1,11 +1,11 @@
-#include <Arduino.h>
-#include <string.h>
+#include "ch552_defs.h"
 
 #include "KeyScanner.h"
 
 #include "config.h"
 #include "CustomUSBHID.h"
 #include "KeysDataHandler.h"
+#include "MacroStorage.h"
 #include "rgb.h"
 
 #define KEY_SCANNER_DEBOUNCE_THRESHOLD 3
@@ -79,6 +79,9 @@ void KeyScanner_process(void)
   // 功能键按住时不发送普通按键报告
   if (funcActive)
   {
+    // 取消正在运行的宏
+    if (macro_is_running())
+      macro_cancel();
     // 更新 prev 状态以避免释放功能键后误触发
     for (uint8_t i = 0; i < KEY_COUNT; i++)
     {
@@ -88,6 +91,22 @@ void KeyScanner_process(void)
     Keyboard_releaseAll();
     Consumer_releaseAll();
     Mouse_releaseAll();
+    return;
+  }
+
+  // 宏运行中: 只跟踪触发键状态
+  if (macro_is_running())
+  {
+    uint8_t mk = macro_running_key();
+    if (keyState[mk] && !keyPressPrev[mk] && macro_is_looping())
+    {
+      if (macro_m_trigger == MACRO_TRIG_TOGGLE)
+        macro_cancel();
+    }
+    if (!keyState[mk] && keyPressPrev[mk])
+      macro_on_key_release();
+    for (uint8_t i = 0; i < KEY_COUNT; i++)
+      keyPressPrev[i] = keyState[i];
     return;
   }
 
@@ -103,6 +122,18 @@ void KeyScanner_process(void)
     if (keyState[i] && !keyPressPrev[i])
     {
       rgbRegisterKeyPress(i);
+    }
+
+    if (keyType == KEY_TYPE_MACRO)
+    {
+      if (keyState[i] && !keyPressPrev[i])
+      {
+        uint8_t trigger = (keyValue >> 8) & 0xFF;
+        uint8_t slot = keyValue & 0xFF;
+        macro_execute(slot, trigger, i);
+      }
+      keyPressPrev[i] = keyState[i];
+      continue;
     }
 
     if (keyType == KEY_TYPE_KB)

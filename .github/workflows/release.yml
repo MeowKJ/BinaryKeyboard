@@ -58,13 +58,13 @@ jobs:
       - name: Resolve artifacts
         id: artifacts
         run: |
-          echo "bin=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type bin)" >> "$GITHUB_OUTPUT"
+          echo "hex=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type hex)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-ch592f-${{ matrix.keyboard }}-${{ github.sha }}
-          path: ${{ steps.artifacts.outputs.bin }}
+          path: ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
 
       - name: Emit size report
@@ -105,13 +105,13 @@ jobs:
       - name: Resolve artifacts
         id: artifacts
         run: |
-          echo "bin=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type bin)" >> "$GITHUB_OUTPUT"
+          echo "hex=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type hex)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-ch552g-${{ matrix.keyboard }}-${{ github.sha }}
-          path: ${{ steps.artifacts.outputs.bin }}
+          path: ${{ steps.artifacts.outputs.hex }}
           retention-days: 7
 
       - name: Emit size report
@@ -189,103 +189,164 @@ jobs:
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
           SHA=$(git rev-parse --short HEAD)
+          TAG="binarykeyboard-${DATE}-${SHA}"
+          PREV_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags \
+            | grep '^binarykeyboard-' \
+            | grep -Fvx "$TAG" \
+            | head -n 1 || true)
           STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
           CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
           CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
-          echo "tag=binarykeyboard-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
 
-          # Collect tool versions
-          CMAKE_VER=$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || echo "N/A")
-          PYTHON_VER=$(python3 --version 2>/dev/null | awk '{print $2}' || echo "N/A")
-          SDCC_VER=$(apt-cache show sdcc 2>/dev/null | grep -m1 '^Version:' | awk '{print $2}' || echo "N/A")
-
-          # Flash size limits (bytes)
-          CH552G_FLASH=14336   # 14 KB
-          CH592F_FLASH=458752  # 448 KB
-
-          # Build file table with sizes and flash usage
+          # Build release notes from size reports + hex files
           {
             echo "## 🐱 BinaryKeyboard 自动发布"
             echo
             echo "> 此 Release 由 GitHub Actions 自动构建并发布，基于 \`main\` 分支最新提交。"
             echo
+            echo "---"
+            echo
             echo "### 📋 版本信息"
             echo
             echo "| 组件 | 版本 | 说明 |"
-            echo "|------|------|------|"
-            echo "| 🎹 Studio | v${STUDIO_VERSION} | 改键工具（Web） |"
-            echo "| 📡 CH592F | v${CH592_VERSION} | 无线固件（BLE） |"
-            echo "| 🔌 CH552G | v${CH552_VERSION} | 有线固件（USB） |"
+            echo "|:-----|:-----|:-----|"
+            echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
+            echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
+            echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
+            echo
+            echo "---"
             echo
             echo "### 📦 固件文件"
             echo
-            echo "| 文件 | 大小 | Flash 占用 | 说明 |"
-            echo "|------|------|-----------|------|"
-            for f in dist/*.bin; do
-              [ -f "$f" ] || continue
-              fname=$(basename "$f")
-              fsize_bytes=$(stat -c%s "$f")
-              fsize=$(numfmt --to=iec-i --suffix=B "$fsize_bytes")
-              desc=""
-              flash_total=0
-              case "$fname" in
-                CH592F*) desc="📡 无线"; flash_total=$CH592F_FLASH ;;
-                CH552G*) desc="🔌 有线"; flash_total=$CH552G_FLASH ;;
-              esac
-              case "$fname" in
-                *-5KEY-*)  desc="${desc} · 五键" ;;
-                *-KNOB-*)  desc="${desc} · 旋钮" ;;
-                *-BASIC-*) desc="${desc} · 基础" ;;
-              esac
-              if [ "$flash_total" -gt 0 ]; then
-                pct=$((fsize_bytes * 100 / flash_total))
-                flash_total_h=$(numfmt --to=iec-i --suffix=B "$flash_total")
-                bar_len=$((pct / 5))
-                bar=$(printf '█%.0s' $(seq 1 $bar_len 2>/dev/null) 2>/dev/null || true)
-                pad_len=$((20 - bar_len))
-                pad=$(printf '░%.0s' $(seq 1 $pad_len 2>/dev/null) 2>/dev/null || true)
-                flash_info="${bar}${pad} ${pct}% (${flash_total_h})"
-              else
-                flash_info="—"
-              fi
-              echo "| \`${fname}\` | ${fsize} | ${flash_info} | ${desc} |"
-            done
+            echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
+            echo "|:-----|:----------|:---------|:-----|"
+          } > release-notes-header.md
+
+          # Generate file table rows from size reports + hex files
+          python3 - <<'PYEOF' >> release-notes-header.md
+import json, os
+from pathlib import Path
+
+sizes_dir = Path("sizes")
+dist_dir = Path("dist")
+
+chip_labels = {"CH592F": "📡 无线", "CH552G": "🔌 有线"}
+kb_labels = {"5KEY": "五键", "KNOB": "旋钮", "BASIC": "基础"}
+
+rows = []
+for p in sorted(sizes_dir.glob("*.json")):
+    data = json.loads(p.read_text())
+    chip = data.get("chip", "")
+    keyboard = data.get("keyboard", "")
+
+    hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
+    if not hex_files:
+        continue
+    fname = hex_files[0].name
+
+    regions = data.get("regions", {})
+
+    flash = regions.get("FLASH") or regions.get("CODE") or {}
+    flash_used = flash.get("used")
+    flash_total = flash.get("total")
+    if flash_used is not None and flash_total:
+        pct = flash_used * 100 // flash_total
+        bar_len = max(1, pct // 5)
+        bar = "█" * bar_len + "░" * (20 - bar_len)
+        flash_info = f"{bar} {pct}% ({flash_used/1024:.1f}/{flash_total/1024:.0f} KB)"
+    else:
+        flash_info = "—"
+
+    ram = regions.get("RAM") or regions.get("XRAM") or regions.get("DSEG") or {}
+    ram_used = ram.get("used")
+    ram_total = ram.get("total")
+    if ram_used is not None and ram_total:
+        ram_pct = ram_used * 100 / ram_total
+        ram_info = f"{ram_used/1024:.1f} / {ram_total/1024:.1f} KB ({ram_pct:.0f}%)"
+    else:
+        ram_info = "—"
+
+    desc = chip_labels.get(chip, chip)
+    kb_label = kb_labels.get(keyboard, keyboard)
+    desc = f"{desc} · {kb_label}"
+
+    order = (0 if chip == "CH552G" else 1, keyboard)
+    rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
+
+rows.sort(key=lambda x: x[0])
+for _, row in rows:
+    print(row)
+PYEOF
+
+          REPO="${{ github.repository }}"
+          export REPO
+
+          {
             echo
-            if ls sizes/*.json >/dev/null 2>&1; then
-              python3 tools/scripts/render_size_table.py sizes/*.json
+            echo
+            echo "---"
+            echo
+            echo "### 📝 变更记录"
+            echo
+            if [ -n "$PREV_TAG" ]; then
+              COMMIT_RANGE="${PREV_TAG}..HEAD"
+              COMMIT_COUNT=$(git rev-list --count "${COMMIT_RANGE}")
+              echo "> 共 **${COMMIT_COUNT}** 个提交，自 [\`${PREV_TAG}\`](https://github.com/${REPO}/releases/tag/${PREV_TAG}) 以来"
+              echo "> [📊 完整对比](https://github.com/${REPO}/compare/${PREV_TAG}...${TAG})"
+            else
+              COMMIT_RANGE="HEAD"
+              COMMIT_COUNT=$(git rev-list --count HEAD)
+              echo "> 🎉 首次自动发布，当前共 **${COMMIT_COUNT}** 个提交"
             fi
-            echo "### 🔧 构建环境"
+            echo
+            # Merged PRs
+            PR_LOG=$(git log --reverse --merges --pretty=format:'- %s (@%an)' "${COMMIT_RANGE}" 2>/dev/null | head -30 || true)
+            if [ -n "$PR_LOG" ]; then
+              echo "$PR_LOG"
+              echo
+            fi
+            # Direct commits
+            git log --reverse --no-merges --pretty=format:'- %s ([`%h`](https://github.com/'"${REPO}"'/commit/%H))' "${COMMIT_RANGE}" | head -50
+            echo
+            echo
+            echo "---"
+            echo
+            echo "<details><summary>🔧 构建环境</summary>"
             echo
             echo "| 属性 | 值 |"
-            echo "|------|------|"
+            echo "|:-----|:---|"
             echo "| 构建日期 | ${DATE_DISPLAY} |"
-            echo "| Commit | [\`${SHA}\`](https://github.com/${{ github.repository }}/commit/${SHA}) |"
-            echo "| Runner | \`ubuntu-latest\` |"
-            echo "| CH592F 工具链 | \`${{ env.TOOLCHAIN_VERSION }}\`（RISC-V GCC 12） |"
-            echo "| SDCC | \`${SDCC_VER}\` |"
-            echo "| CMake | \`${CMAKE_VER}\` |"
-            echo "| Python | \`${PYTHON_VER}\` |"
+            echo "| Commit | [\`${SHA}\`](https://github.com/${REPO}/commit/${SHA}) |"
+            echo "| CH592F 工具链 | \`${{ env.TOOLCHAIN_VERSION }}\` (RISC-V GCC 12) |"
+            echo "| SDCC | \`$(apt-cache show sdcc 2>/dev/null | grep -m1 '^Version:' | awk '{print $2}' || echo N/A)\` |"
+            echo "| CMake | \`$(cmake --version 2>/dev/null | head -1 | awk '{print $3}' || echo N/A)\` |"
+            echo "| Python | \`$(python3 --version 2>/dev/null | awk '{print $2}' || echo N/A)\` |"
+            echo
+            echo "</details>"
             echo
             echo "<details><summary>🔒 SHA-256 校验值</summary>"
             echo
             echo '```'
-            for f in dist/*.bin; do
+            for f in dist/*.hex; do
               [ -f "$f" ] || continue
               sha256sum "$f" | sed 's|dist/||'
             done
             echo '```'
             echo
             echo "</details>"
-          } > release-notes-header.md
+          } >> release-notes-header.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.name }}
-          generate_release_notes: true
           body_path: release-notes-header.md
+          generate_release_notes: true
+          append_body: true
           prerelease: false
-          files: dist/*.bin
+          files: dist/*.hex
