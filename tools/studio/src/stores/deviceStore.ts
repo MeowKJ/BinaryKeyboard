@@ -203,8 +203,10 @@ export const useDeviceStore = defineStore("device", () => {
   async function connectDevice(hidDevice: HIDDevice): Promise<boolean> {
     isLoading.value = true;
     errorMessage.value = null;
+    const macroStore = useMacroStore();
 
     try {
+      macroStore.reset();
       const success = await hidService.connect(hidDevice);
       if (!success) {
         throw new Error("无法打开设备");
@@ -224,7 +226,6 @@ export const useDeviceStore = defineStore("device", () => {
         fnKeyConfig.value = createEmptyFnKeyConfig();
       }
       if (supportsMacroActions.value) {
-        const macroStore = useMacroStore();
         await macroStore.refreshOverview().catch(() => {});
       }
 
@@ -232,6 +233,7 @@ export const useDeviceStore = defineStore("device", () => {
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "连接失败";
       device.value = null;
+      macroStore.reset();
       return false;
     } finally {
       isLoading.value = false;
@@ -356,13 +358,19 @@ export const useDeviceStore = defineStore("device", () => {
     errorMessage.value = null;
 
     try {
+      const macroStore = useMacroStore();
       await hidService.resetConfig();
+      macroStore.reset();
+      await refreshDeviceInfo();
       await refreshKeymap();
       if (supportsRgb.value) {
         await refreshRgbConfig();
       }
       if (supportsFnKeys.value) {
         await refreshFnKeyConfig();
+      }
+      if (supportsMacroActions.value) {
+        await macroStore.refreshOverview().catch(() => {});
       }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "重置失败";

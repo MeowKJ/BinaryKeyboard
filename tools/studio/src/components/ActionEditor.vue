@@ -169,7 +169,7 @@
                   }"
                   @click="macroId = i - 1"
                 >
-                  {{ macroSlotLabel(i - 1) }}
+                  {{ macroStore.getSlotDisplayName(i - 1) }}
                 </button>
               </div>
             </div>
@@ -287,11 +287,6 @@ const macroTriggerOptions = [
   { value: MacroTrigger.TOGGLE, label: '切换循环' },
 ];
 
-function macroSlotLabel(idx: number): string {
-  if (!macroStore.overview || !macroStore.slotValid[idx]) return `宏 ${idx + 1}`;
-  return macroStore.getSlotDisplayName(idx);
-}
-
 const modifierOptions = [
   { label: 'LCtrl', mask: Modifier.LCTRL },
   { label: 'LShift', mask: Modifier.LSHIFT },
@@ -352,6 +347,19 @@ watch(() => props.visible, (visible) => {
   }
 });
 
+watch(
+  () => macroStore.maxSlots,
+  (slotCount) => {
+    if (slotCount <= 0) {
+      macroId.value = 0;
+      return;
+    }
+    if (macroId.value >= slotCount) {
+      macroId.value = slotCount - 1;
+    }
+  },
+);
+
 function initFromAction(action: KeyAction) {
   editAction.value = { ...action };
 
@@ -383,7 +391,7 @@ function initFromAction(action: KeyAction) {
         break;
       }
       activeTab.value = 'macro';
-      macroId.value = action.param1;
+      macroId.value = Math.min(action.param1, Math.max(0, macroStore.maxSlots - 1));
       macroTrigger.value = action.modifier as MacroTrigger;
       break;
     default:

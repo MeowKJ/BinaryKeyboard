@@ -96,7 +96,7 @@ export const CH552_CAPABILITIES = createDeviceCapabilities({
   wheelClickAction: false,
   battery: false,
   logs: false,
-  reset: false,
+  reset: true,
   explicitSave: false,
   wireless: false,
 });
@@ -446,11 +446,13 @@ export const MACRO_MAX_ACTIONS = 1000;
 export const MACRO_MAX_DATA_SIZE = 2024; // 2048 - 24 header
 export const MACRO_NAME_MAX_BYTES = 16;
 
-/** CH552G 精简宏参数 (Flash 存储, 每槽 64B, 无名称) */
-export const CH552_MACRO_SLOTS = 2;
-export const CH552_MACRO_MAX_ACTIONS = 47; // (96 - 2) / 2
-export const CH552_MACRO_MAX_DATA_SIZE = 94; // 96 - 2 header
-export const CH552_MACRO_SLOT_SIZE = 96;
+/** MeowFS: CH552G 动态宏存储 (1KB Flash) */
+export const CH552_MEOWFS_SIZE = 1024;
+export const CH552_MEOWFS_PAGE_SIZE = 64;
+export const CH552_MEOWFS_HEADER_SIZE = 2;
+export const CH552_MEOWFS_ACTION_SIZE = 2;
+export const CH552_MEOWFS_MAX_ACTIONS = 255;
+export const CH552_MEOWFS_APPEND_SLOTS = 1;
 
 /** 宏触发模式 */
 export enum MacroTrigger {
@@ -497,9 +499,20 @@ export interface MacroData {
 
 /** 宏槽位概览 */
 export interface MacroOverview {
+  /** UI 当前可展示的槽位数；动态文件系统设备可包含一个“新建”入口 */
   totalSlots: number;
+  /** 当前有效宏数量 */
   usedCount: number;
+  /** 与 totalSlots 对齐的有效位图 */
   slotValid: boolean[];
+  /** 是否为动态宏列表（MeowFS） */
+  dynamic?: boolean;
+  /** 设备硬上限（若已知） */
+  maxSlots?: number;
+  /** MeowFS: 总容量 (字节) */
+  fsTotal?: number;
+  /** MeowFS: 剩余空间 (字节) */
+  fsFree?: number;
 }
 
 // ============================================================================

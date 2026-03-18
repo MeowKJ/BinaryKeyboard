@@ -516,6 +516,8 @@ function parseTapExpression(text: string): {
   }
 
   comboText = comboText.replace(/\s+/g, " ").trim();
+  // Collapse spaces around `+` so "Ctrl + C" tokenizes as one combo group
+  comboText = comboText.replace(/\s*\+\s*/g, "+");
 
   if (/\bhold\b/i.test(comboText)) {
     return fail("`hold` 后需要时间值，例如 tap A hold 50ms 或 hold 1s");

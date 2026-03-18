@@ -11,21 +11,26 @@ import { hidService } from "@/services/HidService";
 import { showToast } from "@/services/toastService";
 import { useDeviceStore } from "@/stores/deviceStore";
 import type {
+  FnKeyConfig,
   MacroOverview,
   MacroData,
   MacroAction,
   MacroHeader,
+  KeymapConfig,
 } from "@/types/protocol";
 import {
+  ActionType,
   DeviceProtocol,
+  FnAction,
   MacroActionType,
   MACRO_SLOTS,
   MACRO_MAX_ACTIONS,
   MACRO_MAX_DATA_SIZE,
   MACRO_NAME_MAX_BYTES,
-  CH552_MACRO_SLOTS,
-  CH552_MACRO_MAX_ACTIONS,
-  CH552_MACRO_MAX_DATA_SIZE,
+  CH552_MEOWFS_ACTION_SIZE,
+  CH552_MEOWFS_APPEND_SLOTS,
+  CH552_MEOWFS_MAX_ACTIONS,
+  createEmptyAction,
 } from "@/types/protocol";
 import { truncateUtf8ByBytes } from "@/utils/utf8";
 
@@ -113,15 +118,36 @@ export function calcFlatSize(cards: MacroCard[]): {
 export const useMacroStore = defineStore("macro", () => {
   const deviceStore = useDeviceStore();
 
+  interface DeleteRemapPlan {
+    keymapChanged: boolean;
+    fnChanged: boolean;
+    clearedBindings: number;
+    shiftedBindings: number;
+    nextKeymap: KeymapConfig | null;
+    nextFnKeyConfig: FnKeyConfig | null;
+  }
+
   // ========================================
   // 设备感知限制
   // ========================================
 
   const isCh552 = computed(() => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552);
-  const maxSlots = computed(() => isCh552.value ? CH552_MACRO_SLOTS : MACRO_SLOTS);
-  const maxActions = computed(() => isCh552.value ? CH552_MACRO_MAX_ACTIONS : MACRO_MAX_ACTIONS);
-  const maxDataSize = computed(() => isCh552.value ? CH552_MACRO_MAX_DATA_SIZE : MACRO_MAX_DATA_SIZE);
-  const maxNameBytes = computed(() => isCh552.value ? 0 : MACRO_NAME_MAX_BYTES);
+  const isDynamicSlots = computed(() => overview.value?.dynamic ?? isCh552.value);
+  const fallbackSlotCount = computed(() =>
+    isCh552.value ? CH552_MEOWFS_APPEND_SLOTS : MACRO_SLOTS,
+  );
+  const maxSlots = computed(
+    () => overview.value?.totalSlots ?? fallbackSlotCount.value,
+  );
+  const maxActions = computed(() =>
+    isDynamicSlots.value ? CH552_MEOWFS_MAX_ACTIONS + 1 : MACRO_MAX_ACTIONS,
+  );
+  const maxDataSize = computed(() =>
+    isDynamicSlots.value
+      ? (CH552_MEOWFS_MAX_ACTIONS + 1) * CH552_MEOWFS_ACTION_SIZE
+      : MACRO_MAX_DATA_SIZE,
+  );
+  const maxNameBytes = computed(() => isDynamicSlots.value ? 0 : MACRO_NAME_MAX_BYTES);
   /** CH552G 无 saveConfig (Flash 直接写入) */
   const needsExplicitSave = computed(() => !isCh552.value);
 
@@ -169,6 +195,19 @@ export const useMacroStore = defineStore("macro", () => {
   const slotValid = computed(
     () => overview.value?.slotValid ?? new Array(maxSlots.value).fill(false),
   );
+
+  /** MeowFS 已用字节数 */
+  const fsUsedBytes = computed(() => {
+    const total = overview.value?.fsTotal ?? 0;
+    const free = overview.value?.fsFree ?? total;
+    return total > 0 ? Math.max(0, total - free) : 0;
+  });
+
+  /** MeowFS 剩余字节数 */
+  const fsFreeBytes = computed(() => overview.value?.fsFree ?? 0);
+
+  /** MeowFS 总容量 */
+  const fsTotalBytes = computed(() => overview.value?.fsTotal ?? 0);
 
   /** 序列化后的动作数和数据大小 */
   const editingFlatSize = computed(() => calcFlatSize(editingCards.value));
@@ -220,6 +259,12 @@ export const useMacroStore = defineStore("macro", () => {
         }
       }
 
+      for (const slot of loadedMacros.value.keys()) {
+        if (slot >= nextOverview.totalSlots) {
+          loadedMacros.value.delete(slot);
+        }
+      }
+
       macroHeaders.value = nextHeaders;
     } catch (error) {
       overview.value = null;
@@ -257,13 +302,16 @@ export const useMacroStore = defineStore("macro", () => {
     isSaving.value = true;
     try {
       const actions = flattenCards(editingCards.value);
-      const dataSize = actions.length * 2;
+      const storedActions = isCh552.value
+        ? actions.filter((action) => action.type !== MacroActionType.END)
+        : actions;
+      const dataSize = storedActions.length * 2;
 
       const macro: MacroData = {
         header: {
           valid: 1,
           id: editingSlot.value,
-          actionCount: actions.length,
+          actionCount: storedActions.length,
           dataSize,
           name: safeName,
         },
@@ -275,8 +323,12 @@ export const useMacroStore = defineStore("macro", () => {
         await hidService.saveConfig();
       }
 
-      loadedMacros.value.set(editingSlot.value, macro);
-      macroHeaders.value.set(editingSlot.value, macro.header);
+      if (isDynamicSlots.value) {
+        invalidateCache();
+      } else {
+        loadedMacros.value.set(editingSlot.value, macro);
+        macroHeaders.value.set(editingSlot.value, macro.header);
+      }
       await refreshOverview();
 
       showToast("success", "保存成功", `宏 ${editingSlot.value + 1} 已写入设备`);
@@ -296,20 +348,36 @@ export const useMacroStore = defineStore("macro", () => {
   async function deleteMacro(slot: number): Promise<void> {
     isLoading.value = true;
     try {
+      const remapPlan = buildDeleteRemapPlan(slot);
       await hidService.deleteMacro(slot);
-      if (needsExplicitSave.value) {
-        await hidService.saveConfig();
+
+      if (remapPlan.keymapChanged && remapPlan.nextKeymap) {
+        deviceStore.keymap = remapPlan.nextKeymap;
+        await deviceStore.saveKeymap();
       }
 
-      loadedMacros.value.delete(slot);
-      macroHeaders.value.delete(slot);
+      if (remapPlan.fnChanged && remapPlan.nextFnKeyConfig) {
+        deviceStore.fnKeyConfig = remapPlan.nextFnKeyConfig;
+        await deviceStore.saveFnKeyConfig();
+      }
+
+      invalidateCache();
       await refreshOverview();
 
       if (editingSlot.value === slot) {
         cancelEditing();
+      } else if (editingSlot.value > slot) {
+        editingSlot.value -= 1;
       }
 
-      showToast("success", "删除成功", `宏 ${slot + 1} 已删除`);
+      const detailParts = [`宏 ${slot + 1} 已删除`];
+      if (remapPlan.clearedBindings > 0) {
+        detailParts.push(`清除了 ${remapPlan.clearedBindings} 个绑定`);
+      }
+      if (remapPlan.shiftedBindings > 0) {
+        detailParts.push(`重排了 ${remapPlan.shiftedBindings} 个引用`);
+      }
+      showToast("success", "删除成功", detailParts.join("，"));
     } catch (error) {
       showToast(
         "error",
@@ -320,6 +388,78 @@ export const useMacroStore = defineStore("macro", () => {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  function buildDeleteRemapPlan(slot: number): DeleteRemapPlan {
+    const nextKeymap = JSON.parse(JSON.stringify(deviceStore.keymap)) as KeymapConfig;
+    const nextFnKeyConfig = JSON.parse(
+      JSON.stringify(deviceStore.fnKeyConfig),
+    ) as FnKeyConfig;
+
+    let keymapChanged = false;
+    let fnChanged = false;
+    let clearedBindings = 0;
+    let shiftedBindings = 0;
+
+    for (const layer of nextKeymap.layers) {
+      for (const key of layer.keys) {
+        if (key.type !== ActionType.MACRO) {
+          continue;
+        }
+
+        if (key.param1 === slot) {
+          Object.assign(key, createEmptyAction());
+          keymapChanged = true;
+          clearedBindings++;
+          continue;
+        }
+
+        if (key.param1 > slot) {
+          key.param1 -= 1;
+          keymapChanged = true;
+          shiftedBindings++;
+        }
+      }
+    }
+
+    if (deviceStore.supportsFnKeys) {
+      for (const fnKey of nextFnKeyConfig.fnKeys) {
+        if (fnKey.clickAction === FnAction.MACRO) {
+          if (fnKey.clickParam === slot) {
+            fnKey.clickAction = FnAction.NONE;
+            fnKey.clickParam = 0;
+            fnChanged = true;
+            clearedBindings++;
+          } else if (fnKey.clickParam > slot) {
+            fnKey.clickParam -= 1;
+            fnChanged = true;
+            shiftedBindings++;
+          }
+        }
+
+        if (fnKey.longAction === FnAction.MACRO) {
+          if (fnKey.longParam === slot) {
+            fnKey.longAction = FnAction.NONE;
+            fnKey.longParam = 0;
+            fnChanged = true;
+            clearedBindings++;
+          } else if (fnKey.longParam > slot) {
+            fnKey.longParam -= 1;
+            fnChanged = true;
+            shiftedBindings++;
+          }
+        }
+      }
+    }
+
+    return {
+      keymapChanged,
+      fnChanged,
+      clearedBindings,
+      shiftedBindings,
+      nextKeymap: keymapChanged ? nextKeymap : null,
+      nextFnKeyConfig: fnChanged ? nextFnKeyConfig : null,
+    };
   }
 
   /** 开始编辑指定槽位 */
@@ -377,12 +517,22 @@ export const useMacroStore = defineStore("macro", () => {
 
   function getSlotDisplayName(slot: number): string {
     const header = macroHeaders.value.get(slot);
-    return header?.name || `宏 ${slot + 1}`;
+    if (header?.name) {
+      return header.name;
+    }
+    if (slotValid.value[slot]) {
+      return `宏 ${slot + 1}`;
+    }
+    if (isDynamicSlots.value && slot === usedCount.value) {
+      return "新建宏";
+    }
+    return "空";
   }
 
   return {
     // 设备感知限制
     isCh552,
+    isDynamicSlots,
     maxSlots,
     maxActions,
     maxDataSize,
@@ -403,6 +553,9 @@ export const useMacroStore = defineStore("macro", () => {
     usedCount,
     totalSlots,
     slotValid,
+    fsUsedBytes,
+    fsFreeBytes,
+    fsTotalBytes,
     editingDataSize,
     editingActionCount,
     editingOverLimit,

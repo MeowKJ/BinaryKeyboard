@@ -18,10 +18,12 @@
             :class="{ active: activeSlot === i - 1, 'has-data': macroStore.slotValid[i - 1], 'is-open': openTabs.includes(i - 1) }"
             @click="openTab(i - 1)" @dblclick="openTab(i - 1)">
             <i class="pi" :class="macroStore.slotValid[i - 1] ? 'pi-file' : 'pi-file-plus'"></i>
-            <span class="sidebar-file-name">{{ macroStore.slotValid[i - 1] ? macroStore.getSlotDisplayName(i - 1) : `宏
-              ${i}` }}</span>
+            <span class="sidebar-file-name">{{ macroStore.getSlotDisplayName(i - 1) }}</span>
             <span class="sidebar-file-idx">{{ i }}</span>
           </button>
+        </div>
+        <div v-if="macroStore.fsTotalBytes" class="sidebar-fs-info">
+          剩余 {{ macroStore.fsFreeBytes }}B / {{ macroStore.fsTotalBytes }}B
         </div>
       </aside>
 
@@ -32,8 +34,7 @@
           <div class="ide-tabs">
             <button v-for="tabSlot in openTabs" :key="tabSlot" class="ide-tab"
               :class="{ active: activeSlot === tabSlot }" @click="switchTab(tabSlot)">
-              <span class="ide-tab-label">{{ macroStore.slotValid[tabSlot] ? macroStore.getSlotDisplayName(tabSlot) : `宏
-                ${tabSlot + 1}` }}</span>
+              <span class="ide-tab-label">{{ macroStore.getSlotDisplayName(tabSlot) }}</span>
               <span class="ide-tab-close" @click.stop="closeTab(tabSlot)" v-tooltip.top="'关闭'">
                 <i class="pi pi-times"></i>
               </span>
@@ -69,7 +70,7 @@
         <!-- 编辑器区域 -->
         <div v-if="openTabs.length === 0" class="ide-welcome">
           <span class="watermark-letter">M</span>
-          <span class="watermark-hint">从左侧选择一个宏槽位开始编辑</span>
+          <span class="watermark-hint">从左侧选择一个宏或新建入口开始编辑</span>
         </div>
 
         <div v-else class="editor-body" :class="{ 'is-code-mode': editorMode === 'code' }">
@@ -1603,8 +1604,38 @@ async function handleDelete(): Promise<void> {
   cleanupInteractiveState();
   const slot = activeSlot.value;
   if (slot < 0) return;
+
+  const existingTabs = [...openTabs.value];
+  const currentTabCache = new Map(tabCache.value);
   await macroStore.deleteMacro(slot);
-  closeTab(slot);
+
+  const nextTabs = existingTabs
+    .filter((tabSlot) => tabSlot !== slot)
+    .map((tabSlot) => (tabSlot > slot ? tabSlot - 1 : tabSlot));
+  const nextCache = new Map<number, TabSnapshot>();
+
+  for (const [tabSlot, snapshot] of currentTabCache.entries()) {
+    if (tabSlot === slot) {
+      continue;
+    }
+    nextCache.set(tabSlot > slot ? tabSlot - 1 : tabSlot, snapshot);
+  }
+
+  openTabs.value = nextTabs;
+  tabCache.value = nextCache;
+  activeSlot.value = -1;
+
+  if (nextTabs.length > 0) {
+    const removedTabIndex = existingTabs.indexOf(slot);
+    const nextIndex = Math.min(
+      removedTabIndex >= 0 ? removedTabIndex : 0,
+      nextTabs.length - 1,
+    );
+    await openTab(nextTabs[nextIndex]);
+    return;
+  }
+
+  macroStore.cancelEditing();
 }
 
 function closeEditor(): void {
@@ -1707,6 +1738,15 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: 0.35rem;
+}
+
+.sidebar-fs-info {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.62rem;
+  color: var(--c-text-secondary);
+  opacity: 0.7;
+  text-align: center;
+  border-top: 1px solid var(--c-border);
 }
 
 .sidebar-file {

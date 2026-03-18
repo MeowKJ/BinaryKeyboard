@@ -2,9 +2,10 @@ import {
   ActionType,
   CH552_CAPABILITIES,
   CH552_FRAME_SIZE,
-  CH552_MACRO_SLOTS,
-  CH552_MACRO_SLOT_SIZE,
-  CH552_MACRO_MAX_ACTIONS,
+  CH552_MEOWFS_APPEND_SLOTS,
+  CH552_MEOWFS_MAX_ACTIONS,
+  CH552_MEOWFS_HEADER_SIZE,
+  CH552_MEOWFS_ACTION_SIZE,
   DeviceProtocol,
   KeyboardType,
   KeyboardTypeInfo,
@@ -51,24 +52,37 @@ enum Ch552Command {
   READ_META = 0x05,
   READ_RGB = 0x06,
   WRITE_RGB = 0x07,
+  FACTORY_RESET = 0x08,
   MACRO = 0x40,
 }
 
-/** CH552G 宏 HID 子命令 */
+/** MeowFS HID 子命令 */
 enum Ch552MacroSub {
   INFO = 0,
   READ = 1,
   ERASE = 2,
   WRITE = 3,
+  DELETE = 4,
 }
 
-/** CH552G 宏头部字节数 (valid + action_count) */
-const CH552_MACRO_HEADER_SIZE = 2;
-const CH552_MACRO_VALID_MARKER = 0xaa;
-/** 单次 READ 最大字节数 (CustomBuf 限制) */
-const CH552_MACRO_READ_CHUNK = 26;
-/** 单次 WRITE 最大字节数 */
-const CH552_MACRO_WRITE_CHUNK = 22;
+const MEOWFS_VALID_MARKER = 0xAA;
+/** 单次 READ 最大字节数 (CustomBuf[4..30] = 26 bytes) */
+const MEOWFS_READ_CHUNK = 26;
+/** 单次 WRITE 最大字节数 (frame[5..30] = 22 bytes) */
+const MEOWFS_WRITE_CHUNK = 22;
+
+/** 内部解析后的宏条目 */
+interface MeowFsMacroEntry {
+  actionCount: number;
+  actions: MacroAction[];
+}
+
+/** 缓存的 MeowFS 状态 */
+interface MeowFsCache {
+  fsTotal: number;
+  fsFree: number;
+  macros: MeowFsMacroEntry[];
+}
 
 enum LegacyCh552KeyType {
   INVALID = 0x00,
@@ -103,6 +117,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private currentLayer = 0;
   private meta: Ch552MetaInfo | null = null;
   private metaReadSupported: boolean | null = null;
+  private meowfsCache: MeowFsCache | null = null;
 
   resetState(): void {
     this.version = 0;
@@ -111,6 +126,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     this.currentLayer = 0;
     this.meta = null;
     this.metaReadSupported = null;
+    this.meowfsCache = null;
   }
 
   get cachedVersion(): number {
@@ -133,6 +149,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return {
       getRgbConfig: () => this.getRgbConfig(transport),
       setRgbConfig: (config) => this.setRgbConfig(transport, config),
+      resetConfig: () => this.resetConfig(transport),
       getMacroOverview: () => this.getMacroOverview(transport),
       getMacroInfo: (slot) => this.getMacroInfo(transport, slot),
       getMacroData: (slot) => this.getMacroData(transport, slot),
@@ -330,7 +347,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       versionPatch: meta?.firmwarePatch ?? semver.patch,
       maxLayers: blob.maxLayers,
       maxKeys: CH552_SLOT_COUNT,
-      macroSlots: CH552_MACRO_SLOTS,
+      macroSlots: this.meowfsCache?.macros.length ?? 0,
       keyboardType,
       actualKeyCount: KeyboardTypeInfo[keyboardType].keys,
       fnKeyCount: 0,
@@ -410,6 +427,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       case Ch552Command.READ_META: return 'CH552_READ_META';
       case Ch552Command.READ_RGB: return 'CH552_READ_RGB';
       case Ch552Command.WRITE_RGB: return 'CH552_WRITE_RGB';
+      case Ch552Command.FACTORY_RESET: return 'CH552_FACTORY_RESET';
       case Ch552Command.MACRO: return 'CH552_MACRO';
       default: return `CH552_CMD_${cmd.toString(16)}`;
     }
@@ -431,10 +449,26 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         return '读取 RGB 配置';
       case Ch552Command.WRITE_RGB:
         return `写入 RGB: enabled=${frame[1] ?? 0} mode=${frame[2] ?? 0} press=${frame[10] ?? 0}`;
+      case Ch552Command.FACTORY_RESET:
+        return '恢复出厂设置';
       case Ch552Command.MACRO: {
         const sub = frame[1] ?? 0;
-        const names = ['INFO', 'READ', 'ERASE', 'WRITE'];
-        return `宏 ${names[sub] ?? sub} slot=${frame[2] ?? 0}`;
+        if (sub === Ch552MacroSub.READ) {
+          const off = ((frame[2] ?? 0) << 8) | (frame[3] ?? 0);
+          return `MeowFS READ off=${off} len=${frame[4] ?? 0}`;
+        }
+        if (sub === Ch552MacroSub.WRITE) {
+          const off = ((frame[2] ?? 0) << 8) | (frame[3] ?? 0);
+          return `MeowFS WRITE off=${off} len=${frame[4] ?? 0}`;
+        }
+        if (sub === Ch552MacroSub.ERASE) {
+          const page = frame[2] ?? 0;
+          return `MeowFS ERASE ${page === 0xFF ? 'ALL' : `page=${page}`}`;
+        }
+        if (sub === Ch552MacroSub.DELETE) {
+          return `MeowFS DELETE index=${frame[2] ?? 0}`;
+        }
+        return 'MeowFS INFO';
       }
       default:
         return `cmd=${this.hexByte(frame[0] ?? 0)}`;
@@ -463,15 +497,25 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       return `RGB mode=${frame[2] ?? 0} bright=${frame[3] ?? 0} press=${frame[10] ?? 0}`;
     }
 
+    if (frame[0] === Ch552Command.FACTORY_RESET) {
+      return `出厂设置已恢复 meowfs=[${this.hexByte(frame[1] ?? 0)}, ${this.hexByte(frame[2] ?? 0)}]`;
+    }
+
     if (frame[0] === Ch552Command.MACRO) {
       const sub = frame[1] ?? 0;
       if (sub === Ch552MacroSub.INFO) {
-        return `宏概览: slots=${frame[3] ?? 0} size=${frame[4] ?? 0} valid=[${frame[5] ?? 0},${frame[6] ?? 0}]`;
+        const total = ((frame[3] ?? 0) << 8) | (frame[4] ?? 0);
+        const count = frame[6] ?? 0;
+        const free = ((frame[7] ?? 0) << 8) | (frame[8] ?? 0);
+        return `MeowFS: total=${total} macros=${count} free=${free}`;
       }
       if (sub === Ch552MacroSub.READ) {
-        return `宏数据: len=${frame[3] ?? 0}`;
+        return `MeowFS 数据: len=${frame[3] ?? 0}`;
       }
-      return `宏响应 sub=${sub}`;
+      if (sub === Ch552MacroSub.ERASE) {
+        return `MeowFS ERASE 后首字节=[${this.hexByte(frame[3] ?? 0)}, ${this.hexByte(frame[4] ?? 0)}]`;
+      }
+      return `MeowFS 响应 sub=${sub}`;
     }
 
     return `cmd=${this.hexByte(frame[0] ?? 0)}`;
@@ -672,166 +716,284 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
+  private async resetConfig(transport: CodecTransport<Uint8Array>): Promise<void> {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.FACTORY_RESET;
+    await this.readWithRetry('CH552G 恢复出厂超时', () =>
+      transport.sendAndWait(frame, {
+        timeout: 3000,
+        timeoutLabel: 'CH552G 恢复出厂超时',
+      }),
+    );
+    // CH552 的宏区在代码 Flash 尾部，显式再擦一次 MeowFS，
+    // 避免旧固件或异常状态下“恢复出厂”未同步清空宏区。
+    await this.eraseAllFs(transport);
+    this.meowfsCache = null;
+  }
+
   // ==========================================================================
-  // 宏操作 (CH552G: 2 slots × 64B, 无名称, Flash 存储)
+  // MeowFS 宏操作 (CH552G: 1KB Flash, 动态宏存储)
+  //
+  // Frame 布局 (frame → Ep1Buffer 映射):
+  //   frame[0] → Ep1Buffer[1] = 0x40 (MACRO cmd)
+  //   frame[1] → Ep1Buffer[2] = sub
+  //   frame[2..] → Ep1Buffer[3..] = params
+  //
+  // 子命令:
+  //   INFO(0)   : → [total_hi, total_lo, page_size, macro_count, free_hi, free_lo]
+  //   READ(1)   : [off_hi, off_lo, len] → [len, data...]
+  //   ERASE(2)  : [page | 0xFF=all]
+  //   WRITE(3)  : [off_hi, off_lo, len, data...]
+  //   DELETE(4)  : [macro_index]
   // ==========================================================================
 
-  /**
-   * 构建 CH552G 宏命令帧
-   *
-   * transport reportId=0x04 映射到 Ep1Buffer[0]=4,
-   * frame 内容从 Ep1Buffer[1] 开始:
-   *   frame[0] → Ep1Buffer[1] = cmd (0x40)
-   *   frame[1] → Ep1Buffer[2] = sub
-   *   frame[2] → Ep1Buffer[3] = slot
-   *   frame[3] → Ep1Buffer[4] = (unused)
-   *   frame[4] → Ep1Buffer[5] = offset  (READ/WRITE)
-   *   frame[5] → Ep1Buffer[6] = length  (READ/WRITE)
-   *   frame[6..] → Ep1Buffer[7..] = data (WRITE)
-   */
-  private buildMacroFrame(sub: Ch552MacroSub, slot: number, offset?: number, length?: number, data?: Uint8Array): Uint8Array {
+  private buildMeowFsFrame(sub: Ch552MacroSub, params?: Uint8Array): Uint8Array {
     const frame = new Uint8Array(CH552_FRAME_SIZE);
     frame[0] = Ch552Command.MACRO;
     frame[1] = sub;
-    frame[2] = slot;
-    // frame[3] unused (Ep1Buffer[4])
-    if (offset !== undefined) frame[4] = offset;
-    if (length !== undefined) frame[5] = length;
-    if (data) frame.set(data, 6);
+    if (params) frame.set(params, 2);
     return frame;
   }
 
-  private async sendMacroCmd(
+  private async sendMeowFsCmd(
     transport: CodecTransport<Uint8Array>,
     sub: Ch552MacroSub,
-    slot: number,
-    offset?: number,
-    length?: number,
-    data?: Uint8Array,
+    params?: Uint8Array,
   ): Promise<Uint8Array> {
-    const frame = this.buildMacroFrame(sub, slot, offset, length, data);
-    return this.readWithRetry('CH552G 宏命令超时', () =>
+    const frame = this.buildMeowFsFrame(sub, params);
+    return this.readWithRetry('MeowFS 命令超时', () =>
       transport.sendAndWait(frame, {
         timeout: 2000,
-        timeoutLabel: 'CH552G 宏命令超时',
+        timeoutLabel: 'MeowFS 命令超时',
       }),
     );
   }
 
-  private async getMacroOverview(transport: CodecTransport<Uint8Array>): Promise<MacroOverview> {
-    const resp = await this.sendMacroCmd(transport, Ch552MacroSub.INFO, 0);
-    // CustomBuf: [0]=0x40, [1]=sub, [2]=0, [3]=slotCount, [4]=slotSize, [5]=valid0, [6]=valid1
-    const totalSlots = resp[3] ?? CH552_MACRO_SLOTS;
-    const slotValid: boolean[] = [];
-    let usedCount = 0;
-    for (let i = 0; i < totalSlots; i++) {
-      const valid = (resp[5 + i] ?? 0) !== 0;
-      slotValid.push(valid);
-      if (valid) usedCount++;
-    }
-    return { totalSlots, usedCount, slotValid };
-  }
-
-  private async getMacroInfo(transport: CodecTransport<Uint8Array>, slot: number): Promise<MacroHeader> {
-    if (slot >= CH552_MACRO_SLOTS) {
-      throw new Error(`CH552G 宏槽位 ${slot} 超出范围 (最大 ${CH552_MACRO_SLOTS - 1})`);
-    }
-    // 读取槽位头部 2 字节: [valid, actionCount]
-    const resp = await this.sendMacroCmd(transport, Ch552MacroSub.READ, slot, 0, CH552_MACRO_HEADER_SIZE);
-    // CustomBuf: [0]=0x40, [1]=1, [2]=0, [3]=len, [4..]=data
-    const len = resp[3] ?? 0;
-    const valid = len >= 2 && resp[4] === CH552_MACRO_VALID_MARKER ? 1 : 0;
-    const actionCount = valid ? (resp[5] ?? 0) : 0;
-    const dataSize = actionCount * 2;
-    return { valid, id: slot, actionCount, dataSize, name: '' };
-  }
-
-  private async getMacroData(transport: CodecTransport<Uint8Array>, slot: number): Promise<MacroData> {
-    const header = await this.getMacroInfo(transport, slot);
-    if (!header.valid || header.actionCount === 0) {
-      return { header, actions: [{ type: MacroActionType.END, param: 0 }] };
-    }
-
-    // 读取动作数据（跳过 2 字节头部）
-    const totalBytes = header.actionCount * 2;
-    const raw = new Uint8Array(totalBytes);
-    let readOffset = 0;
-
-    while (readOffset < totalBytes) {
-      const chunkSize = Math.min(CH552_MACRO_READ_CHUNK, totalBytes - readOffset);
-      const flashOffset = CH552_MACRO_HEADER_SIZE + readOffset;
-      const resp = await this.sendMacroCmd(transport, Ch552MacroSub.READ, slot, flashOffset, chunkSize);
+  /** 分块读取 MeowFS 原始数据 */
+  private async readFsChunked(
+    transport: CodecTransport<Uint8Array>,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array> {
+    const result = new Uint8Array(length);
+    let pos = 0;
+    while (pos < length) {
+      const chunkLen = Math.min(MEOWFS_READ_CHUNK, length - pos);
+      const absOff = offset + pos;
+      const resp = await this.sendMeowFsCmd(
+        transport,
+        Ch552MacroSub.READ,
+        new Uint8Array([(absOff >> 8) & 0xFF, absOff & 0xFF, chunkLen]),
+      );
       const readLen = resp[3] ?? 0;
-      for (let i = 0; i < readLen && readOffset + i < totalBytes; i++) {
-        raw[readOffset + i] = resp[4 + i] ?? 0;
+      for (let i = 0; i < readLen && pos + i < length; i++) {
+        result[pos + i] = resp[4 + i] ?? 0;
       }
-      readOffset += readLen || chunkSize;
+      pos += readLen || chunkLen;
+    }
+    return result;
+  }
+
+  /** 分块写入 MeowFS 原始数据 */
+  private async writeFsChunked(
+    transport: CodecTransport<Uint8Array>,
+    offset: number,
+    data: Uint8Array,
+  ): Promise<void> {
+    let pos = 0;
+    while (pos < data.length) {
+      const chunkLen = Math.min(MEOWFS_WRITE_CHUNK, data.length - pos);
+      const absOff = offset + pos;
+      const params = new Uint8Array(3 + chunkLen);
+      params[0] = (absOff >> 8) & 0xFF;
+      params[1] = absOff & 0xFF;
+      params[2] = chunkLen;
+      params.set(data.subarray(pos, pos + chunkLen), 3);
+      await this.sendMeowFsCmd(transport, Ch552MacroSub.WRITE, params);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      pos += chunkLen;
+    }
+  }
+
+  /** 擦除整个 MeowFS 区域 */
+  private async eraseAllFs(transport: CodecTransport<Uint8Array>): Promise<void> {
+    await this.sendMeowFsCmd(transport, Ch552MacroSub.ERASE, new Uint8Array([0xFF]));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  /** 解析 MeowFS 原始数据为宏列表 */
+  private parseFsData(raw: Uint8Array): MeowFsMacroEntry[] {
+    const macros: MeowFsMacroEntry[] = [];
+    let pos = 0;
+    while (pos + CH552_MEOWFS_HEADER_SIZE <= raw.length) {
+      const marker = raw[pos];
+      const count = raw[pos + 1];
+      // 终止: 0xFF=空闲, {0x00,0x00}=格式化写零兜底
+      if (marker === 0xFF || (marker === 0x00 && count === 0x00)) break;
+      const entrySize = CH552_MEOWFS_HEADER_SIZE + count * CH552_MEOWFS_ACTION_SIZE;
+      if (pos + entrySize > raw.length) break;
+      if (marker === MEOWFS_VALID_MARKER) {
+        const actions: MacroAction[] = [];
+        for (let i = 0; i < count; i++) {
+          actions.push({
+            type: raw[pos + CH552_MEOWFS_HEADER_SIZE + i * 2] as MacroActionType,
+            param: raw[pos + CH552_MEOWFS_HEADER_SIZE + i * 2 + 1],
+          });
+        }
+        macros.push({ actionCount: count, actions });
+      }
+      pos += entrySize;
+    }
+    return macros;
+  }
+
+  /** 序列化宏列表为 MeowFS 原始数据 */
+  private serializeMacros(macros: MeowFsMacroEntry[]): Uint8Array {
+    let totalSize = 0;
+    for (const m of macros) {
+      totalSize += CH552_MEOWFS_HEADER_SIZE + m.actionCount * CH552_MEOWFS_ACTION_SIZE;
+    }
+    const buf = new Uint8Array(totalSize);
+    let pos = 0;
+    for (const m of macros) {
+      buf[pos] = MEOWFS_VALID_MARKER;
+      buf[pos + 1] = m.actionCount;
+      for (let i = 0; i < m.actionCount; i++) {
+        buf[pos + CH552_MEOWFS_HEADER_SIZE + i * 2] = m.actions[i].type;
+        buf[pos + CH552_MEOWFS_HEADER_SIZE + i * 2 + 1] = m.actions[i].param;
+      }
+      pos += CH552_MEOWFS_HEADER_SIZE + m.actionCount * CH552_MEOWFS_ACTION_SIZE;
+    }
+    return buf;
+  }
+
+  /** 读取并缓存 MeowFS 完整状态 */
+  private async ensureMeowFsCache(transport: CodecTransport<Uint8Array>): Promise<MeowFsCache> {
+    if (this.meowfsCache) return this.meowfsCache;
+
+    // INFO → [0x40, sub, 0, total_hi, total_lo, page_size, macro_count, free_hi, free_lo]
+    const info = await this.sendMeowFsCmd(transport, Ch552MacroSub.INFO);
+    const fsTotal = ((info[3] ?? 0) << 8) | (info[4] ?? 0);
+    const macroCount = info[6] ?? 0;
+    const fsFree = ((info[7] ?? 0) << 8) | (info[8] ?? 0);
+    const usedBytes = fsTotal - fsFree;
+
+    let macros: MeowFsMacroEntry[] = [];
+    if (macroCount > 0 && usedBytes > 0) {
+      const raw = await this.readFsChunked(transport, 0, usedBytes);
+      macros = this.parseFsData(raw);
     }
 
-    const actions: MacroAction[] = [];
-    for (let i = 0; i + 1 < raw.length; i += 2) {
-      const type = raw[i] as MacroActionType;
-      const param = raw[i + 1];
-      actions.push({ type, param });
-      if (type === MacroActionType.END) break;
-    }
-    if (actions.length === 0 || actions[actions.length - 1].type !== MacroActionType.END) {
-      actions.push({ type: MacroActionType.END, param: 0 });
-    }
+    this.meowfsCache = { fsTotal, fsFree, macros };
+    return this.meowfsCache;
+  }
 
-    return { header, actions };
+  private async getMacroOverview(transport: CodecTransport<Uint8Array>): Promise<MacroOverview> {
+    this.meowfsCache = null; // 强制刷新
+    const cache = await this.ensureMeowFsCache(transport);
+    const count = cache.macros.length;
+    const totalSlots = count + CH552_MEOWFS_APPEND_SLOTS;
+    return {
+      totalSlots,
+      usedCount: count,
+      slotValid: [
+        ...new Array(count).fill(true),
+        ...new Array(totalSlots - count).fill(false),
+      ],
+      dynamic: true,
+      fsTotal: cache.fsTotal,
+      fsFree: cache.fsFree,
+    };
+  }
+
+  private async getMacroInfo(transport: CodecTransport<Uint8Array>, index: number): Promise<MacroHeader> {
+    const cache = await this.ensureMeowFsCache(transport);
+    if (index >= cache.macros.length) {
+      return { valid: 0, id: index, actionCount: 0, dataSize: 0, name: '' };
+    }
+    const m = cache.macros[index];
+    return {
+      valid: 1,
+      id: index,
+      actionCount: m.actionCount,
+      dataSize: m.actionCount * CH552_MEOWFS_ACTION_SIZE,
+      name: '',
+    };
+  }
+
+  private async getMacroData(transport: CodecTransport<Uint8Array>, index: number): Promise<MacroData> {
+    const cache = await this.ensureMeowFsCache(transport);
+    if (index >= cache.macros.length) {
+      return {
+        header: { valid: 0, id: index, actionCount: 0, dataSize: 0, name: '' },
+        actions: [{ type: MacroActionType.END, param: 0 }],
+      };
+    }
+    const m = cache.macros[index];
+    const actions: MacroAction[] = m.actions.map((a) => ({ ...a }));
+    actions.push({ type: MacroActionType.END, param: 0 });
+    return {
+      header: {
+        valid: 1,
+        id: index,
+        actionCount: m.actionCount,
+        dataSize: m.actionCount * CH552_MEOWFS_ACTION_SIZE,
+        name: '',
+      },
+      actions,
+    };
   }
 
   private async setMacroData(
     transport: CodecTransport<Uint8Array>,
-    slot: number,
+    index: number,
     macro: MacroData,
   ): Promise<void> {
-    if (slot >= CH552_MACRO_SLOTS) {
-      throw new Error(`CH552G 宏槽位 ${slot} 超出范围`);
-    }
+    const cache = await this.ensureMeowFsCache(transport);
+    const macros = cache.macros.map((m) => ({
+      actionCount: m.actionCount,
+      actions: m.actions.map((a) => ({ ...a })),
+    }));
 
-    // 序列化动作 (不含 END — 固件用 actionCount 控制)
+    // 序列化新宏 (不含 END)
     const actionsNoEnd = macro.actions.filter((a) => a.type !== MacroActionType.END);
-    if (actionsNoEnd.length > CH552_MACRO_MAX_ACTIONS) {
-      throw new Error(`动作数 ${actionsNoEnd.length} 超过 CH552G 上限 ${CH552_MACRO_MAX_ACTIONS}`);
+    if (actionsNoEnd.length > CH552_MEOWFS_MAX_ACTIONS) {
+      throw new Error(`动作数 ${actionsNoEnd.length} 超过上限 ${CH552_MEOWFS_MAX_ACTIONS}`);
     }
 
-    // 构建完整槽位数据: [valid, count, ...actions]
-    const slotData = new Uint8Array(CH552_MACRO_HEADER_SIZE + actionsNoEnd.length * 2);
-    slotData[0] = CH552_MACRO_VALID_MARKER;
-    slotData[1] = actionsNoEnd.length;
-    for (let i = 0; i < actionsNoEnd.length; i++) {
-      slotData[CH552_MACRO_HEADER_SIZE + i * 2] = actionsNoEnd[i].type;
-      slotData[CH552_MACRO_HEADER_SIZE + i * 2 + 1] = actionsNoEnd[i].param;
+    const newEntry: MeowFsMacroEntry = {
+      actionCount: actionsNoEnd.length,
+      actions: actionsNoEnd,
+    };
+
+    if (index < macros.length) {
+      macros[index] = newEntry; // 替换
+    } else if (index === macros.length) {
+      macros.push(newEntry); // 追加
+    } else {
+      throw new Error(`无效的宏索引 ${index}`);
     }
 
-    // 先擦除
-    await this.sendMacroCmd(transport, Ch552MacroSub.ERASE, slot);
-    await new Promise((resolve) => setTimeout(resolve, 30));
-
-    // 分块写入 (firmware 每次最多写 22 字节)
-    let writeOffset = 0;
-    while (writeOffset < slotData.length) {
-      const chunkSize = Math.min(CH552_MACRO_WRITE_CHUNK, slotData.length - writeOffset);
-      await this.sendMacroCmd(
-        transport,
-        Ch552MacroSub.WRITE,
-        slot,
-        writeOffset,
-        chunkSize,
-        slotData.slice(writeOffset, writeOffset + chunkSize),
-      );
-      await new Promise((resolve) => setTimeout(resolve, 20));
-      writeOffset += chunkSize;
+    // 序列化并检查空间
+    const buf = this.serializeMacros(macros);
+    if (buf.length > cache.fsTotal) {
+      throw new Error(`宏数据总计 ${buf.length} 字节，超过 MeowFS 容量 ${cache.fsTotal} 字节`);
     }
+
+    // 擦除 → 全量写回
+    await this.eraseAllFs(transport);
+    await this.writeFsChunked(transport, 0, buf);
+    this.meowfsCache = null;
   }
 
-  private async deleteMacro(transport: CodecTransport<Uint8Array>, slot: number): Promise<void> {
-    if (slot >= CH552_MACRO_SLOTS) {
-      throw new Error(`CH552G 宏槽位 ${slot} 超出范围`);
+  private async deleteMacro(transport: CodecTransport<Uint8Array>, index: number): Promise<void> {
+    const cache = await this.ensureMeowFsCache(transport);
+    if (index >= cache.macros.length) {
+      throw new Error(`宏索引 ${index} 不存在`);
     }
-    await this.sendMacroCmd(transport, Ch552MacroSub.ERASE, slot);
+
+    await this.sendMeowFsCmd(transport, Ch552MacroSub.DELETE, new Uint8Array([index]));
+    this.meowfsCache = null;
   }
 
   private async readWithRetry<T>(label: string, task: () => Promise<T>): Promise<T> {
