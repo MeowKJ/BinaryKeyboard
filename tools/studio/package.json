@@ -1,6 +1,6 @@
 {
   "name": "meowkeyboard-studio",
-  "version": "3.0.0",
+  "version": "3.0.18",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",
@@ -26,18 +26,43 @@
     "appId": "com.binarykeyboard.studio",
     "productName": "BinaryKeyboard Studio",
     "copyright": "Copyright © 2025 喵喵的帕斯",
-    "files": ["dist/**", "dist-electron/**"],
-    "directories": { "output": "release" },
+    "files": [
+      "dist/**",
+      "dist-electron/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
     "mac": {
       "category": "public.app-category.utilities",
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
     },
     "dmg": {
       "title": "BinaryKeyboard Studio",
-      "window": { "width": 540, "height": 280 }
+      "window": {
+        "width": 540,
+        "height": 280
+      }
     },
     "win": {
-      "target": [{ "target": "portable", "arch": ["x64", "ia32", "arm64"] }]
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32",
+            "arm64"
+          ]
+        }
+      ]
     },
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   },
@@ -71,7 +96,10 @@
     "workbox-window": "^7.4.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild"],
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ],
     "overrides": {
       "@babel/helpers": "7.26.10",
       "@rollup/plugin-babel": "7.0.0",
