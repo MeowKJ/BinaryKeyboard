@@ -28,8 +28,6 @@ __xdata uint8_t CustomBuf[31] = {0x01};
 
 typedef void (*pTaskFn)(void);
 
-void delayMicroseconds(uint16_t us);
-
 void USBInit()
 {
   USBDeviceCfg();         // Device mode configuration
@@ -47,14 +45,13 @@ void USB_EP1_IN()
   UpPoint1_Busy = 0;                                       // Clear busy flag
 }
 
-// 宏 HID 命令处理
+// MeowFS HID 命令处理
 // 统一入口 0x40, Ep1Buffer 格式:
-// [0]=4, [1]=0x40, [2]=sub, [3]=slot, [4..]=data
-// sub: 0=INFO, 1=READ, 2=ERASE, 3=WRITE
+// [0]=4, [1]=0x40, [2]=sub, [3..]=params
+// sub: 0=INFO, 1=READ, 2=ERASE, 3=WRITE, 4=DELETE
 static void handle_macro_cmd(void)
 {
   __xdata uint8_t sub = Ep1Buffer[2];
-  __xdata uint8_t slot = Ep1Buffer[3];
 
   CustomBuf[0] = HOST_CMD_MACRO_INFO;
   CustomBuf[1] = sub;
@@ -62,40 +59,68 @@ static void handle_macro_cmd(void)
 
   if (sub == 0)
   {
-    CustomBuf[3] = MACRO_SLOT_COUNT;
-    CustomBuf[4] = MACRO_SLOT_SIZE;
-    CustomBuf[5] = macro_is_valid(0);
-    CustomBuf[6] = macro_is_valid(1);
+    // FS_INFO: total, page_size, macro_count, free
+    uint16_t used = meowfs_used_bytes();
+    uint16_t free = (uint16_t)(MEOWFS_SIZE - used);
+    CustomBuf[3] = (uint8_t)(MEOWFS_SIZE >> 8);
+    CustomBuf[4] = (uint8_t)(MEOWFS_SIZE);
+    CustomBuf[5] = MEOWFS_PAGE_SIZE;
+    CustomBuf[6] = meowfs_macro_count();
+    CustomBuf[7] = (uint8_t)(free >> 8);
+    CustomBuf[8] = (uint8_t)(free);
   }
-  else if (slot < MACRO_SLOT_COUNT)
+  else if (sub == 1)
   {
-    __xdata uint8_t off = Ep1Buffer[5];
-    __xdata uint8_t len = Ep1Buffer[6];
-    __xdata uint16_t base = macro_slot_addr(slot) + off;
-
-    if (sub == 1)
+    // FS_READ: [3]=off_hi, [4]=off_lo, [5]=len
+    __xdata uint16_t off = ((uint16_t)Ep1Buffer[3] << 8) | Ep1Buffer[4];
+    __xdata uint8_t len = Ep1Buffer[5];
+    if (len > 26)
+      len = 26;
+    if (off + len > MEOWFS_SIZE)
+      len = (uint8_t)(MEOWFS_SIZE - off);
+    CustomBuf[3] = len;
+    for (__xdata uint8_t i = 0; i < len; i++)
+      CustomBuf[4 + i] = flash_read_byte(MEOWFS_BASE + off + i);
+  }
+  else if (sub == 2)
+  {
+    // FS_ERASE: [3]=page_index (0xFF = erase all)
+    __xdata uint8_t page = Ep1Buffer[3];
+    if (page == 0xFF)
     {
-      if (len > 26)
-        len = 26;
-      if (off + len > MACRO_SLOT_SIZE)
-        len = MACRO_SLOT_SIZE - off;
-      CustomBuf[3] = len;
-      for (__xdata uint8_t i = 0; i < len; i++)
-        CustomBuf[4 + i] = macro_read_byte(base + i);
+      meowfs_format();
     }
-    else if (sub == 2)
+    else if (page < MEOWFS_PAGES)
     {
-      macro_erase_slot(slot);
+      flash_erase_page(MEOWFS_BASE + (uint16_t)page * MEOWFS_PAGE_SIZE);
     }
-    else if (sub == 3)
+    CustomBuf[3] = flash_read_byte(MEOWFS_BASE);
+    CustomBuf[4] = flash_read_byte(MEOWFS_BASE + 1);
+  }
+  else if (sub == 3)
+  {
+    // FS_WRITE: [3]=off_hi, [4]=off_lo, [5]=len, [6..]=data
+    __xdata uint16_t off = ((uint16_t)Ep1Buffer[3] << 8) | Ep1Buffer[4];
+    __xdata uint8_t len = Ep1Buffer[5];
+    if (len > 22)
+      len = 22;
+    if (off + len > MEOWFS_SIZE)
+      len = (uint8_t)(MEOWFS_SIZE - off);
+    for (__xdata uint8_t i = 0; i < len; i += 2)
     {
-      if (len > 22)
-        len = 22;
-      for (__xdata uint8_t i = 0; i < len; i += 2)
-      {
-        __xdata uint8_t hi = (i + 1 < len) ? Ep1Buffer[8 + i] : 0xFF;
-        macro_write_word(base + i, Ep1Buffer[7 + i], hi);
-      }
+      __xdata uint8_t hi = (i + 1 < len) ? Ep1Buffer[7 + i] : 0xFF;
+      flash_write_word(MEOWFS_BASE + off + i, Ep1Buffer[6 + i], hi);
+    }
+  }
+  else if (sub == 4)
+  {
+    // FS_DELETE: [3]=macro_index → mark header as deleted
+    __xdata uint8_t index = Ep1Buffer[3];
+    __xdata uint16_t addr = meowfs_find_macro(index);
+    if (addr != 0)
+    {
+      uint8_t count = flash_read_byte(addr + 1);
+      flash_write_word(addr, 0x00, count);
     }
   }
 
@@ -174,6 +199,15 @@ void USB_EP1_OUT()
       else if (cmd == HOST_CMD_WRITE_RGB)
       {
         applyRgbConfig();
+      }
+      else if (cmd == HOST_CMD_FACTORY_RESET)
+      {
+        KeysDataFactoryReset();
+        memset(CustomBuf, 0, sizeof(CustomBuf));
+        CustomBuf[0] = HOST_CMD_FACTORY_RESET;
+        CustomBuf[1] = flash_read_byte(MEOWFS_BASE);
+        CustomBuf[2] = flash_read_byte(MEOWFS_BASE + 1);
+        USB_EP1_send(5);
       }
       else if (cmd >= HOST_CMD_MACRO_INFO)
       {

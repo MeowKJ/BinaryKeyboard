@@ -1,6 +1,6 @@
-#include <Arduino.h>
-#include <string.h>
+#include "ch552_defs.h"
 #include "KeysDataHandler.h"
+#include "MacroStorage.h"
 #include "config.h"
 #include "rgb.h"
 
@@ -12,7 +12,6 @@ typedef struct
 
 static uint8_t validateEepromHeader(void);
 static void initDefaultConfig(void);
-static void clearLayer(uint8_t layer);
 static void loadRgbFromEEPROM(void);
 
 static __xdata KeyConfig keySettings[MAX_LAYERS][KEY_CONFIG_SLOTS];
@@ -30,6 +29,12 @@ void KeysDataInit(void)
   }
   // 加载 RGB 配置
   loadRgbFromEEPROM();
+  // 首次升级到 MeowFS: 格式化 flash 宏区
+  if (eeprom_read_byte(EEPROM_MEOWFS_FMT_ADDR) != MEOWFS_FMT_MAGIC)
+  {
+    meowfs_format();
+    eeprom_write_byte(EEPROM_MEOWFS_FMT_ADDR, MEOWFS_FMT_MAGIC);
+  }
 }
 
 static uint8_t validateEepromHeader(void)
@@ -38,22 +43,9 @@ static uint8_t validateEepromHeader(void)
          (eeprom_read_byte(EEPROM_DEVTYPE_ADDR) == EXPECT_DEVICE_TYPE);
 }
 
-static void clearLayer(uint8_t layer)
-{
-  for (uint8_t i = 0; i < KEY_CONFIG_SLOTS; i++)
-  {
-    keySettings[layer][i].type = KEY_TYPE_INVALID;
-    keySettings[layer][i].value = 0;
-  }
-}
-
 static void initDefaultConfig(void)
 {
-  clearLayer(0);
-  for (uint8_t layer = 1; layer < MAX_LAYERS; layer++)
-  {
-    clearLayer(layer);
-  }
+  memset(keySettings, 0, sizeof(keySettings));
 
 #ifdef USE_KNOB
   keySettings[0][0].type = KEY_TYPE_KB;
@@ -117,6 +109,15 @@ static void initDefaultConfig(void)
   eeprom_write_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR, 0);
   eeprom_write_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR, 13);
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, PRESS_EFFECT_NONE);
+  // MeowFS
+  meowfs_format();
+  eeprom_write_byte(EEPROM_MEOWFS_FMT_ADDR, MEOWFS_FMT_MAGIC);
+}
+
+void KeysDataFactoryReset(void)
+{
+  initDefaultConfig();
+  loadRgbFromEEPROM();
 }
 
 // ── 当前层的快捷读取 ──
@@ -270,7 +271,7 @@ void applyRgbConfig(void)
   __xdata uint8_t ibv = Ep1Buffer[10];
   __xdata uint8_t pev = Ep1Buffer[11];
 
-  if (mode >= EFFECT_COUNT)
+  if (mode >= EFFECT_COUNT || mode == EFFECT_BLINK || mode == EFFECT_INDICATOR)
     mode = EFFECT_OFF;
   if (pev >= PRESS_EFFECT_COUNT)
     pev = PRESS_EFFECT_NONE;
@@ -308,7 +309,9 @@ static void loadRgbFromEEPROM(void)
   rgbEnabled = (v == 0xFF || v) ? 1 : 0;
 
   v = eeprom_read_byte(EEPROM_RGB_MODE_ADDR);
-  effectMode = (v == 0xFF || v >= EFFECT_COUNT) ? EFFECT_RAINBOW : v;
+  effectMode = (v == 0xFF || v >= EFFECT_COUNT || v == EFFECT_BLINK || v == EFFECT_INDICATOR)
+                   ? EFFECT_RAINBOW
+                   : v;
 
   v = eeprom_read_byte(EEPROM_RGB_BRIGHTNESS_ADDR);
   currentBrightness = (v == 0xFF) ? 128 : v;

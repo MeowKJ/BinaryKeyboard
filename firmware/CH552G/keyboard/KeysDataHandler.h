@@ -37,6 +37,7 @@ extern "C"
 #define HOST_CMD_READ_META 0x05
 #define HOST_CMD_READ_RGB 0x06
 #define HOST_CMD_WRITE_RGB 0x07
+#define HOST_CMD_FACTORY_RESET 0x08
 
 #define HOST_CMD_MACRO_INFO 0x40
 
@@ -52,6 +53,10 @@ extern "C"
 #define EEPROM_RGB_INDICATOR_ENABLED_ADDR (EEPROM_RGB_BASE_ADDR + 7)
 #define EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR (EEPROM_RGB_BASE_ADDR + 8)
 #define EEPROM_RGB_PRESS_EFFECT_ADDR (EEPROM_RGB_BASE_ADDR + 9)
+
+// MeowFS 格式化标记
+#define EEPROM_MEOWFS_FMT_ADDR (EEPROM_RGB_BASE_ADDR + 10)
+#define MEOWFS_FMT_MAGIC      0x4D  /* 'M' — 区别旧固件残留的 0xAA/0xFF */
 
   // 函数声明
   void KeysDataInit(void);
@@ -69,6 +74,9 @@ extern "C"
   void saveLayerToEEPROM(uint8_t layer);
   void saveCurrentLayerToEEPROM(void);
   void loadAllFromEEPROM(void);
+
+  // 恢复出厂设置
+  void KeysDataFactoryReset(void);
 
   // HID 协议响应
   void fillSysInfoResponse(uint8_t *__xdata buf);

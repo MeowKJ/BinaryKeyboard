@@ -1,112 +1,141 @@
-#include <stdint.h>
+#include "ch552_defs.h"
 #include "MacroStorage.h"
 #include "CustomUSBHID.h"
 
-// clang-format off
-#include "include/ch5xx.h"
-// clang-format on
+// ==================== MeowFS scanning ====================
 
-// ==================== 存储操作 ====================
-
-uint16_t macro_slot_addr(uint8_t slot)
+static uint8_t page_is_blank(uint16_t page_addr)
 {
-    return (slot == 0) ? MACRO_SLOT0_ADDR : MACRO_SLOT1_ADDR;
-}
-
-uint8_t macro_read_byte(uint16_t addr)
-{
-    return *(__code uint8_t *)addr;
-}
-
-static void erase_flash_page(uint16_t pageAddr)
-{
-    SAFE_MOD = 0x55;
-    SAFE_MOD = 0xAA;
-    GLOBAL_CFG |= bCODE_WE;
-    ROM_ADDR = pageAddr;
-    if (ROM_STATUS & bROM_ADDR_OK)
+    for (uint8_t i = 0; i < MEOWFS_PAGE_SIZE; i++)
     {
-        ROM_CTRL = 0xA6;
+        if (flash_read_byte(page_addr + i) != 0xFF)
+            return 0;
     }
-    SAFE_MOD = 0x55;
-    SAFE_MOD = 0xAA;
-    GLOBAL_CFG &= ~bCODE_WE;
-    SAFE_MOD = 0;
+    return 1;
 }
 
-void macro_erase_slot(uint8_t slot)
+static uint8_t read_entry_meta(uint16_t pos, uint16_t end, uint8_t *marker_out, uint8_t *count_out, uint16_t *next_pos_out)
 {
-    // 192B macro region is 3×64B pages. Two 96B slots share the middle page:
-    //   Page 0x3740: slot0[0..63]
-    //   Page 0x3780: slot0[64..95] + slot1[0..31]   (shared erase page)
-    //   Page 0x37C0: slot1[32..95]
-    //
-    // Because erase granularity is 64B, erasing one slot must preserve the
-    // other slot's 32B half inside the shared page.
+    uint8_t marker;
+    uint8_t count;
+    uint16_t next_pos;
 
-    static __xdata uint8_t preserve[32];
-
-    if (slot == 0)
-    {
-        // Preserve slot1 first 32B (0x37A0..0x37BF) before erasing 0x3780 page.
-        for (uint8_t i = 0; i < 32; i++)
-            preserve[i] = macro_read_byte((uint16_t)(MACRO_SLOT1_ADDR + i));
-
-        erase_flash_page(0x3740);
-        erase_flash_page(0x3780);
-
-        // Restore preserved bytes back into shared page.
-        for (uint8_t i = 0; i < 32; i += 2)
-            macro_write_word((uint16_t)(MACRO_SLOT1_ADDR + i), preserve[i], preserve[i + 1]);
-        return;
-    }
-
-    // slot == 1
-    for (uint8_t i = 0; i < 32; i++)
-        preserve[i] = macro_read_byte((uint16_t)(MACRO_SLOT0_ADDR + 64 + i)); // 0x3780..0x379F
-
-    erase_flash_page(0x3780);
-    erase_flash_page(0x37C0);
-
-    for (uint8_t i = 0; i < 32; i += 2)
-        macro_write_word((uint16_t)(MACRO_SLOT0_ADDR + 64 + i), preserve[i], preserve[i + 1]);
-}
-
-void macro_write_word(uint16_t addr, uint8_t lo, uint8_t hi)
-{
-    SAFE_MOD = 0x55;
-    SAFE_MOD = 0xAA;
-    GLOBAL_CFG |= bCODE_WE;
-    ROM_ADDR = addr;
-    ROM_DATA_L = lo;
-    ROM_DATA_H = hi;
-    if (ROM_STATUS & bROM_ADDR_OK)
-    {
-        ROM_CTRL = ROM_CMD_WRITE;
-    }
-    SAFE_MOD = 0x55;
-    SAFE_MOD = 0xAA;
-    GLOBAL_CFG &= ~bCODE_WE;
-    SAFE_MOD = 0;
-}
-
-uint8_t macro_is_valid(uint8_t slot)
-{
-    if (slot >= MACRO_SLOT_COUNT)
+    if (pos + MEOWFS_HEADER_SIZE > end)
         return 0;
-    return macro_read_byte(macro_slot_addr(slot)) == MACRO_VALID_MARKER;
-}
 
-uint16_t macro_action_count(uint8_t slot)
-{
-    uint16_t base = macro_slot_addr(slot);
-    if (macro_read_byte(base) != MACRO_VALID_MARKER)
+    marker = flash_read_byte(pos);
+    count = flash_read_byte(pos + 1);
+
+    if (marker == 0xFF)
         return 0;
-    uint8_t count = macro_read_byte(base + 1);
-    return (count > MACRO_MAX_ACTIONS) ? MACRO_MAX_ACTIONS : count;
+    if (marker == 0x00 && count == 0x00)
+        return 0;
+    if (marker != 0x00 && marker != MEOWFS_VALID_MARKER)
+        return 0;
+
+    next_pos = pos + MEOWFS_HEADER_SIZE + (uint16_t)count * MEOWFS_ACTION_SIZE;
+    if (next_pos <= pos || next_pos > end)
+        return 0;
+
+    *marker_out = marker;
+    *count_out = count;
+    *next_pos_out = next_pos;
+    return 1;
 }
 
-// ==================== 执行引擎 ====================
+void meowfs_format(void)
+{
+    for (uint8_t i = 0; i < MEOWFS_PAGES; i++)
+    {
+        uint16_t page_addr = MEOWFS_BASE + (uint16_t)i * MEOWFS_PAGE_SIZE;
+        uint8_t retries = 0;
+        do
+        {
+            flash_erase_page(page_addr);
+            retries++;
+        } while (!page_is_blank(page_addr) && retries < 3);
+
+        if (!page_is_blank(page_addr))
+        {
+            if (i == 0)
+                flash_write_word(MEOWFS_BASE, 0x00, 0x00);
+            break;
+        }
+    }
+}
+
+uint16_t meowfs_find_macro(uint8_t index)
+{
+    uint16_t pos = MEOWFS_BASE;
+    uint16_t end = MEOWFS_BASE + MEOWFS_SIZE;
+    uint8_t found = 0;
+
+    while (pos + MEOWFS_HEADER_SIZE <= end)
+    {
+        uint8_t marker;
+        uint8_t count;
+        uint16_t next_pos;
+
+        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+            break;
+
+        if (marker == MEOWFS_VALID_MARKER)
+        {
+            if (found == index)
+                return pos;
+            found++;
+        }
+        pos = next_pos;
+    }
+    return 0;
+}
+
+uint8_t meowfs_macro_count(void)
+{
+    uint16_t pos = MEOWFS_BASE;
+    uint16_t end = MEOWFS_BASE + MEOWFS_SIZE;
+    uint8_t n = 0;
+
+    while (pos + MEOWFS_HEADER_SIZE <= end)
+    {
+        uint8_t marker;
+        uint8_t count;
+        uint16_t next_pos;
+
+        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+            break;
+
+        if (marker == MEOWFS_VALID_MARKER)
+            n++;
+        pos = next_pos;
+    }
+    return n;
+}
+
+uint16_t meowfs_used_bytes(void)
+{
+    uint16_t pos = MEOWFS_BASE;
+    uint16_t end = MEOWFS_BASE + MEOWFS_SIZE;
+
+    while (pos + MEOWFS_HEADER_SIZE <= end)
+    {
+        uint8_t marker;
+        uint8_t count;
+        uint16_t next_pos;
+
+        if (!read_entry_meta(pos, end, &marker, &count, &next_pos))
+            break;
+        pos = next_pos;
+    }
+    return (uint16_t)(pos - MEOWFS_BASE);
+}
+
+uint8_t meowfs_macro_valid(uint8_t index)
+{
+    return meowfs_find_macro(index) != 0;
+}
+
+// ==================== Execution engine ====================
 
 extern __xdata uint8_t HIDKey[8];
 
@@ -115,17 +144,16 @@ extern __xdata uint8_t HIDKey[8];
 #define MACRO_DELAY 2
 
 __xdata uint8_t macro_m_state;
-static __xdata uint8_t m_slot;
 __xdata uint8_t macro_m_trigger;
-__xdata uint8_t macro_m_key_idx;       // 触发按键索引
-static __xdata uint16_t m_act_idx;     // 当前动作索引
-static __xdata uint16_t m_act_count;   // 总动作数
-static __xdata uint8_t m_key_released; // 触发键已松开
-__xdata uint8_t macro_m_cancel_req;    // 取消请求 (TOGGLE)
+__xdata uint8_t macro_m_key_idx;
+__xdata uint8_t macro_m_cancel_req;
+
+static __xdata uint16_t m_base_addr;
+static __xdata uint16_t m_act_idx;
+static __xdata uint16_t m_act_count;
+static __xdata uint8_t m_key_released;
 static __xdata uint16_t m_delay_start;
 static __xdata uint16_t m_delay_ms;
-
-uint16_t millis(void);
 
 static void macro_release_all(void)
 {
@@ -148,9 +176,10 @@ static uint8_t should_loop(void)
     }
 }
 
-void macro_execute(uint8_t slot, uint8_t trigger, uint8_t keyIndex)
+void macro_execute(uint8_t index, uint8_t trigger, uint8_t keyIndex)
 {
-    if (slot >= MACRO_SLOT_COUNT || !macro_is_valid(slot))
+    uint16_t addr = meowfs_find_macro(index);
+    if (addr == 0)
         return;
 
     if (macro_m_state != MACRO_IDLE)
@@ -158,11 +187,15 @@ void macro_execute(uint8_t slot, uint8_t trigger, uint8_t keyIndex)
 
     macro_release_all();
 
-    m_slot = slot;
+    uint8_t count = flash_read_byte(addr + 1);
+    if (count > MEOWFS_MAX_ACTIONS)
+        count = MEOWFS_MAX_ACTIONS;
+
+    m_base_addr = addr + MEOWFS_HEADER_SIZE;
     macro_m_trigger = trigger;
     macro_m_key_idx = keyIndex;
     m_act_idx = 0;
-    m_act_count = macro_action_count(slot);
+    m_act_count = count;
     m_key_released = 0;
     macro_m_cancel_req = 0;
     macro_m_state = MACRO_RUNNING;
@@ -186,9 +219,9 @@ void macro_step(void)
 
     while (m_act_idx < m_act_count)
     {
-        addr = macro_slot_addr(m_slot) + MACRO_HEADER_SIZE + (uint16_t)(m_act_idx * 2);
-        type = macro_read_byte(addr);
-        param = macro_read_byte(addr + 1);
+        addr = m_base_addr + (uint16_t)(m_act_idx * 2);
+        type = flash_read_byte(addr);
+        param = flash_read_byte(addr + 1);
         m_act_idx++;
 
         switch (type)
@@ -234,7 +267,6 @@ void macro_step(void)
             break;
         }
 
-        // HOLD_ABORT: 松开时立即中断
         if (macro_m_trigger == MACRO_TRIG_HOLD_ABORT && m_key_released)
         {
             macro_release_all();
