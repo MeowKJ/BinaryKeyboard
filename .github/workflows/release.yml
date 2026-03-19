@@ -225,9 +225,9 @@ jobs:
         working-directory: tools/studio
         run: pnpm run build:electron
 
-      - name: Package (x64 + ia32 + arm64 portable)
+      - name: Package (portable)
         working-directory: tools/studio
-        run: pnpm exec electron-builder --win --x64 --ia32 --arm64
+        run: pnpm exec electron-builder --win
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -295,12 +295,22 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=${STUDIO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ch592_version=${CH592_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=${CH552_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Clean same-day releases and tags
         env:
           REPO: ${{ github.repository }}
           TAG: ${{ steps.version.outputs.tag }}
           GITHUB_TOKEN: ${{ github.token }}
+          PREV_TAG: ${{ steps.version.outputs.previous_tag }}
+          SHA: ${{ steps.version.outputs.sha }}
+          DATE_DISPLAY: ${{ steps.version.outputs.date }}
+          STUDIO_VERSION: ${{ steps.version.outputs.studio_version }}
+          CH592_VERSION: ${{ steps.version.outputs.ch592_version }}
+          CH552_VERSION: ${{ steps.version.outputs.ch552_version }}
         run: |
           git tag -l "${TAG}*" | xargs -r git tag -d
           python3 - <<'PYEOF'

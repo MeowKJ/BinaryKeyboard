@@ -2,7 +2,7 @@ export const meowMacroLanguage = {
   name: 'meowmacro',
   displayName: 'MeowMacro',
   scopeName: 'source.meowmacro',
-  aliases: ['meowmacro', 'meow'],
+  aliases: ['meow'],
   patterns: [
     { include: '#comment' },
     { include: '#keyword' },
@@ -91,4 +91,4 @@ export const meowMacroLanguage = {
       ],
     },
   },
-} as const
+}

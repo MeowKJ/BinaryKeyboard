@@ -276,6 +276,34 @@ int Kbd_Macro_ReadRaw(uint16_t offset, uint8_t *buf, uint16_t len);
 int Kbd_Macro_WriteRaw(uint16_t offset, const uint8_t *buf, uint16_t len);
 
 /**
+ * @brief 延迟写入 MeowFS 原始数据（ISR 安全）
+ *
+ * 将写入操作从 USB ISR 延迟到 TMOS 主循环执行，
+ * 避免在中断上下文中操作 Flash 导致丢包。
+ * 完成后通过 KBD_Command_SendResponse 自动发送响应。
+ *
+ * @param[in] offset 数据偏移量
+ * @param[in] buf    数据缓冲区
+ * @param[in] len    数据长度
+ * @param[in] sub    子命令编号（用于回复）
+ * @return 0 已提交
+ * @return -1 上一次操作尚未完成
+ * @return -2 参数无效
+ */
+int Kbd_Macro_WriteRawDeferred(uint16_t offset, const uint8_t *buf,
+                               uint16_t len, uint8_t sub);
+
+/**
+ * @brief 延迟擦除 MeowFS（ISR 安全）
+ *
+ * @param[in] page 页索引（0xFF = 擦除全部）
+ * @param[in] sub  子命令编号（用于回复）
+ * @return 0 已提交
+ * @return -1 上一次操作尚未完成
+ */
+int Kbd_Macro_EraseDeferred(uint8_t page, uint8_t sub);
+
+/**
  * @brief 擦除指定 MeowFS 页
  * @param[in] page_index 页索引（0 ~ page_count-1）
  * @return 0 成功

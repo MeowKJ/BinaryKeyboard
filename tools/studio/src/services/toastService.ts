@@ -5,9 +5,17 @@
  * 之后任何非 Vue 上下文（Service、Store 等）均可直接调用 showToast()。
  */
 
+import { ref } from 'vue';
 import type { ToastServiceMethods } from 'primevue/toastservice';
 
 let _toast: ToastServiceMethods | null = null;
+
+export type ToastSeverity = 'success' | 'info' | 'warn' | 'error';
+
+/** 最近一次 Toast 的 severity，供猫咪助手响应 */
+export const lastToastSeverity = ref<ToastSeverity | null>(null);
+
+let _moodTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 由 App.vue 在 setup 阶段调用一次完成注入 */
 export function initToastService(toast: ToastServiceMethods): void {
@@ -16,7 +24,7 @@ export function initToastService(toast: ToastServiceMethods): void {
 
 /** 显示 Toast 通知 */
 export function showToast(
-  severity: 'success' | 'info' | 'warn' | 'error',
+  severity: ToastSeverity,
   summary: string,
   detail: string,
   life = 2500,
@@ -26,4 +34,12 @@ export function showToast(
     return;
   }
   _toast.add({ severity, summary, detail, life });
+
+  /* 更新猫咪助手表情 */
+  lastToastSeverity.value = severity;
+  if (_moodTimer) clearTimeout(_moodTimer);
+  _moodTimer = setTimeout(() => {
+    lastToastSeverity.value = null;
+    _moodTimer = null;
+  }, life);
 }
