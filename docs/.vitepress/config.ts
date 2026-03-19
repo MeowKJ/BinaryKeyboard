@@ -8,7 +8,7 @@ export default defineConfig({
   base: '/BinaryKeyboard/',
 
   markdown: {
-    languages: [[meowMacroLanguage]],
+    languages: [meowMacroLanguage],
     languageAlias: {
       meow: 'meowmacro',
     },
@@ -138,5 +138,5 @@ export default defineConfig({
     darkModeSwitchTitle: '切换到深色模式',
     sidebarMenuLabel: '菜单',
     returnToTopLabel: '回到顶部',
-  }
+  } as any
 })
