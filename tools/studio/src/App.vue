@@ -14,13 +14,8 @@
       <span class="loading-text">正在通讯...</span>
     </div>
 
-    <!-- 过渡猫咪（从首页飞向右下角） -->
-    <div v-if="viewPhase === 'exit'" class="transition-cat">
-      <img :src="grinningCatAnimatedSrc" alt="" draggable="false" />
-    </div>
-
     <!-- 未连接状态 - 欢迎页 -->
-    <div v-if="viewPhase === 'welcome' || viewPhase === 'exit'" class="welcome-screen" :class="{ exiting: viewPhase === 'exit', returning: welcomeReturning }">
+    <div v-if="viewPhase === 'welcome'" class="welcome-screen" :class="{ returning: welcomeReturning }">
       <!-- 主题切换按钮 -->
       <button class="theme-toggle" @click="toggleTheme">
         <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
@@ -116,8 +111,8 @@
     </div>
 
     <!-- 已连接状态 - 主界面 -->
-    <div v-if="viewPhase === 'enter' || viewPhase === 'connected'" class="main-layout" :class="{ entering: viewPhase === 'enter' }">
-      <CatAssistant v-if="viewPhase === 'enter' || viewPhase === 'connected'" :loading="viewPhase !== 'connected'" />
+    <div v-if="viewPhase === 'connected'" class="main-layout">
+      <CatAssistant @action="onCatAction" />
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
@@ -225,9 +220,9 @@
             <div class="deco-star deco-star-1">✨</div>
             <div class="deco-star deco-star-2">✨</div>
             <!-- 键盘装饰 -->
-            <span class="deco-emoji deco-cat-1"><CatEmoji type="grinning-animated" /></span>
-            <span class="deco-emoji deco-cat-2"><CatEmoji type="grinning-eyes-animated" /></span>
-            <span class="deco-emoji deco-cat-3"><CatEmoji type="heart-eyes-animated" /></span>
+            <span class="deco-emoji deco-icon-1"><CatEmoji type="rocket-3d" /></span>
+            <span class="deco-emoji deco-icon-2"><CatEmoji type="hourglass-not-done-3d" /></span>
+            <span class="deco-emoji deco-icon-3"><CatEmoji type="hourglass-done-3d" /></span>
             <!-- 小装饰 -->
             <span class="deco-mini deco-yarn">🧶</span>
             <span class="deco-mini deco-star-3">⭐</span>
@@ -290,7 +285,6 @@ import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } 
 import { getHidDevicePlugin } from '@/services/hid/registry';
 import CatEmoji from '@/components/CatEmoji.vue';
 import CatAssistant from '@/components/CatAssistant.vue';
-import grinningCatAnimatedSrc from '@/assets/emoji/grinning_cat_with_smiling_eyes_animated.png';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
@@ -327,42 +321,23 @@ async function onPwaUpdate() {
   }
 }
 
-// 开屏过渡状态：连接时先播放动画，利用加载时间完成过渡
-type ViewPhase = 'welcome' | 'exit' | 'enter' | 'connected';
+// 开屏过渡状态：连接后直接切换
+type ViewPhase = 'welcome' | 'connected';
 const viewPhase = ref<ViewPhase>('welcome');
-const animationDone = ref(false);
-const connectSuccess = ref<boolean | null>(null); // null = 加载中
 const welcomeReturning = ref(false);
 
 function startConnectTransition() {
-  if (viewPhase.value !== 'welcome') return;
-  animationDone.value = false;
-  connectSuccess.value = null;
-  viewPhase.value = 'exit';
-
-  setTimeout(() => {
-    viewPhase.value = 'enter';
-    setTimeout(() => {
-      animationDone.value = true;
-      resolveTransition();
-    }, 800);
-  }, 600);
+  // 不播放动画，连接结果由 onConnectionResult 处理
 }
 
-function resolveTransition() {
-  if (!animationDone.value || connectSuccess.value === null) return;
-  if (connectSuccess.value && deviceStore.isConnected) {
+function onConnectionResult(success: boolean) {
+  if (success && deviceStore.isConnected) {
     viewPhase.value = 'connected';
   } else {
     welcomeReturning.value = true;
     viewPhase.value = 'welcome';
     setTimeout(() => { welcomeReturning.value = false; }, 600);
   }
-}
-
-function onConnectionResult(success: boolean) {
-  connectSuccess.value = success;
-  resolveTransition();
 }
 
 watch(() => deviceStore.isConnected, (connected) => {
@@ -547,6 +522,15 @@ async function refreshAll() {
     showToast('success', '刷新成功', '配置已从设备重新加载');
   } catch (error) {
     showToast('error', '刷新失败', error instanceof Error ? error.message : '未知错误');
+  }
+}
+
+function onCatAction(action: string) {
+  switch (action) {
+    case 'refresh': refreshAll(); break;
+    case 'theme': toggleTheme(); break;
+    case 'disconnect': disconnect(); break;
+    case 'scrollTop': window.scrollTo({ top: 0, behavior: 'smooth' }); break;
   }
 }
 
@@ -1191,24 +1175,42 @@ body {
   width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-shrink: 0;
+  max-height: calc(100vh - var(--header-height) - 3rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 2px;
 }
 
 .panel {
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .panel-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  margin: 0 0 1rem;
+  margin: 0 0 0.75rem;
   color: var(--c-text-muted);
 }
 
@@ -2062,21 +2064,21 @@ body {
   pointer-events: none;
 }
 
-.deco-cat-1 {
+.deco-icon-1 {
   top: 8%;
   left: 3%;
   font-size: 3.5rem;
   animation: emojiFloat 4s ease-in-out infinite;
 }
 
-.deco-cat-2 {
+.deco-icon-2 {
   bottom: 12%;
   right: 6%;
   font-size: 3rem;
   animation: emojiFloat 5s ease-in-out infinite 1s;
 }
 
-.deco-cat-3 {
+.deco-icon-3 {
   top: 50%;
   right: 5%;
   font-size: 2.5rem;
@@ -2200,7 +2202,7 @@ body {
 }
 
 .keyboard-container {
-  padding: 1.5rem;
+  padding: 2rem 2.5rem;
 }
 
 .changes-indicator {
@@ -2222,95 +2224,13 @@ body {
    开屏过渡动画
    =================================================================== */
 
-/* --- 过渡猫咪：从首页中央飞到右下角 --- */
-.transition-cat {
-  position: fixed;
-  z-index: 10000;
-  pointer-events: none;
-  animation: catFlyOut 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.transition-cat img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-@keyframes catFlyOut {
-  0% {
-    top: 30vh;
-    left: calc(50% - 40px);
-    width: 80px;
-    height: 80px;
-    transform: rotate(0deg) scale(1);
-  }
-  25% {
-    top: 28vh;
-    left: calc(50%);
-    width: 84px;
-    height: 84px;
-    transform: rotate(-8deg) scale(1.1);
-  }
-  100% {
-    top: calc(100vh - 116px);
-    left: calc(100vw - 88px);
-    width: 64px;
-    height: 64px;
-    transform: rotate(360deg) scale(1);
-  }
-}
-
-/* --- 欢迎页退出时隐藏预览键盘（由主界面键盘卡片接续） --- */
-.welcome-screen.exiting .keyboard-preview {
-  animation: previewShrink 0.4s cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-@keyframes previewShrink {
-  to {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-}
-
-/* --- 欢迎页退出动画 --- */
-.welcome-screen.exiting {
-  animation: welcomeBgFade 0.5s ease forwards;
-}
-
-.welcome-screen.exiting .logo-section {
-  animation: riseAndFade 0.35s cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-
-.welcome-screen.exiting .connect-card {
-  animation: shrinkAndFade 0.4s cubic-bezier(0.4, 0, 1, 1) 0.05s forwards;
-}
-
-.welcome-screen.exiting .features-section,
-.welcome-screen.exiting .welcome-version-card {
-  animation: quickFade 0.3s ease forwards;
-}
-
 /* --- 欢迎页回退动画（连接失败时） --- */
 .welcome-screen.returning {
   animation: welcomeReturn 0.5s ease both;
 }
 
-@keyframes welcomeBgFade {
-  to { opacity: 0; }
-}
-
-@keyframes riseAndFade {
-  to {
-    opacity: 0;
-    transform: translateY(-40px) scale(0.9);
-  }
-}
-
-@keyframes shrinkAndFade {
-  to {
-    opacity: 0;
-    transform: scale(0.85);
-  }
+@keyframes fadeIn {
+  to { opacity: 1; }
 }
 
 @keyframes quickFade {
@@ -2322,56 +2242,5 @@ body {
     opacity: 0;
     transform: scale(1.03);
   }
-}
-
-/* --- 主界面入场动画 --- */
-.main-layout.entering {
-  pointer-events: none;
-}
-
-.main-layout.entering .app-header {
-  animation: partEnter 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.main-layout.entering .sidebar {
-  animation: partEnter 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
-}
-
-.main-layout.entering .keyboard-card {
-  animation: kbCardEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
-}
-
-.main-layout.entering .keyboard-decoration {
-  animation: decoFadeIn 1s ease 0.4s both;
-}
-
-.main-layout.entering .changes-indicator {
-  animation: decoFadeIn 0.4s ease 0.6s both;
-}
-
-@keyframes partEnter {
-  from {
-    opacity: 0;
-    transform: translateY(24px) scale(0.97);
-  }
-}
-
-@keyframes kbCardEnter {
-  0% {
-    opacity: 0;
-    transform: scale(0.45) translateY(30px);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(0.85) translateY(8px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-@keyframes decoFadeIn {
-  from { opacity: 0; }
 }
 </style>
