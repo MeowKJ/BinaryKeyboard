@@ -463,9 +463,10 @@ jobs:
               echo "- 自 [\`${PREV_TAG}\`](https://github.com/${REPO}/releases/tag/${PREV_TAG}) 以来共 **${COMMIT_COUNT}** 个提交"
               echo "- 完整对比: https://github.com/${REPO}/compare/${PREV_TAG}...${TAG}"
             else
-              COMMIT_RANGE="HEAD"
+              # No previous release tag — show only the last 30 commits
+              COMMIT_RANGE="HEAD~30..HEAD"
               COMMIT_COUNT=$(git rev-list --count HEAD)
-              echo "- 首次自动发布，当前共 **${COMMIT_COUNT}** 个提交"
+              echo "- 首次自动发布，仅显示最近 30 个提交（共 ${COMMIT_COUNT} 个）"
             fi
             echo
           } >> release-notes-header.md
