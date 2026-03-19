@@ -362,6 +362,12 @@ uint16_t Kbd_Macro_GetTotalSize(void);
  */
 uint16_t Kbd_Macro_GetPageSize(void);
 
+/**
+ * @brief 查询是否有宏操作正在等待执行
+ * @return 1 = 有操作排队, 0 = 空闲
+ */
+uint8_t Kbd_Macro_IsBusy(void);
+
 /** @} */ /* end of KBD_Storage_Macro */
 
 /*============================================================================*/

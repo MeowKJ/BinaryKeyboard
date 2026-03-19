@@ -1003,10 +1003,16 @@ static int MeowFs_WriteRawInternal(uint16_t offset, const uint8_t *buf,
       chunk = len;
     }
 
-    EEPROM_READ(page_addr, page, sizeof(page));
+    if (EEPROM_READ(page_addr, page, sizeof(page)) != 0) {
+      return -1;
+    }
     memcpy(page + page_offset, buf, chunk);
-    EEPROM_ERASE(page_addr, KBD_FLASH_MACRO_PAGE);
-    EEPROM_WRITE(page_addr, page, sizeof(page));
+    if (EEPROM_ERASE(page_addr, KBD_FLASH_MACRO_PAGE) != 0) {
+      return -2;
+    }
+    if (EEPROM_WRITE(page_addr, page, sizeof(page)) != 0) {
+      return -3;
+    }
 
     offset = (uint16_t)(offset + chunk);
     buf += chunk;
@@ -1215,3 +1221,7 @@ uint16_t Kbd_Macro_GetFreeBytes(void) {
 uint16_t Kbd_Macro_GetTotalSize(void) { return KBD_FLASH_MACRO_SIZE; }
 
 uint16_t Kbd_Macro_GetPageSize(void) { return KBD_FLASH_MACRO_PAGE; }
+
+uint8_t Kbd_Macro_IsBusy(void) {
+  return (s_macro_pending.type != MACRO_OP_IDLE) ? 1 : 0;
+}
