@@ -15,6 +15,9 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   private readonly transport: CodecTransport<TResponse>;
   private readonly inputReportHandler = this.handleInputReport.bind(this);
 
+  /** 命令串行队列：保证同一时刻只有一个 sendAndWait 在等待响应 */
+  private sendQueue: Promise<unknown> = Promise.resolve();
+
   protected constructor(codec: DeviceCodec<TResponse>, filters: HIDDeviceFilter[]) {
     this.codec = codec;
     this.protocol = codec.protocol;
@@ -97,7 +100,15 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     }
   }
 
-  protected async sendAndWait(frame: Uint8Array, options: CodecCommandOptions = {}): Promise<TResponse> {
+  protected sendAndWait(frame: Uint8Array, options: CodecCommandOptions = {}): Promise<TResponse> {
+    // 所有命令通过串行队列发送，避免并发覆盖 responsePromise
+    const task = this.sendQueue.then(() => this.sendAndWaitInternal(frame, options));
+    // 无论成功失败都推进队列，不让错误阻塞后续命令
+    this.sendQueue = task.catch(() => {});
+    return task;
+  }
+
+  private async sendAndWaitInternal(frame: Uint8Array, options: CodecCommandOptions): Promise<TResponse> {
     if (!this.device || !this.device.opened) {
       throw new Error('设备未连接');
     }

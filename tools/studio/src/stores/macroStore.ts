@@ -319,9 +319,7 @@ export const useMacroStore = defineStore("macro", () => {
       };
 
       await hidService.setMacroData(editingSlot.value, macro);
-      if (needsExplicitSave.value) {
-        await hidService.saveConfig();
-      }
+      /* 宏数据通过 MeowFS 直接写入 DataFlash，无需额外 saveConfig */
 
       if (isDynamicSlots.value) {
         invalidateCache();
