@@ -129,6 +129,11 @@ void KBD_Log_Flush(void)
         return;
     }
 
+    /* 宏操作进行中时跳过日志发送，避免与 MACRO_SET 响应争用 EP4 IN */
+    if (Kbd_Macro_IsBusy()) {
+        return;
+    }
+
     log_entry_t entry;
 
     for (uint8_t i = 0; i < LOG_FLUSH_COUNT; i++) {

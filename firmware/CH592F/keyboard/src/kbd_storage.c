@@ -23,6 +23,7 @@
  */
 
 #include "kbd_storage.h"
+#include "kbd_command.h"
 #include "CH59x_common.h"
 #include "ble_config.h"
 #include "debug.h"
@@ -60,6 +61,22 @@
 #ifndef KBD_STORAGE_RUNTIME_SAVE_RETRY_MS
 #define KBD_STORAGE_RUNTIME_SAVE_RETRY_MS 100u
 #endif
+
+/* TMOS 延迟宏写入（从 USB ISR 延迟到主循环，避免 ISR 中操作 Flash） */
+#define KBD_STORAGE_MACRO_WRITE_EVT 0x0002u
+
+/* 宏操作类型 */
+#define MACRO_OP_IDLE       0
+#define MACRO_OP_WRITE      1
+#define MACRO_OP_ERASE_PAGE 2
+#define MACRO_OP_ERASE_ALL  3
+
+/* 最大单包写入长度（与 Studio 的 CH592_MEOWFS_WRITE_CHUNK 一致） */
+#define MACRO_WRITE_BUF_SIZE 58
+
+/* 前向声明（在 TMOS 事件处理中使用） */
+static int MeowFs_WriteRawInternal(uint16_t offset, const uint8_t *buf,
+                                   uint16_t len);
 
 /*============================================================================*/
 /*                              私有变量 */
@@ -106,6 +123,16 @@ static uint8_t s_runtime_pending_mode = 0xFF;
 
 /** @brief runtime 最近一次成功持久化的工作模式（0xFF=未知） */
 static uint8_t s_runtime_last_saved_mode = 0xFF;
+
+/** @brief 待延迟执行的宏操作（ISR → TMOS 主循环） */
+static struct {
+  uint8_t  type;       /**< MACRO_OP_* 操作类型 */
+  uint8_t  sub;        /**< 子命令编号（用于回复） */
+  uint16_t offset;     /**< 写入偏移 */
+  uint16_t len;        /**< 写入长度 */
+  uint8_t  erase_page; /**< 擦除页索引 */
+  uint8_t  data[MACRO_WRITE_BUF_SIZE]; /**< 写入数据缓冲 */
+} s_macro_pending;
 
 /*============================================================================*/
 /*                              默认配置 */
@@ -481,6 +508,36 @@ static uint16_t KBD_Storage_ProcessEvent(uint8_t task_id, uint16_t events) {
       s_runtime_dirty = 0;
     }
     return (events ^ KBD_STORAGE_RUNTIME_SAVE_EVT);
+  }
+
+  if (events & KBD_STORAGE_MACRO_WRITE_EVT) {
+    if (s_macro_pending.type != MACRO_OP_IDLE) {
+      int ret = -1;
+      switch (s_macro_pending.type) {
+      case MACRO_OP_WRITE:
+        ret = MeowFs_WriteRawInternal(s_macro_pending.offset,
+                                      s_macro_pending.data,
+                                      s_macro_pending.len);
+        break;
+      case MACRO_OP_ERASE_PAGE:
+        ret = Kbd_Macro_ErasePage(s_macro_pending.erase_page);
+        break;
+      case MACRO_OP_ERASE_ALL:
+        ret = Kbd_Macro_EraseAll();
+        break;
+      }
+
+      uint8_t sub = s_macro_pending.sub;
+      s_macro_pending.type = MACRO_OP_IDLE; /* 先清标志，再发响应 */
+
+      uint8_t resp = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
+      KBD_Command_SendResponse(KBD_CMD_MACRO_SET, sub, &resp, 1);
+
+      if (ret != 0) {
+        LOG_W(TAG, "Deferred macro op failed: %d", ret);
+      }
+    }
+    return (events ^ KBD_STORAGE_MACRO_WRITE_EVT);
   }
 
   return 0;
@@ -946,10 +1003,16 @@ static int MeowFs_WriteRawInternal(uint16_t offset, const uint8_t *buf,
       chunk = len;
     }
 
-    EEPROM_READ(page_addr, page, sizeof(page));
+    if (EEPROM_READ(page_addr, page, sizeof(page)) != 0) {
+      return -1;
+    }
     memcpy(page + page_offset, buf, chunk);
-    EEPROM_ERASE(page_addr, KBD_FLASH_MACRO_PAGE);
-    EEPROM_WRITE(page_addr, page, sizeof(page));
+    if (EEPROM_ERASE(page_addr, KBD_FLASH_MACRO_PAGE) != 0) {
+      return -2;
+    }
+    if (EEPROM_WRITE(page_addr, page, sizeof(page)) != 0) {
+      return -3;
+    }
 
     offset = (uint16_t)(offset + chunk);
     buf += chunk;
@@ -1008,6 +1071,56 @@ int Kbd_Macro_WriteRaw(uint16_t offset, const uint8_t *buf, uint16_t len) {
     return -1;
   }
   return MeowFs_WriteRawInternal(offset, buf, len);
+}
+
+int Kbd_Macro_WriteRawDeferred(uint16_t offset, const uint8_t *buf,
+                               uint16_t len, uint8_t sub) {
+  if (s_macro_pending.type != MACRO_OP_IDLE) {
+    return -1; /* 上一次操作尚未完成 */
+  }
+  if (offset + len > KBD_FLASH_MACRO_SIZE ||
+      len > MACRO_WRITE_BUF_SIZE) {
+    return -2;
+  }
+
+  s_macro_pending.sub = sub;
+  s_macro_pending.offset = offset;
+  s_macro_pending.len = len;
+  memcpy(s_macro_pending.data, buf, len);
+  s_macro_pending.type = MACRO_OP_WRITE;
+
+  if (s_storage_task_id != TASK_NO_TASK) {
+    tmos_set_event(s_storage_task_id, KBD_STORAGE_MACRO_WRITE_EVT);
+  } else {
+    /* 兜底：TMOS 未就绪时同步执行 */
+    int ret = MeowFs_WriteRawInternal(offset, s_macro_pending.data, len);
+    s_macro_pending.type = MACRO_OP_IDLE;
+    uint8_t resp = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, sub, &resp, 1);
+  }
+  return 0;
+}
+
+int Kbd_Macro_EraseDeferred(uint8_t page, uint8_t sub) {
+  if (s_macro_pending.type != MACRO_OP_IDLE) {
+    return -1;
+  }
+
+  s_macro_pending.sub = sub;
+  s_macro_pending.erase_page = page;
+  s_macro_pending.type = (page == 0xFF) ? MACRO_OP_ERASE_ALL
+                                        : MACRO_OP_ERASE_PAGE;
+
+  if (s_storage_task_id != TASK_NO_TASK) {
+    tmos_set_event(s_storage_task_id, KBD_STORAGE_MACRO_WRITE_EVT);
+  } else {
+    int ret = (page == 0xFF) ? Kbd_Macro_EraseAll()
+                             : Kbd_Macro_ErasePage(page);
+    s_macro_pending.type = MACRO_OP_IDLE;
+    uint8_t resp = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, sub, &resp, 1);
+  }
+  return 0;
 }
 
 int Kbd_Macro_ErasePage(uint8_t page_index) {
@@ -1108,3 +1221,7 @@ uint16_t Kbd_Macro_GetFreeBytes(void) {
 uint16_t Kbd_Macro_GetTotalSize(void) { return KBD_FLASH_MACRO_SIZE; }
 
 uint16_t Kbd_Macro_GetPageSize(void) { return KBD_FLASH_MACRO_PAGE; }
+
+uint8_t Kbd_Macro_IsBusy(void) {
+  return (s_macro_pending.type != MACRO_OP_IDLE) ? 1 : 0;
+}

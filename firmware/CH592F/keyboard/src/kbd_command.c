@@ -529,9 +529,12 @@ static void HandleMacroSet(const kbd_cmd_frame_t *frame)
   if (frame->sub == 0)
   {
     uint8_t page = frame->data[0];
-    int ret = (page == 0xFF) ? Kbd_Macro_EraseAll() : Kbd_Macro_ErasePage(page);
-    resp[0] = (ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    /* 延迟到 TMOS 主循环执行 Flash 擦除，完成后自动发送响应 */
+    if (Kbd_Macro_EraseDeferred(page, frame->sub) != 0)
+    {
+      resp[0] = KBD_RESP_ERR_FLASH;
+      KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    }
     return;
   }
 
@@ -544,10 +547,13 @@ static void HandleMacroSet(const kbd_cmd_frame_t *frame)
       len = (uint8_t)(frame->len - 3);
     }
 
-    resp[0] = (Kbd_Macro_WriteRaw(offset, &frame->data[3], len) == 0)
-                  ? KBD_RESP_OK
-                  : KBD_RESP_ERR_FLASH;
-    KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    /* 延迟到 TMOS 主循环执行 Flash 写入，完成后自动发送响应 */
+    if (Kbd_Macro_WriteRawDeferred(offset, &frame->data[3], len,
+                                   frame->sub) != 0)
+    {
+      resp[0] = KBD_RESP_ERR_FLASH;
+      KBD_Command_SendResponse(KBD_CMD_MACRO_SET, frame->sub, resp, 1);
+    }
     return;
   }
 

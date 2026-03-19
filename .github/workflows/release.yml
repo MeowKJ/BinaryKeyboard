@@ -225,9 +225,9 @@ jobs:
         working-directory: tools/studio
         run: pnpm run build:electron
 
-      - name: Package (x64 + ia32 + arm64 portable)
+      - name: Package (portable)
         working-directory: tools/studio
-        run: pnpm exec electron-builder --win --x64 --ia32 --arm64
+        run: pnpm exec electron-builder --win
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -295,12 +295,22 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=${STUDIO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ch592_version=${CH592_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=${CH552_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Clean same-day releases and tags
         env:
           REPO: ${{ github.repository }}
           TAG: ${{ steps.version.outputs.tag }}
           GITHUB_TOKEN: ${{ github.token }}
+          PREV_TAG: ${{ steps.version.outputs.previous_tag }}
+          SHA: ${{ steps.version.outputs.sha }}
+          DATE_DISPLAY: ${{ steps.version.outputs.date }}
+          STUDIO_VERSION: ${{ steps.version.outputs.studio_version }}
+          CH592_VERSION: ${{ steps.version.outputs.ch592_version }}
+          CH552_VERSION: ${{ steps.version.outputs.ch552_version }}
         run: |
           git tag -l "${TAG}*" | xargs -r git tag -d
           python3 - <<'PYEOF'
@@ -349,7 +359,7 @@ jobs:
 
           # Build release notes from size reports + hex files
           {
-            echo "## BinaryKeyboard 发布"
+            echo "## 🐱 BinaryKeyboard 自动发布 🐱"
             echo
             echo "---"
             echo
@@ -375,7 +385,7 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 固件文件"
+            echo "### 📦 固件文件"
             echo
             echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
             echo "|:-----|:----------|:---------|:-----|"
@@ -453,9 +463,10 @@ jobs:
               echo "- 自 [\`${PREV_TAG}\`](https://github.com/${REPO}/releases/tag/${PREV_TAG}) 以来共 **${COMMIT_COUNT}** 个提交"
               echo "- 完整对比: https://github.com/${REPO}/compare/${PREV_TAG}...${TAG}"
             else
-              COMMIT_RANGE="HEAD"
+              # No previous release tag — show only the last 30 commits
+              COMMIT_RANGE="HEAD~30..HEAD"
               COMMIT_COUNT=$(git rev-list --count HEAD)
-              echo "- 首次自动发布，当前共 **${COMMIT_COUNT}** 个提交"
+              echo "- 首次自动发布，仅显示最近 30 个提交（共 ${COMMIT_COUNT} 个）"
             fi
             echo
           } >> release-notes-header.md

@@ -15,7 +15,10 @@
 #include <string.h>
 
 #define TAG "USB"
-#define USB_EP_READY_TIMEOUT 60000U
+/* EP4 bInterval = 10ms，TMOS 上下文发送响应时需等待 host 读取上一包。
+ * 60 MHz RISC-V 下 ~10 cycles/iter → 200 000 iter ≈ 33 ms，覆盖 2 个
+ * 轮询周期，避免 KBD_Log_Flush 占用 EP4 IN 时 MACRO_SET 响应被丢弃。 */
+#define USB_EP_READY_TIMEOUT 200000U
 
 /* ==================== Global Variables ==================== */
 USB_KeyboardReport_t g_KeyboardReport = {0};
@@ -302,7 +305,7 @@ void USB_Config_ProcessCommand(USB_ConfigReport_t *report)
     frame.cmd = report->cmd;
     frame.sub = report->data[0];
     frame.len = report->data[1];  /* 使用包中的实际长度 */
-    memcpy(frame.data, &report->data[2], 59);  /* 跳过 SUB 和 LEN，从实际 DATA 开始 */
+    memcpy(frame.data, &report->data[2], sizeof(frame.data));  /* 跳过 SUB 和 LEN，复制完整 DATA (61B) */
 
     KBD_Command_Process(&frame);
 }

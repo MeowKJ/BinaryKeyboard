@@ -2059,6 +2059,21 @@ function isSameTap(a: string, b: string): boolean {
   return a === b;
 }
 
+/** Run-length encode consecutive identical combos: [A, A, A, B, C, C, C, C] → "A * 3 B C * 4" */
+function compressComboRuns(combos: string[]): string {
+  const parts: string[] = [];
+  let i = 0;
+  while (i < combos.length) {
+    let runLen = 1;
+    while (i + runLen < combos.length && combos[i + runLen] === combos[i]) {
+      runLen++;
+    }
+    parts.push(runLen >= 3 ? `${combos[i]} * ${runLen}` : combos.slice(i, i + runLen).join(" "));
+    i += runLen;
+  }
+  return parts.join(" ");
+}
+
 export function formatMacroDslFromCards(
   cards: readonly MacroCardLike[],
 ): string {
@@ -2102,6 +2117,7 @@ export function formatMacroDslFromCards(
 
   // Phase 1.5: merge consecutive single-combo taps with identical timing
   // into sequential `tap A B C D hold Xms wait Yms`
+  // with run-length encoding: runs of ≥3 identical combos → `A * N`
   const merged: { line: string; delayMs: number }[] = [];
   {
     let si = 0;
@@ -2122,8 +2138,10 @@ export function formatMacroDslFromCards(
             ni++;
           }
           if (combos.length > 1) {
+            // Run-length encode identical consecutive combos
+            const compressed = compressComboRuns(combos);
             merged.push({
-              line: `tap ${combos.join(" ")}${suffix}`,
+              line: `tap ${compressed}${suffix}`,
               delayMs: 0,
             });
             si = ni;

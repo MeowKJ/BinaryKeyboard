@@ -49,8 +49,8 @@
   /* 尺寸 */
   --header-height: 60px;
   --sidebar-width: 280px;
-  --key-unit: 80px;
-  --key-gap: 10px;
+  --key-unit: 90px;
+  --key-gap: 12px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;

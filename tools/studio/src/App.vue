@@ -9,13 +9,13 @@
     </div>
 
     <!-- 加载遮罩 -->
-    <div v-if="deviceStore.isLoading" class="loading-overlay">
+    <div v-if="deviceStore.isLoading && viewPhase === 'connected'" class="loading-overlay">
       <ProgressSpinner strokeWidth="4" />
       <span class="loading-text">正在通讯...</span>
     </div>
 
     <!-- 未连接状态 - 欢迎页 -->
-    <div v-if="!deviceStore.isConnected" class="welcome-screen">
+    <div v-if="viewPhase === 'welcome'" class="welcome-screen" :class="{ returning: welcomeReturning }">
       <!-- 主题切换按钮 -->
       <button class="theme-toggle" @click="toggleTheme">
         <i :class="currentTheme === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
@@ -23,7 +23,7 @@
 
       <div class="welcome-content">
         <div class="logo-section">
-          <div class="logo-icon"><CatEmoji /></div>
+          <div class="logo-icon"><CatEmoji type="grinning-animated" /></div>
           <h1 class="app-title">BinaryKeyboard</h1>
           <p class="app-subtitle">开源二进制键盘改键工具</p>
         </div>
@@ -111,7 +111,8 @@
     </div>
 
     <!-- 已连接状态 - 主界面 -->
-    <div v-else class="main-layout">
+    <div v-if="viewPhase === 'connected'" class="main-layout">
+      <CatAssistant @action="onCatAction" />
       <!-- 顶部导航 -->
       <header class="app-header">
         <div class="header-left">
@@ -219,9 +220,9 @@
             <div class="deco-star deco-star-1">✨</div>
             <div class="deco-star deco-star-2">✨</div>
             <!-- 键盘装饰 -->
-            <span class="deco-emoji deco-cat-1"><CatEmoji type="grinning" /></span>
-            <span class="deco-emoji deco-cat-2"><CatEmoji /></span>
-            <span class="deco-emoji deco-cat-3"><CatEmoji type="grinning-eyes" /></span>
+            <span class="deco-emoji deco-icon-1"><CatEmoji type="rocket-3d" /></span>
+            <span class="deco-emoji deco-icon-2"><CatEmoji type="hourglass-not-done-3d" /></span>
+            <span class="deco-emoji deco-icon-3"><CatEmoji type="hourglass-done-3d" /></span>
             <!-- 小装饰 -->
             <span class="deco-mini deco-yarn">🧶</span>
             <span class="deco-mini deco-star-3">⭐</span>
@@ -266,7 +267,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useDeviceStore } from '@/stores/deviceStore';
@@ -283,6 +284,7 @@ import { createDeviceUiDefinition, hasUiSection } from '@/types/deviceUi';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 import { getHidDevicePlugin } from '@/services/hid/registry';
 import CatEmoji from '@/components/CatEmoji.vue';
+import CatAssistant from '@/components/CatAssistant.vue';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
@@ -318,6 +320,31 @@ async function onPwaUpdate() {
     showToast('error', '更新失败', error instanceof Error ? error.message : '无法应用新版本');
   }
 }
+
+// 开屏过渡状态：连接后直接切换
+type ViewPhase = 'welcome' | 'connected';
+const viewPhase = ref<ViewPhase>('welcome');
+const welcomeReturning = ref(false);
+
+function startConnectTransition() {
+  // 不播放动画，连接结果由 onConnectionResult 处理
+}
+
+function onConnectionResult(success: boolean) {
+  if (success && deviceStore.isConnected) {
+    viewPhase.value = 'connected';
+  } else {
+    welcomeReturning.value = true;
+    viewPhase.value = 'welcome';
+    setTimeout(() => { welcomeReturning.value = false; }, 600);
+  }
+}
+
+watch(() => deviceStore.isConnected, (connected) => {
+  if (!connected && viewPhase.value === 'connected') {
+    viewPhase.value = 'welcome';
+  }
+});
 
 // 主题
 const currentTheme = ref<ThemeMode>('dark');
@@ -445,33 +472,41 @@ function onPreviewTypeChange() {
 async function requestDevice() {
   try {
     const device = await hidService.requestDevice();
-    if (device) {
-      const success = await deviceStore.connectDevice(device);
-      if (success) {
-        deviceStore.startStatusPolling();
-        showToast('success', '连接成功', `已连接到 ${device.productName}`);
-      } else {
-        showToast('error', '连接失败', deviceStore.errorMessage || '无法连接设备');
-      }
+    if (!device) return;
+
+    startConnectTransition();
+
+    const success = await deviceStore.connectDevice(device);
+    if (success) {
+      deviceStore.startStatusPolling();
+      showToast('success', '连接成功', `已连接到 ${device.productName}`);
+    } else {
+      showToast('error', '连接失败', deviceStore.errorMessage || '无法连接设备');
     }
+    onConnectionResult(success);
   } catch (error) {
     showToast('error', '连接失败', error instanceof Error ? error.message : '未知错误');
+    onConnectionResult(false);
   }
 }
 
 async function autoConnect() {
   const device = await hidService.getAuthorizedDevice();
-  if (device) {
-    const success = await deviceStore.connectDevice(device);
-    if (success) {
-      deviceStore.startStatusPolling();
-      showToast('success', '自动连接', `已连接到 ${device.productName}`);
-    }
-  }
+  if (!device) return;
+
+  const success = await deviceStore.connectDevice(device);
+  if (!success) return;
+
+  // 自动连接已成功，再播放动画（避免失败时出现"动画闪了一下"）
+  deviceStore.startStatusPolling();
+  showToast('success', '自动连接', `已连接到 ${device.productName}`);
+  startConnectTransition();
+  onConnectionResult(true);
 }
 
 async function disconnect() {
   await deviceStore.disconnectDevice();
+  viewPhase.value = 'welcome';
   showToast('info', '已断开', '设备连接已关闭');
 }
 
@@ -487,6 +522,15 @@ async function refreshAll() {
     showToast('success', '刷新成功', '配置已从设备重新加载');
   } catch (error) {
     showToast('error', '刷新失败', error instanceof Error ? error.message : '未知错误');
+  }
+}
+
+function onCatAction(action: string) {
+  switch (action) {
+    case 'refresh': refreshAll(); break;
+    case 'theme': toggleTheme(); break;
+    case 'disconnect': disconnect(); break;
+    case 'scrollTop': window.scrollTo({ top: 0, behavior: 'smooth' }); break;
   }
 }
 
@@ -1131,24 +1175,42 @@ body {
   width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   flex-shrink: 0;
+  max-height: calc(100vh - var(--header-height) - 3rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border-radius: 2px;
 }
 
 .panel {
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .panel-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  margin: 0 0 1rem;
+  margin: 0 0 0.75rem;
   color: var(--c-text-muted);
 }
 
@@ -2002,21 +2064,21 @@ body {
   pointer-events: none;
 }
 
-.deco-cat-1 {
+.deco-icon-1 {
   top: 8%;
   left: 3%;
   font-size: 3.5rem;
   animation: emojiFloat 4s ease-in-out infinite;
 }
 
-.deco-cat-2 {
+.deco-icon-2 {
   bottom: 12%;
   right: 6%;
   font-size: 3rem;
   animation: emojiFloat 5s ease-in-out infinite 1s;
 }
 
-.deco-cat-3 {
+.deco-icon-3 {
   top: 50%;
   right: 5%;
   font-size: 2.5rem;
@@ -2140,7 +2202,7 @@ body {
 }
 
 .keyboard-container {
-  padding: 1.5rem;
+  padding: 2rem 2.5rem;
 }
 
 .changes-indicator {
@@ -2156,5 +2218,29 @@ body {
   border-radius: var(--radius-md);
   position: relative;
   z-index: 1;
+}
+
+/* ===================================================================
+   开屏过渡动画
+   =================================================================== */
+
+/* --- 欢迎页回退动画（连接失败时） --- */
+.welcome-screen.returning {
+  animation: welcomeReturn 0.5s ease both;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes quickFade {
+  to { opacity: 0; }
+}
+
+@keyframes welcomeReturn {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
 }
 </style>
