@@ -31,6 +31,16 @@
         <span class="ver-hue-dot" :style="{ background: hueColor(ch592Hue) }" :title="`CH592 色相 ${ch592Hue}°`"></span>
       </div>
     </div>
+    <a
+      v-if="showFirmwareUpdateLink"
+      class="firmware-update-link"
+      :href="firmwareReleaseUrl"
+      target="_blank"
+      rel="noopener"
+    >
+      <span>下载最新 {{ firmwareChipLabel }} 固件 v{{ latestFirmwareVersion }}</span>
+      <i class="pi pi-external-link"></i>
+    </a>
   </div>
 </template>
 
@@ -40,6 +50,7 @@ import { useDeviceStore } from '@/stores/deviceStore';
 import CatEmoji from '@/components/CatEmoji.vue';
 import { useReleaseStore } from '@/stores/releaseStore';
 import { versionToHue } from '@/composables/useTheme';
+import { DeviceProtocol } from '@/types/protocol';
 
 const deviceStore = useDeviceStore();
 const releaseStore = useReleaseStore();
@@ -48,6 +59,33 @@ const studioHue = computed(() => versionToHue(releaseStore.studioVersion));
 const ch552Hue = computed(() => versionToHue(releaseStore.latestVersions.ch552));
 const ch592Hue = computed(() => versionToHue(releaseStore.latestVersions.ch592));
 const deviceHue = computed(() => versionToHue(deviceStore.firmwareVersion));
+const latestFirmwareVersion = computed(() => {
+  const protocol = deviceStore.deviceInfo?.protocol;
+  if (protocol === DeviceProtocol.CH552) {
+    return releaseStore.latestVersions.ch552;
+  }
+  if (protocol === DeviceProtocol.CH592) {
+    return releaseStore.latestVersions.ch592;
+  }
+  return '';
+});
+const firmwareChipLabel = computed(() => {
+  const protocol = deviceStore.deviceInfo?.protocol;
+  if (protocol === DeviceProtocol.CH552) {
+    return 'CH552G';
+  }
+  if (protocol === DeviceProtocol.CH592) {
+    return 'CH592F';
+  }
+  return '固件';
+});
+const showFirmwareUpdateLink = computed(() => {
+  if (!deviceStore.deviceInfo || !latestFirmwareVersion.value) {
+    return false;
+  }
+  return deviceStore.firmwareVersion !== latestFirmwareVersion.value;
+});
+const firmwareReleaseUrl = computed(() => `https://github.com/${releaseStore.repository}/releases/latest`);
 
 function hueColor(hue: number) {
   return `hsl(${hue}, 70%, 60%)`;
@@ -163,5 +201,32 @@ function hueColor(hue: number) {
 
 .ver-hue-dot:hover {
   transform: scale(2);
+}
+
+.firmware-update-link {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.08);
+  color: #60a5fa;
+  text-decoration: none;
+  font-size: 0.76rem;
+  font-weight: 700;
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.firmware-update-link:hover {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.45);
+  transform: translateY(-1px);
+}
+
+.firmware-update-link .pi {
+  font-size: 0.72rem;
 }
 </style>
