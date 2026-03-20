@@ -68,7 +68,9 @@ void LightingController_process(void)
 
   static uint16_t lastLedUpdate = 0;
   uint16_t now = (uint16_t)millis();
-  if ((uint16_t)(now - lastLedUpdate) >= 10)
+
+  // 60fps: updateLEDs 内部隔帧推进背景动画（背景30fps，overlay+刷新60fps）
+  if ((uint16_t)(now - lastLedUpdate) >= 16)
   {
     lastLedUpdate = now;
     updateLEDs();

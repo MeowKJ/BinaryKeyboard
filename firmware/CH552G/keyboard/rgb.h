@@ -9,8 +9,8 @@ enum
   EFFECT_OFF,
   EFFECT_STATIC,
   EFFECT_BREATH,
-  EFFECT_BLINK,     // removed, kept for protocol compat
-  EFFECT_RAINBOW,
+  EFFECT_NEON,      // 霓虹灯（逐键色相铺展）
+  EFFECT_RAINBOW,   // 彩虹（全键同步变色）
   EFFECT_INDICATOR, // removed, kept for protocol compat
   EFFECT_COUNT
 };
@@ -38,9 +38,10 @@ extern volatile __xdata uint8_t pressEffect;
 // ==================== 灯效控制函数 ====================
 void nextEffect(void); // 切换灯效
 
-void updateLEDs();
+void updateLEDs(void);
+void updatePressFrame(void);
 
-void led_init();
+void led_init(void);
 void rgbRegisterKeyPress(uint8_t keyIndex);
 
 // ==================== 层切换闪烁 ====================
