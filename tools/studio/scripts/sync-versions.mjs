@@ -40,18 +40,21 @@ if (!emitted) {
 }
 
 // 2. 用 studio 版本号同步 package.json version（供 electron-builder 生成带版本的文件名）
-const raw = runPython(['tools/scripts/versioning.py', 'show', '--component', 'studio']);
-if (raw) {
-  try {
-    const { version } = JSON.parse(raw);
-    const pkgPath = path.join(studioRoot, 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    if (pkg.version !== version) {
-      pkg.version = version;
-      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-      console.log(`sync-versions: package.json version -> ${version}`);
+//    仅在 CI 环境下写入，避免本地开发产生 git dirty
+if (process.env.CI) {
+  const raw = runPython(['tools/scripts/versioning.py', 'show', '--component', 'studio']);
+  if (raw) {
+    try {
+      const { version } = JSON.parse(raw);
+      const pkgPath = path.join(studioRoot, 'package.json');
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      if (pkg.version !== version) {
+        pkg.version = version;
+        fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+        console.log(`sync-versions: package.json version -> ${version}`);
+      }
+    } catch (e) {
+      console.warn('sync-versions: failed to update package.json version:', e.message);
     }
-  } catch (e) {
-    console.warn('sync-versions: failed to update package.json version:', e.message);
   }
 }

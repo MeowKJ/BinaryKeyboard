@@ -21,8 +21,8 @@ export function useConnection() {
     if (success && deviceStore.isConnected) {
       viewPhase.value = 'connected';
       // 自动同步版本配色
-      const fwVer = deviceStore.deviceInfo?.firmwareVersion;
-      if (fwVer) syncFromVersion(fwVer);
+      const fwVer = deviceStore.firmwareVersion;
+      if (fwVer && fwVer !== '0.0.0') syncFromVersion(fwVer);
     } else {
       welcomeReturning.value = true;
       viewPhase.value = 'welcome';
