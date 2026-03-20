@@ -288,6 +288,8 @@ body {
 /* Toast */
 .p-toast {
   opacity: 0.98;
+  top: calc(var(--header-height) + 0.75rem) !important;
+  z-index: 1200 !important;
 }
 
 .p-toast-message {
