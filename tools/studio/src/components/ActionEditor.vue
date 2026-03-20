@@ -160,12 +160,11 @@
               <label class="section-label">选择宏</label>
               <div class="macro-grid">
                 <button
-                  v-for="i in macroStore.maxSlots"
+                  v-for="i in macroStore.usedCount"
                   :key="i"
                   class="option-btn macro-btn"
                   :class="{
                     active: macroId === i - 1,
-                    'has-data': macroStore.slotValid[i - 1],
                   }"
                   @click="macroId = i - 1"
                 >
