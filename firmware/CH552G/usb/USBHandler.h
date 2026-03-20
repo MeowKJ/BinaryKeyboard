@@ -17,7 +17,7 @@ extern __data uint16_t SetupLen;
 extern __data uint8_t SetupReq;
 volatile extern __xdata uint8_t UsbConfig;
 
-extern const __code uint8_t *__data pDescr;
+extern __code uint8_t *__data pDescr;
 
 void USB_EP1_IN();
 void USB_EP1_OUT();

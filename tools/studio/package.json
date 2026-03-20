@@ -1,6 +1,6 @@
 {
   "name": "meowkeyboard-studio",
-  "version": "3.0.20",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "dist-electron/main.js",

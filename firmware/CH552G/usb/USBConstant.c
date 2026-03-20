@@ -73,7 +73,7 @@ __code USB_Descriptor_Configuration_t ConfigurationDescriptor = {
                              .Attributes =
                                  (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
                              .EndpointSize = KEYBOARD_MOUSE_EPSIZE,
-                             .PollingIntervalMS = 10},
+                             .PollingIntervalMS = 1},
 
     .HID_ReportOUTEndpoint = {.Header = {.Size =
                                              sizeof(USB_Descriptor_Endpoint_t),
@@ -83,7 +83,7 @@ __code USB_Descriptor_Configuration_t ConfigurationDescriptor = {
                               .Attributes =
                                   (EP_TYPE_INTERRUPT | ENDPOINT_ATTR_NO_SYNC | ENDPOINT_USAGE_DATA),
                               .EndpointSize = KEYBOARD_MOUSE_EPSIZE,
-                              .PollingIntervalMS = 10},
+                              .PollingIntervalMS = 1},
 };
 
 __code uint8_t ReportDescriptor[] = {

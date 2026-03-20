@@ -58,6 +58,9 @@ extern "C"
 #define EEPROM_MEOWFS_FMT_ADDR (EEPROM_RGB_BASE_ADDR + 10)
 #define MEOWFS_FMT_MAGIC      0x4D  /* 'M' — 区别旧固件残留的 0xAA/0xFF */
 
+// USB HID 轮询率 (bInterval: 1=1000Hz, 2=500Hz, 10=100Hz)
+#define EEPROM_POLL_RATE_ADDR (EEPROM_RGB_BASE_ADDR + 11)
+
   // 函数声明
   void KeysDataInit(void);
   void setKey(uint8_t layer, uint8_t index, uint8_t type, uint16_t value);

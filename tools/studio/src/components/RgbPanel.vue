@@ -51,6 +51,11 @@
         <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" :min="RGB_INDICATOR_MIN_BRIGHTNESS" max="255" class="rgb-slider" />
       </div>
 
+      <div v-if="showSpeedSlider" class="rgb-item">
+        <span class="rgb-label">灯效速度 {{ Math.round(deviceStore.rgbConfig.speed * 100 / 255) }}%</span>
+        <input type="range" v-model.number="deviceStore.rgbConfig.speed" min="0" max="255" class="rgb-slider" />
+      </div>
+
       <div class="rgb-item">
         <span class="rgb-label">按下效果</span>
         <select v-model.number="deviceStore.rgbConfig.pressEffect" class="rgb-select">
@@ -60,7 +65,17 @@
         </select>
       </div>
 
-      <Button label="保存 RGB" icon="pi pi-check" size="small" @click="saveRgb"
+      <div v-if="deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552" class="rgb-item">
+        <span class="rgb-label">USB 轮询率</span>
+        <select v-model.number="pollRateModel" class="rgb-select">
+          <option v-for="opt in pollRateOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
+          </option>
+        </select>
+        <span class="rgb-hint">修改后需重新插拔键盘生效</span>
+      </div>
+
+      <Button label="保存设置" icon="pi pi-check" size="small" @click="saveRgb"
         class="rgb-save-btn btn-primary" />
     </div>
   </div>
@@ -83,11 +98,13 @@ const deviceStore = useDeviceStore();
 
 const modeOptions = computed(() => {
   if (deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552) {
+    // CH552 固件仅支持 OFF/STATIC/BREATHING/RAINBOW
+    // BLINK 和 INDICATOR 已从固件移除（枚举值保留但不实现）
     return [
       { value: RgbMode.OFF, label: '关闭' },
       { value: RgbMode.STATIC, label: '静态' },
       { value: RgbMode.BREATHING, label: '呼吸' },
-      { value: RgbMode.BLINK, label: '闪烁' },
+      { value: RgbMode.BLINK, label: '霓虹灯' },
       { value: RgbMode.RAINBOW, label: '彩虹' },
     ];
   }
@@ -107,8 +124,7 @@ const showColorPicker = computed(
     deviceStore.supportsRgb &&
     (
       deviceStore.rgbConfig.mode === RgbMode.STATIC ||
-      deviceStore.rgbConfig.mode === RgbMode.BREATHING ||
-      deviceStore.rgbConfig.mode === RgbMode.BLINK
+      deviceStore.rgbConfig.mode === RgbMode.BREATHING
     ),
 );
 
@@ -116,11 +132,33 @@ const showIndicatorBrightness = computed(
   () => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH592,
 );
 
+const showSpeedSlider = computed(
+  () =>
+    deviceStore.supportsRgb &&
+    (
+      deviceStore.rgbConfig.mode === RgbMode.BREATHING ||
+      deviceStore.rgbConfig.mode === RgbMode.BLINK ||
+      deviceStore.rgbConfig.mode === RgbMode.RAINBOW
+    ),
+);
+
 const pressEffectOptions = [
   { value: PressEffect.NONE, label: '无' },
   { value: PressEffect.PRESS_LIGHT_FADE, label: '按下亮起渐灭' },
   { value: PressEffect.PRESS_DARK_FADE, label: '按下熄灭渐亮' },
 ];
+
+const pollRateOptions = [
+  { value: 1, label: '1000 Hz' },
+  { value: 2, label: '500 Hz' },
+  { value: 5, label: '200 Hz' },
+  { value: 10, label: '100 Hz' },
+];
+
+const pollRateModel = computed({
+  get: () => deviceStore.rgbConfig.pollRate ?? 10,
+  set: (v: number) => { deviceStore.rgbConfig.pollRate = v; },
+});
 
 const colorHex = computed({
   get: () =>
@@ -142,7 +180,7 @@ const colorHex = computed({
 async function saveRgb() {
   try {
     await deviceStore.saveRgbConfig();
-    showToast('success', 'RGB 已保存', 'RGB 灯效配置已保存到设备');
+    showToast('success', '已保存', '设置已保存到设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
   }
@@ -232,5 +270,11 @@ async function saveRgb() {
 
 .rgb-save-btn {
   margin-top: 4px;
+}
+
+.rgb-hint {
+  font-size: 0.75rem;
+  color: var(--c-text-tertiary, #888);
+  margin-top: 2px;
 }
 </style>

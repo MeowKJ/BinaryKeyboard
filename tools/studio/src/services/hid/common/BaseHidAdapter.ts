@@ -42,7 +42,16 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       }
       this.codec.resetState?.();
       if (!device.opened) {
-        await device.open();
+        // device.open() 在某些系统/驱动下会永久挂起（如固件刷写后立即重连），加超时保护
+        await Promise.race([
+          device.open(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('device.open() timeout')), 4000)
+          ),
+        ]);
+        // 设备刚打开时 HID 端点尚未完全就绪，稍等再注册监听 + 发命令，
+        // 否则第一包 sendReport 在内核 HID 驱动初始化期间丢失导致超时重试
+        await new Promise((r) => setTimeout(r, 500));
       }
       this.device = device;
       device.removeEventListener('inputreport', this.inputReportHandler);
