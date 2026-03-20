@@ -40,6 +40,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       if (this.device && this.device !== device) {
         this.device.removeEventListener('inputreport', this.inputReportHandler);
       }
+      this.clearPendingResponse();
       this.codec.resetState?.();
       if (!device.opened) {
         // device.open() 在某些系统/驱动下会永久挂起（如固件刷写后立即重连），加超时保护
@@ -56,6 +57,12 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       this.device = device;
       device.removeEventListener('inputreport', this.inputReportHandler);
       device.addEventListener('inputreport', this.inputReportHandler);
+      try {
+        // 连接后的预热是 best-effort，不阻断正式初始化流程。
+        await this.codec.warmupConnection?.(this.transport);
+      } catch {
+        // ignore warmup failures
+      }
       return true;
     } catch {
       return false;

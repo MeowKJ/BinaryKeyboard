@@ -31,6 +31,7 @@ export interface DeviceCodec<TResponse> {
   readonly protocolLabel: string;
 
   resetState?(): void;
+  warmupConnection?(transport: CodecTransport<TResponse>): Promise<void>;
   getOptionalOperations(transport: CodecTransport<TResponse>): HidOptionalOperations;
   getSysInfo(transport: CodecTransport<TResponse>): Promise<DeviceInfo>;
   getSysStatus(transport: CodecTransport<TResponse>): Promise<DeviceStatus>;

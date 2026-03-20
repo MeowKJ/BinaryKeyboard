@@ -115,6 +115,8 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private deviceType = 0;
   private maxLayers = 1;
   private currentLayer = 0;
+  private configBlobCache: Ch552ConfigBlob | null = null;
+  private configBlobCachedAt = 0;
   private meta: Ch552MetaInfo | null = null;
   private metaReadSupported: boolean | null = null;
   private meowfsCache: MeowFsCache | null = null;
@@ -124,6 +126,8 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     this.deviceType = 0;
     this.maxLayers = 1;
     this.currentLayer = 0;
+    this.configBlobCache = null;
+    this.configBlobCachedAt = 0;
     this.meta = null;
     this.metaReadSupported = null;
     this.meowfsCache = null;
@@ -143,6 +147,26 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
 
   get shouldTryReadMeta(): boolean {
     return this.metaReadSupported !== false;
+  }
+
+  async warmupConnection(transport: CodecTransport<Uint8Array>): Promise<void> {
+    const frame = this.buildReadConfigFrame();
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const data = await transport.sendAndWait(frame, {
+          timeout: 220,
+          timeoutLabel: 'CH552G 初始握手超时',
+        });
+        this.parseConfigBlob(data);
+        return;
+      } catch {
+        if (attempt + 1 >= 3) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 120 : 180));
+      }
+    }
   }
 
   getOptionalOperations(transport: CodecTransport<Uint8Array>): HidOptionalOperations {
@@ -265,29 +289,30 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   }
 
   parseConfigBlob(data: Uint8Array): Ch552ConfigBlob {
-    if (data[0] !== Ch552Command.READ_CONFIG) {
-      throw new Error(`CH552G 返回了未知响应 ${this.hexByte(data[0] ?? 0)}`);
+    const payload = data.slice();
+    if (payload[0] !== Ch552Command.READ_CONFIG) {
+      throw new Error(`CH552G 返回了未知响应 ${this.hexByte(payload[0] ?? 0)}`);
     }
 
-    const version = data[1] ?? 0;
-    const deviceType = data[2] ?? 0;
+    const version = payload[1] ?? 0;
+    const deviceType = payload[2] ?? 0;
     const blob: Ch552ConfigBlob = version >= FW_VERSION_MULTILAYER
       ? {
           version,
           deviceType,
-          currentLayer: data[3] ?? 0,
-          maxLayers: data[4] ?? 4,
-          payload: data,
+          currentLayer: payload[3] ?? 0,
+          maxLayers: payload[4] ?? 4,
+          payload,
         }
       : {
           version,
           deviceType,
           currentLayer: 0,
           maxLayers: 1,
-          payload: data,
+          payload,
         };
 
-    this.syncState(blob);
+    this.cacheConfigBlob(blob);
     return blob;
   }
 
@@ -426,6 +451,21 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     this.deviceType = blob.deviceType;
     this.maxLayers = blob.maxLayers;
     this.currentLayer = blob.currentLayer;
+  }
+
+  private cacheConfigBlob(blob: Ch552ConfigBlob): void {
+    this.configBlobCache = blob;
+    this.configBlobCachedAt = Date.now();
+    this.syncState(blob);
+  }
+
+  private hasFreshConfigBlob(maxAgeMs: number): boolean {
+    return this.configBlobCache !== null && Date.now() - this.configBlobCachedAt <= maxAgeMs;
+  }
+
+  private invalidateConfigBlobCache(): void {
+    this.configBlobCache = null;
+    this.configBlobCachedAt = 0;
   }
 
   private commandName(cmd: number): string {
@@ -642,12 +682,17 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         this.markMetaUnsupported();
       }
     }
+    if (this.configBlobCache) {
+      this.configBlobCachedAt = Date.now();
+    }
     return this.toDeviceInfo(blob);
   }
 
   async getSysStatus(transport: CodecTransport<Uint8Array>): Promise<DeviceStatus> {
-    if (this.cachedVersion === 0 || this.isMultiLayer) {
-      await this.readConfigBlob(transport);
+    if (this.cachedVersion === 0) {
+      await this.readConfigBlob(transport, { force: true });
+    } else if (this.isMultiLayer && !this.hasFreshConfigBlob(1000)) {
+      await this.readConfigBlob(transport, { force: true });
     }
     return this.toDeviceStatus();
   }
@@ -684,9 +729,16 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       await transport.sendNoWait(this.buildSetLayerFrame(targetLayer));
       this.updateCurrentLayer(targetLayer);
     }
+    this.invalidateConfigBlobCache();
   }
 
-  private async readConfigBlob(transport: CodecTransport<Uint8Array>): Promise<Ch552ConfigBlob> {
+  private async readConfigBlob(
+    transport: CodecTransport<Uint8Array>,
+    options: { force?: boolean } = {},
+  ): Promise<Ch552ConfigBlob> {
+    if (!options.force && this.configBlobCache) {
+      return this.configBlobCache;
+    }
     const data = await this.readWithRetry('CH552G 配置读取超时', () => transport.sendAndWait(this.buildReadConfigFrame(), {
       timeout: 1500,
       timeoutLabel: 'CH552G 配置读取超时',
@@ -738,6 +790,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     // CH552 的宏区在代码 Flash 尾部，显式再擦一次 MeowFS，
     // 避免旧固件或异常状态下“恢复出厂”未同步清空宏区。
     await this.eraseAllFs(transport);
+    this.invalidateConfigBlobCache();
     this.meowfsCache = null;
   }
 

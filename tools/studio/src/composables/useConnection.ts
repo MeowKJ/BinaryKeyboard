@@ -36,21 +36,53 @@ export function useConnection() {
     }
   });
 
+  async function connectAndInitialize(
+    device: HIDDevice,
+    successTitle: string,
+  ): Promise<boolean> {
+    const opened = await deviceStore.openDevice(device);
+    if (!opened) {
+      showToast('error', '连接失败', deviceStore.errorMessage || '无法连接设备');
+      onConnectionResult(false);
+      return false;
+    }
+
+    // HID 打开成功后立即切到主界面，后续配置加载走 connected 页遮罩。
+    viewPhase.value = 'connected';
+
+    try {
+      await deviceStore.initializeConnectedDevice();
+      deviceStore.startStatusPolling();
+      void deviceStore.refreshMacroOverview().catch(() => {});
+      showToast('success', successTitle, `已连接到 ${device.productName}`);
+      onConnectionResult(true);
+      return true;
+    } catch (error) {
+      showToast('error', '连接失败', error instanceof Error ? error.message : '未知错误');
+      onConnectionResult(false);
+      return false;
+    }
+  }
+
+  async function connectAuthorizedDevice(successTitle: string): Promise<boolean> {
+    const device = await hidService.getAuthorizedDevice();
+    if (!device) {
+      showToast('error', '连接失败', '未找到已授权设备');
+      onConnectionResult(false);
+      return false;
+    }
+    return connectAndInitialize(device, successTitle);
+  }
+
   async function requestDevice() {
     try {
-      const device = await hidService.requestDevice();
-      if (!device) return;
+      const requestedDevice = await hidService.requestDevice();
+      if (!requestedDevice) return;
 
       viewPhase.value = 'connecting';
-
-      const success = await deviceStore.connectDevice(device);
-      if (success) {
-        deviceStore.startStatusPolling();
-        showToast('success', '连接成功', `已连接到 ${device.productName}`);
-      } else {
-        showToast('error', '连接失败', deviceStore.errorMessage || '无法连接设备');
-      }
-      onConnectionResult(success);
+      // 手动连接只负责授权，真正连接流程与自动重连保持完全一致。
+      await new Promise((r) => setTimeout(r, 800));
+      await connectAuthorizedDevice('连接成功');
     } catch (error) {
       showToast('error', '连接失败', error instanceof Error ? error.message : '未知错误');
       onConnectionResult(false);
@@ -58,15 +90,7 @@ export function useConnection() {
   }
 
   async function autoConnect() {
-    const device = await hidService.getAuthorizedDevice();
-    if (!device) return;
-
-    const success = await deviceStore.connectDevice(device);
-    if (!success) return;
-
-    deviceStore.startStatusPolling();
-    showToast('success', '自动连接', `已连接到 ${device.productName}`);
-    onConnectionResult(true);
+    await connectAuthorizedDevice('自动连接');
   }
 
   async function disconnect() {

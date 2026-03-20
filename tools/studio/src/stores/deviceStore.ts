@@ -201,6 +201,36 @@ export const useDeviceStore = defineStore("device", () => {
 
   /** 连接设备 */
   async function connectDevice(hidDevice: HIDDevice): Promise<boolean> {
+    const opened = await openDevice(hidDevice);
+    if (!opened) {
+      return false;
+    }
+
+    try {
+      await initializeConnectedDevice();
+      if (supportsMacroActions.value) {
+        await useMacroStore().refreshOverview().catch(() => {});
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function resetDeviceSession(): void {
+    device.value = null;
+    deviceInfo.value = null;
+    deviceStatus.value = null;
+    batteryVoltage.value = 0;
+    keymap.value = createEmptyKeymap();
+    keymapOriginal.value = createEmptyKeymap();
+    rgbConfig.value = createDefaultRgbConfig();
+    fnKeyConfig.value = createEmptyFnKeyConfig();
+    currentEditLayer.value = 0;
+    useMacroStore().reset();
+  }
+
+  async function openDevice(hidDevice: HIDDevice): Promise<boolean> {
     isLoading.value = true;
     errorMessage.value = null;
     const macroStore = useMacroStore();
@@ -213,6 +243,29 @@ export const useDeviceStore = defineStore("device", () => {
       }
 
       device.value = hidDevice;
+      return true;
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : "连接失败";
+      try {
+        await hidService.disconnect();
+      } catch {
+        // ignore disconnect cleanup errors
+      }
+      resetDeviceSession();
+      isLoading.value = false;
+      return false;
+    }
+  }
+
+  async function initializeConnectedDevice(): Promise<void> {
+    if (!device.value) {
+      isLoading.value = false;
+      throw new Error("设备未连接");
+    }
+
+    errorMessage.value = null;
+
+    try {
       await refreshDeviceInfo();
       await refreshKeymap();
       if (supportsRgb.value) {
@@ -225,35 +278,34 @@ export const useDeviceStore = defineStore("device", () => {
       } else {
         fnKeyConfig.value = createEmptyFnKeyConfig();
       }
-      if (supportsMacroActions.value) {
-        await macroStore.refreshOverview().catch(() => {});
-      }
-
-      return true;
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "连接失败";
-      device.value = null;
-      macroStore.reset();
-      return false;
+      try {
+        await hidService.disconnect();
+      } catch {
+        // ignore disconnect cleanup errors
+      }
+      resetDeviceSession();
+      throw error instanceof Error ? error : new Error("连接失败");
     } finally {
       isLoading.value = false;
     }
+  }
+
+  async function refreshMacroOverview(): Promise<void> {
+    if (!supportsMacroActions.value) {
+      useMacroStore().reset();
+      return;
+    }
+    await useMacroStore().refreshOverview();
   }
 
   /** 断开设备 */
   async function disconnectDevice(): Promise<void> {
     stopStatusPolling();
     await hidService.disconnect();
-    device.value = null;
-    deviceInfo.value = null;
-    deviceStatus.value = null;
-    batteryVoltage.value = 0;
-    keymap.value = createEmptyKeymap();
-    keymapOriginal.value = createEmptyKeymap();
-    rgbConfig.value = createDefaultRgbConfig();
-    fnKeyConfig.value = createEmptyFnKeyConfig();
-    currentEditLayer.value = 0;
-    useMacroStore().reset();
+    resetDeviceSession();
+    isLoading.value = false;
   }
 
   /** 刷新设备信息 */
@@ -551,11 +603,14 @@ export const useDeviceStore = defineStore("device", () => {
 
     // 方法
     connectDevice,
+    openDevice,
+    initializeConnectedDevice,
     disconnectDevice,
     refreshDeviceInfo,
     refreshKeymap,
     refreshRgbConfig,
     refreshFnKeyConfig,
+    refreshMacroOverview,
     saveKeymap,
     saveRgbConfig,
     saveFnKeyConfig,
