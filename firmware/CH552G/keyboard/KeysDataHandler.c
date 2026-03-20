@@ -109,6 +109,8 @@ static void initDefaultConfig(void)
   eeprom_write_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR, 0);
   eeprom_write_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR, 13);
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, PRESS_EFFECT_NONE);
+  // USB 轮询率默认 100Hz (bInterval=10)
+  eeprom_write_byte(EEPROM_POLL_RATE_ADDR, 10);
   // MeowFS
   meowfs_format();
   eeprom_write_byte(EEPROM_MEOWFS_FMT_ADDR, MEOWFS_FMT_MAGIC);
@@ -261,6 +263,9 @@ void fillRgbResponse(uint8_t *__xdata buf)
   buf[8] = indicatorEnabled;
   buf[9] = indicatorBrightness;
   buf[10] = pressEffect;
+  buf[11] = eeprom_read_byte(EEPROM_POLL_RATE_ADDR);
+  if (buf[11] == 0xFF || buf[11] == 0)
+    buf[11] = 10; // 默认 100Hz
 }
 
 void applyRgbConfig(void)
@@ -270,8 +275,9 @@ void applyRgbConfig(void)
   __xdata uint8_t mode = Ep1Buffer[3];
   __xdata uint8_t ibv = Ep1Buffer[10];
   __xdata uint8_t pev = Ep1Buffer[11];
+  __xdata uint8_t pollRate = Ep1Buffer[12];
 
-  if (mode >= EFFECT_COUNT || mode == EFFECT_BLINK || mode == EFFECT_INDICATOR)
+  if (mode >= EFFECT_COUNT || mode == EFFECT_INDICATOR)
     mode = EFFECT_OFF;
   if (pev >= PRESS_EFFECT_COUNT)
     pev = PRESS_EFFECT_NONE;
@@ -299,6 +305,10 @@ void applyRgbConfig(void)
   eeprom_write_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR, indicatorEnabled);
   eeprom_write_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR, ibv);
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, pev);
+
+  // 轮询率: 仅支持 1/2/5/10, 重启后生效
+  if (pollRate == 1 || pollRate == 2 || pollRate == 5 || pollRate == 10)
+    eeprom_write_byte(EEPROM_POLL_RATE_ADDR, pollRate);
 }
 
 static void loadRgbFromEEPROM(void)
@@ -309,7 +319,7 @@ static void loadRgbFromEEPROM(void)
   rgbEnabled = (v == 0xFF || v) ? 1 : 0;
 
   v = eeprom_read_byte(EEPROM_RGB_MODE_ADDR);
-  effectMode = (v == 0xFF || v >= EFFECT_COUNT || v == EFFECT_BLINK || v == EFFECT_INDICATOR)
+  effectMode = (v == 0xFF || v >= EFFECT_COUNT || v == EFFECT_INDICATOR)
                    ? EFFECT_RAINBOW
                    : v;
 

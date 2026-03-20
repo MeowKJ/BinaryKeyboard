@@ -396,6 +396,7 @@ export interface RgbConfig {
   indicatorEnabled: boolean;
   indicatorBrightness: number; /**< 指示灯亮度 (0-255) */
   pressEffect: PressEffect;
+  pollRate?: number; /**< USB HID 轮询率 bInterval (1=1000Hz, 2=500Hz, 5=200Hz, 10=100Hz) */
 }
 
 /** 设备信息 (SYS_INFO 响应) */
@@ -610,5 +611,6 @@ export function createDefaultRgbConfig(): RgbConfig {
     indicatorEnabled: true,
     indicatorBrightness: RGB_DEFAULT_BRIGHTNESS,
     pressEffect: PressEffect.NONE,
+    pollRate: 10,
   };
 }

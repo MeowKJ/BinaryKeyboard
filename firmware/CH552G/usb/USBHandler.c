@@ -81,12 +81,11 @@ void USB_EP0_SETUP()
         switch (UsbSetupBuf->wValueH)
         {
         case 1: // Device Descriptor
-          pDescr = (__code uint8_t *)
-              DeviceDescriptor; // Put Device Descriptor into outgoing buffer
+          pDescr = (__code uint8_t *)&DeviceDescriptor;
           len = sizeof(USB_Descriptor_Device_t);
           break;
         case 2: // Configure Descriptor
-          pDescr = (__code uint8_t *)ConfigurationDescriptor;
+          pDescr = (__code uint8_t *)&ConfigurationDescriptor;
           len = sizeof(USB_Descriptor_Configuration_t);
           break;
         case 3:

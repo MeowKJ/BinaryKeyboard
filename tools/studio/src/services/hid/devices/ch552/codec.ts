@@ -203,6 +203,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     frame[8] = config.indicatorEnabled ? 1 : 0;
     frame[9] = config.indicatorBrightness ?? config.brightness;
     frame[10] = config.pressEffect ?? PressEffect.NONE;
+    frame[11] = config.pollRate ?? 10;
     return frame;
   }
 
@@ -319,9 +320,17 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       throw new Error(`CH552G READ_RGB 返回了未知响应 ${this.hexByte(data[0] ?? 0)}`);
     }
 
+    // CH552 固件已移除 BLINK(3) 和 INDICATOR(5)，映射为 OFF
+    let mode = data[2] ?? 0;
+    if (mode === 5) mode = 0;
+
+    // pollRate: bInterval (1=1000Hz, 2=500Hz, 5=200Hz, 10=100Hz)
+    let pollRate = data[11] ?? 10;
+    if (pollRate === 0 || pollRate === 0xFF) pollRate = 10;
+
     return {
       enabled: (data[1] ?? 1) !== 0,
-      mode: data[2] ?? 0,
+      mode,
       brightness: data[3] ?? 0,
       speed: data[4] ?? 128,
       colorR: data[5] ?? 255,
@@ -330,6 +339,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       indicatorEnabled: (data[8] ?? 0) !== 0,
       indicatorBrightness: data[9] ?? data[3] ?? 0,
       pressEffect: data[10] ?? PressEffect.NONE,
+      pollRate,
     };
   }
 
@@ -448,7 +458,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       case Ch552Command.READ_RGB:
         return '读取 RGB 配置';
       case Ch552Command.WRITE_RGB:
-        return `写入 RGB: enabled=${frame[1] ?? 0} mode=${frame[2] ?? 0} press=${frame[10] ?? 0}`;
+        return `写入 RGB: enabled=${frame[1] ?? 0} mode=${frame[2] ?? 0} press=${frame[10] ?? 0} poll=${frame[11] ?? 10}`;
       case Ch552Command.FACTORY_RESET:
         return '恢复出厂设置';
       case Ch552Command.MACRO: {
@@ -1006,7 +1016,8 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
         if (attempt + 1 >= CH552_READ_RETRY_COUNT) {
           break;
         }
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        // 首次失败多等一会儿，让设备 USB 栈稳定（尤其是首次连接场景）
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 500 : 80));
       }
     }
 
