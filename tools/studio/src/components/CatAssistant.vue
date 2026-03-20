@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { lastToastSeverity } from '@/services/toastService';
 
 import idleImg from '@/assets/emoji/grinning_cat_with_smiling_eyes_animated.png';
@@ -7,6 +7,7 @@ import successImg from '@/assets/emoji/smiling_cat_with_heart-eyes_animated.png'
 import errorImg from '@/assets/emoji/crying_cat_animated.png';
 import warnImg from '@/assets/emoji/weary_cat_animated.png';
 import infoImg from '@/assets/emoji/grinning_cat_animated.png';
+import loadingImg from '@/assets/emoji/hourglass_not_done_animated.png';
 
 const props = defineProps<{
   loading?: boolean;
@@ -16,24 +17,16 @@ const emit = defineEmits<{
   (e: 'action', action: string): void;
 }>();
 
-const bounce = ref(false);
 const menuOpen = ref(false);
 
 const currentImg = computed(() => {
-  if (props.loading) return idleImg;
+  if (props.loading) return loadingImg;
   switch (lastToastSeverity.value) {
     case 'success': return successImg;
     case 'error': return errorImg;
     case 'warn': return warnImg;
     case 'info': return infoImg;
     default: return idleImg;
-  }
-});
-
-watch(lastToastSeverity, (v) => {
-  if (v && !props.loading) {
-    bounce.value = true;
-    setTimeout(() => { bounce.value = false; }, 500);
   }
 });
 
@@ -57,7 +50,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
 </script>
 
 <template>
-  <div class="cat-assistant" :class="{ bounce, loading }" @click.stop="toggleMenu">
+  <div class="cat-assistant" :class="{ loading }" @click.stop="toggleMenu">
     <img :src="currentImg" alt="猫咪助手" draggable="false" />
     <span v-if="loading" class="cat-loading-text">加载中...</span>
 
@@ -69,7 +62,11 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
         </button>
         <button class="cat-menu-item" @click.stop="onAction('theme')">
           <i class="pi pi-palette"></i>
-          <span>切换主题</span>
+          <span>切换明暗</span>
+        </button>
+        <button class="cat-menu-item" @click.stop="onAction('themeConfig')">
+          <i class="pi pi-sliders-h"></i>
+          <span>主题设置</span>
         </button>
         <button class="cat-menu-item" @click.stop="onAction('scrollTop')">
           <i class="pi pi-arrow-up"></i>
@@ -107,14 +104,12 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
   height: 100%;
   object-fit: contain;
   pointer-events: none;
-}
-
-.cat-assistant.bounce {
-  animation: cat-bounce 0.5s ease;
+  /* 独立合成层，防止 APNG 帧切换时与父元素 transform transition 互相干扰产生跳动 */
+  will-change: contents;
+  transform: translateZ(0);
 }
 
 .cat-assistant.loading {
-  animation: cat-breathe 1.5s ease-in-out infinite;
   cursor: default;
 }
 
@@ -199,17 +194,6 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
 .cat-menu-leave-to {
   opacity: 0;
   transform: translateY(8px) scale(0.95);
-}
-
-@keyframes cat-bounce {
-  0%, 100% { transform: scale(1); }
-  30% { transform: scale(1.3); }
-  60% { transform: scale(0.9); }
-}
-
-@keyframes cat-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.12); }
 }
 
 @keyframes loadingPulse {

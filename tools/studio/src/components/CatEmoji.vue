@@ -17,6 +17,8 @@ import hourglassDone3d from '@/assets/emoji/hourglass_done_3d.png';
 import hourglassDoneAnimated from '@/assets/emoji/hourglass_done_animated.png';
 import hourglassNotDone3d from '@/assets/emoji/hourglass_not_done_3d.png';
 import hourglassNotDoneAnimated from '@/assets/emoji/hourglass_not_done_animated.png';
+import frog3d from '@/assets/emoji/frog_3d.png';
+import frogAnimated from '@/assets/emoji/frog_animated.png';
 
 export type CatEmojiType =
   | 'cat'
@@ -35,7 +37,9 @@ export type CatEmojiType =
   | 'hourglass-done-3d'
   | 'hourglass-done-animated'
   | 'hourglass-not-done-3d'
-  | 'hourglass-not-done-animated';
+  | 'hourglass-not-done-animated'
+  | 'frog-3d'
+  | 'frog-animated';
 
 const props = withDefaults(defineProps<{
   type?: CatEmojiType
@@ -61,6 +65,8 @@ const src = computed(() => {
     case 'hourglass-done-animated': return hourglassDoneAnimated;
     case 'hourglass-not-done-3d': return hourglassNotDone3d;
     case 'hourglass-not-done-animated': return hourglassNotDoneAnimated;
+    case 'frog-3d': return frog3d;
+    case 'frog-animated': return frogAnimated;
     default: return catFace;
   }
 });
