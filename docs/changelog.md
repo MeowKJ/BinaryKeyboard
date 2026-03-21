@@ -8,6 +8,107 @@ outline: [2, 3]
 本页内容由 GitHub Actions 自动从 [Releases](https://github.com/MeowKJ/BinaryKeyboard/releases) 同步生成。
 :::
 
+## ✨ binarykeyboard-20260320
+
+📅 **发布时间**：2026 年 3 月 20 日
+
+🔗 [在 GitHub 上查看](https://github.com/MeowKJ/BinaryKeyboard/releases/tag/binarykeyboard-20260320)
+
+> **Release 2026-03-20**
+
+---
+
+### 版本信息
+
+| 组件 | 版本 | 说明 |
+|:-----|:-----|:-----|
+| 🎹 Studio | `v3.0.42` | 改键工具（Web） |
+| 📡 CH592F | `v3.0.29` | 无线固件（BLE） |
+| 🔌 CH552G | `v3.0.22` | 有线固件（USB） |
+
+---
+
+### 🖥️ Studio 桌面版
+
+| 平台 | 架构 | 格式 |
+|:-----|:-----|:-----|
+| macOS | Apple Silicon (arm64) | DMG |
+| macOS | Intel (x64) | DMG |
+| Windows | x64 | 便携式 EXE |
+| Windows | x86 / 32位 (ia32) | 便携式 EXE |
+| Windows | ARM64 | 便携式 EXE |
+
+---
+
+### 📦 固件文件
+
+| 文件 | Flash 占用 | RAM 占用 | 说明 |
+|:-----|:----------|:---------|:-----|
+| `CH552G-5KEY-3.0.22.hex` | ███████████████████░ 97% (12.9/13 KB) | 0.2 / 0.9 KB (29%) | 🔌 有线 · 五键 |
+| `CH552G-BASIC-3.0.22.hex` | ███████████████████░ 96% (12.8/13 KB) | 0.2 / 0.9 KB (24%) | 🔌 有线 · 基础 |
+| `CH552G-KNOB-3.0.22.hex` | ███████████████████░ 98% (13.1/13 KB) | 0.2 / 0.9 KB (29%) | 🔌 有线 · 旋钮 |
+| `CH592F-5KEY-3.0.29.hex` | ███████░░░░░░░░░░░░░ 37% (169.8/448 KB) | 22.9 / 26.0 KB (88%) | 📡 无线 · 五键 |
+| `CH592F-KNOB-3.0.29.hex` | ███████░░░░░░░░░░░░░ 37% (169.8/448 KB) | 22.8 / 26.0 KB (88%) | 📡 无线 · 旋钮 |
+
+---
+
+### 变更范围
+
+- 自 [`binarykeyboard-20260319`](https://github.com/MeowKJ/BinaryKeyboard/releases/tag/binarykeyboard-20260319) 以来共 **13** 个提交
+- 完整对比: https://github.com/MeowKJ/BinaryKeyboard/compare/binarykeyboard-20260319...binarykeyboard-20260320
+
+<!-- Release notes generated using configuration in .github/release.yml at 376e9cea16dc489721082b6ab22c1af72401f36e -->
+
+## What's Changed
+### Pull Requests
+* 功能合并: Studio UI重构 + 固件优化 + 构建修复 by @MeowKJ in https://github.com/MeowKJ/BinaryKeyboard/pull/62
+* 修复 Studio 手动连接、Toast 遮挡与固件版本提示问题 by @MeowKJ in https://github.com/MeowKJ/BinaryKeyboard/pull/64
+
+### 提交记录
+
+- docs: sync changelog from releases by @github-actions[bot] ([`9b49395`](https://github.com/MeowKJ/BinaryKeyboard/commit/9b49395e9afca2c5766941cb2a04613ad1f78bc0))
+- 优化(studio): UI 架构重构 — 拆分视图与主题系统 by @MeowKJ ([`67f5757`](https://github.com/MeowKJ/BinaryKeyboard/commit/67f5757a06ad0981777315c994832b9f60266251))
+- 功能(studio): 猫咪助手交互优化 + 新增表情资源 by @MeowKJ ([`db65daf`](https://github.com/MeowKJ/BinaryKeyboard/commit/db65daf4d94dd2098249973d6d3df468638e6263))
+- 修复(studio): HID 连接超时保护与首包丢失 by @MeowKJ ([`4d896ab`](https://github.com/MeowKJ/BinaryKeyboard/commit/4d896abbe5ce6d4bc0bbf1ee363728505ca8d231))
+- 优化(固件): LED 帧率提升至 60fps by @MeowKJ ([`91817af`](https://github.com/MeowKJ/BinaryKeyboard/commit/91817af4d62dbd731cf5eea882beed8dae262ac8))
+- 功能(固件+studio): USB 轮询率配置 + 保存按钮优化 by @MeowKJ ([`7a53b55`](https://github.com/MeowKJ/BinaryKeyboard/commit/7a53b55eb7f433f70410a49236a6b74001293468))
+- 修复(studio): 按键编辑器宏选择不再显示「新建宏」 by @MeowKJ ([`8035b44`](https://github.com/MeowKJ/BinaryKeyboard/commit/8035b444399f14e0052201227679b41bd84a76ac))
+- fix: 修复vercel构建失败和package.json的版本自动补全 by @MeowKJ ([`95e610f`](https://github.com/MeowKJ/BinaryKeyboard/commit/95e610f01acf34ad3329611ee4cd56a11a7d7f7e))
+- fix: 修复 Studio 手动连接卡漏斗问题 by @MeowKJ ([`d610ad4`](https://github.com/MeowKJ/BinaryKeyboard/commit/d610ad4979819266579c23605114961c0011f7b7))
+- fix: 调整 Toast 避免被顶栏遮挡 by @MeowKJ ([`96a0a33`](https://github.com/MeowKJ/BinaryKeyboard/commit/96a0a33d36d80db93260f7657ef1c34236848130))
+- feat: 固件版本不一致时显示最新 Release 下载入口 by @MeowKJ ([`1b26545`](https://github.com/MeowKJ/BinaryKeyboard/commit/1b265458a33fd3331f6cf15b697eaebccdc9ac1f))
+
+**Full Changelog**: https://github.com/MeowKJ/BinaryKeyboard/compare/binarykeyboard-20260319...binarykeyboard-20260320
+
+---
+
+<details><summary>构建环境</summary>
+
+| 属性 | 值 |
+|:-----|:---|
+| 构建日期 | 2026-03-20 |
+| Commit | [`376e9ce`](https://github.com/MeowKJ/BinaryKeyboard/commit/376e9ce) |
+| CH592F 工具链 | `MRS_Toolchain_Linux_x64_V230` (RISC-V GCC 12) |
+| SDCC | `4.2.0+dfsg-1` |
+| CMake | `3.31.6` |
+| Python | `3.12.3` |
+
+</details>
+
+<details><summary>SHA-256 校验值</summary>
+
+```
+96be04c25911644c77381bd483e5e7235749c33fc3b409b4387517c71b561999  CH552G-5KEY-3.0.22.hex
+3b2e35c07ee2a2a0a2f1741b7f8dc17038c69551c7ed8f6c4f1a35e583747b3c  CH552G-BASIC-3.0.22.hex
+fc8c31532a9116221bfaf604571cf79e5aa302d1b3b3eb79cecf5b58b98b6772  CH552G-KNOB-3.0.22.hex
+4efb765a7416989d374bee6944bd230bfcf842491954bfc2e7c79f4ceb155f13  CH592F-5KEY-3.0.29.hex
+76720a5740748797e1d197406858270c4ddf8ff8aa7c281e609bb66e502b31ef  CH592F-KNOB-3.0.29.hex
+```
+
+</details>
+
+---
+
 ## ✨ binarykeyboard-20260319
 
 📅 **发布时间**：2026 年 3 月 19 日
