@@ -28,8 +28,6 @@ volatile __xdata uint8_t currentSpeed = 128;
 volatile __xdata uint8_t currentColorR = 255;
 volatile __xdata uint8_t currentColorG = 255;
 volatile __xdata uint8_t currentColorB = 255;
-volatile __xdata uint8_t indicatorEnabled = 0;
-volatile __xdata uint8_t indicatorBrightness = 13;
 volatile __xdata uint8_t pressEffect = PRESS_EFFECT_NONE;
 
 static __xdata uint8_t ledData[NUM_LEDS * 3];

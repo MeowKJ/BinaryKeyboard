@@ -31,8 +31,6 @@ extern volatile __xdata uint8_t currentSpeed;
 extern volatile __xdata uint8_t currentColorR;
 extern volatile __xdata uint8_t currentColorG;
 extern volatile __xdata uint8_t currentColorB;
-extern volatile __xdata uint8_t indicatorEnabled;
-extern volatile __xdata uint8_t indicatorBrightness;
 extern volatile __xdata uint8_t pressEffect;
 
 // ==================== 灯效控制函数 ====================

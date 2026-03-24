@@ -45,8 +45,6 @@ extern "C" {
 #define EEPROM_RGB_COLOR_R_ADDR              (EEPROM_RGB_BASE_ADDR + 4)
 #define EEPROM_RGB_COLOR_G_ADDR              (EEPROM_RGB_BASE_ADDR + 5)
 #define EEPROM_RGB_COLOR_B_ADDR              (EEPROM_RGB_BASE_ADDR + 6)
-#define EEPROM_RGB_INDICATOR_ENABLED_ADDR    (EEPROM_RGB_BASE_ADDR + 7)
-#define EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR (EEPROM_RGB_BASE_ADDR + 8)
 #define EEPROM_RGB_PRESS_EFFECT_ADDR         (EEPROM_RGB_BASE_ADDR + 9)
 
 // 函数声明
@@ -79,8 +77,6 @@ void applyRgbConfig(
   uint8_t colorR,
   uint8_t colorG,
   uint8_t colorB,
-  uint8_t indicatorEnable,
-  uint8_t indicatorBrightnessValue,
   uint8_t pressEffectValue) __reentrant;
 
 #ifdef __cplusplus
