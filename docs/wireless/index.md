@@ -71,7 +71,7 @@
 #### 开始烧录
 
 9. Windows 点击 **下载**
-10. macOS / Linux 回到 `PY` 终端控制台，点 `Flash selected preset`
+10. macOS / Linux 回到喵喵的终端工具，点 `Flash selected preset`
 11. 等待刷写完成
 
 详细步骤见 [刷写固件](./flash)
