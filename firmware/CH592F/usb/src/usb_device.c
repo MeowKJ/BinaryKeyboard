@@ -28,9 +28,9 @@ uint8_t g_ProtocolValue[4] = {0};
 
 /* 端点缓冲区 */
 __attribute__((aligned(4))) uint8_t EP0_Databuf[64 + 64 + 64]; // EP0 + EP4_OUT + EP4_IN
-__attribute__((aligned(4))) uint8_t EP1_Databuf[64];           // EP1_IN only
-__attribute__((aligned(4))) uint8_t EP2_Databuf[64];           // EP2_IN only
-__attribute__((aligned(4))) uint8_t EP3_Databuf[64];           // EP3_IN only
+__attribute__((aligned(4))) uint8_t EP1_Databuf[64 + 64];      // EP1_OUT + EP1_IN
+__attribute__((aligned(4))) uint8_t EP2_Databuf[64 + 64];      // EP2_OUT + EP2_IN
+__attribute__((aligned(4))) uint8_t EP3_Databuf[64 + 64];      // EP3_OUT + EP3_IN
 
 /* ==================== Private Functions ==================== */
 
@@ -339,7 +339,6 @@ void USB_Device_Init(void)
     USB_Config_Init();
 
     g_USB_DeviceState = USB_STATE_ATTACHED;
-
     PFIC_EnableIRQ(USB_IRQn);
 }
 

@@ -36,6 +36,8 @@ from firmware_naming import ch592_filename_for_keyboard, normalize_keyboard_name
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
+IAP_DIR = FIRMWARE_DIR / "bootloader"
+JUMPIAP_DIR = FIRMWARE_DIR / "jump_iap"
 LINKER_SCRIPT = FIRMWARE_DIR / "SDK" / "Ld" / "Link.ld"
 DEFAULT_KEYBOARD = "5KEY"
 DEFAULT_PROFILE = "release"
@@ -189,11 +191,34 @@ def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
 
 
 def artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
+    """All possible artifact paths (app + full + iap)."""
+    base = ch592_filename_for_keyboard(keyboard, "x").rsplit(".", 1)[0]  # "CH592F-5KEY-1.0.0"
+    iap_hex = build_dir / f"{base}-iap.hex"
+    iap_bin = build_dir / f"{base}-iap.bin"
     return {
         "elf": build_dir / ch592_filename_for_keyboard(keyboard, "elf"),
         "bin": build_dir / ch592_filename_for_keyboard(keyboard, "bin"),
         "hex": build_dir / ch592_filename_for_keyboard(keyboard, "hex"),
         "map": build_dir / ch592_filename_for_keyboard(keyboard, "map"),
+        "full_hex": build_dir / f"{base}-full.hex",
+        "full_bin": build_dir / f"{base}-full.bin",
+        "iap_hex": iap_hex,
+        "iap_bin": iap_bin,
+        "bootloader_hex": iap_hex,
+        "bootloader_bin": iap_bin,
+    }
+
+
+def user_facing_artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
+    """Only the artifacts that matter to the user (for build-full output)."""
+    a = artifact_paths(build_dir, keyboard)
+    return {
+        "full_hex": a["full_hex"],
+        "full_bin": a["full_bin"],
+        "iap_hex": a["iap_hex"],
+        "iap_bin": a["iap_bin"],
+        "app_bin": a["bin"],
+        "app_hex": a["hex"],
     }
 
 
@@ -363,10 +388,13 @@ def build(keyboard: str, profile: str) -> Path:
     lines, elapsed = run_and_capture([str(cmake), "--build", str(build_dir)], cwd=PROJECT_ROOT)
     _build_report(lines, preset_for(keyboard, profile), build_dir, elapsed)
 
-    artifacts = export_named_artifacts(build_dir, keyboard)
-    for name, path in artifacts.items():
+    export_named_artifacts(build_dir, keyboard)
+    # Only show .hex and .bin (user-facing app artifacts)
+    arts = artifact_paths(build_dir, keyboard)
+    for key in ("hex", "bin"):
+        path = arts[key]
         if path.is_file():
-            ok(f"{name.upper()} → {path.parent}{os.sep}{_c('32;1', path.name)}")
+            ok(f"APP {key.upper()} → {path.parent}{os.sep}{_c('32;1', path.name)}")
 
     return build_dir
 
@@ -463,6 +491,313 @@ def emit_size_json(keyboard: str, profile: str, out: Path) -> int:
     return 0
 
 
+# ── IAP build ────────────────────────────────────────────────────────────────
+
+
+IAP_BUILD_DIR = IAP_DIR / "build"
+JUMPIAP_BUILD_DIR = JUMPIAP_DIR / "build"
+
+
+def bootloader_configure() -> Path:
+    cmake = find_cmake()
+    if not cmake:
+        die("CMake not found. Install CMake or add it to PATH.")
+
+    build_dir = IAP_BUILD_DIR
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sep()
+    info("Configuring CH592F IAP app")
+    run([
+        str(cmake),
+        "-S", str(IAP_DIR),
+        "-B", str(build_dir),
+        *_generator_configure_args(),
+        f"-DCMAKE_TOOLCHAIN_FILE={FIRMWARE_DIR / 'cmake' / 'toolchain-ch59x.cmake'}",
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    ], cwd=PROJECT_ROOT)
+    ok(f"IAP configure complete → {build_dir}")
+    return build_dir
+
+
+def bootloader_build() -> Path:
+    cmake = find_cmake()
+    if not cmake:
+        die("CMake not found. Install CMake or add it to PATH.")
+
+    build_dir = IAP_BUILD_DIR
+    cache_file = build_dir / "CMakeCache.txt"
+    if not cache_file.is_file():
+        bootloader_configure()
+
+    sep()
+    info("Building CH592F IAP app")
+    lines, elapsed = run_and_capture([str(cmake), "--build", str(build_dir)], cwd=PROJECT_ROOT)
+
+    bin_path = build_dir / "CH592F_IAP.bin"
+    hex_path = build_dir / "CH592F_IAP.hex"
+    for artifact in (bin_path, hex_path):
+        if artifact.is_file():
+            ok(f"{artifact.suffix.upper().lstrip('.')} → {artifact.parent}{os.sep}{_c('32;1', artifact.name)}  ({artifact.stat().st_size} B)")
+
+    return build_dir
+
+
+def bootloader_clean() -> None:
+    build_dir = IAP_BUILD_DIR
+    sep()
+    if build_dir.is_dir():
+        shutil.rmtree(build_dir)
+        ok(f"Removed {build_dir}")
+    else:
+        warn(f"Build directory does not exist: {build_dir}")
+
+
+def bootloader_hex_path() -> Path:
+    return IAP_BUILD_DIR / "CH592F_IAP.hex"
+
+
+def jumpiap_configure() -> Path:
+    cmake = find_cmake()
+    if not cmake:
+        die("CMake not found. Install CMake or add it to PATH.")
+
+    build_dir = JUMPIAP_BUILD_DIR
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sep()
+    info("Configuring CH592F JumpIAP stub")
+    run([
+        str(cmake),
+        "-S", str(JUMPIAP_DIR),
+        "-B", str(build_dir),
+        *_generator_configure_args(),
+        f"-DCMAKE_TOOLCHAIN_FILE={FIRMWARE_DIR / 'cmake' / 'toolchain-ch59x.cmake'}",
+        "-DCMAKE_BUILD_TYPE=MinSizeRel",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    ], cwd=PROJECT_ROOT)
+    ok(f"JumpIAP configure complete → {build_dir}")
+    return build_dir
+
+
+def jumpiap_build() -> Path:
+    cmake = find_cmake()
+    if not cmake:
+        die("CMake not found. Install CMake or add it to PATH.")
+
+    build_dir = JUMPIAP_BUILD_DIR
+    cache_file = build_dir / "CMakeCache.txt"
+    if not cache_file.is_file():
+        jumpiap_configure()
+
+    sep()
+    info("Building CH592F JumpIAP stub")
+    lines, elapsed = run_and_capture([str(cmake), "--build", str(build_dir)], cwd=PROJECT_ROOT)
+
+    bin_path = build_dir / "CH592F_JumpIAP.bin"
+    hex_path = build_dir / "CH592F_JumpIAP.hex"
+    for artifact in (bin_path, hex_path):
+        if artifact.is_file():
+            ok(f"{artifact.suffix.upper().lstrip('.')} → {artifact.parent}{os.sep}{_c('32;1', artifact.name)}  ({artifact.stat().st_size} B)")
+
+    return build_dir
+
+
+def jumpiap_clean() -> None:
+    build_dir = JUMPIAP_BUILD_DIR
+    sep()
+    if build_dir.is_dir():
+        shutil.rmtree(build_dir)
+        ok(f"Removed {build_dir}")
+    else:
+        warn(f"Build directory does not exist: {build_dir}")
+
+
+def jumpiap_hex_path() -> Path:
+    return JUMPIAP_BUILD_DIR / "CH592F_JumpIAP.hex"
+
+
+# ── Intel HEX merge ──────────────────────────────────────────────────────
+
+
+def _parse_ihex(path: Path) -> dict[int, int]:
+    """Parse an Intel HEX file and return a dict mapping address -> byte."""
+    memory: dict[int, int] = {}
+    base_addr = 0
+
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line.startswith(":"):
+            continue
+
+        byte_count = int(line[1:3], 16)
+        address = int(line[3:7], 16)
+        record_type = int(line[7:9], 16)
+        data = bytes.fromhex(line[9:9 + byte_count * 2])
+
+        if record_type == 0x00:  # Data
+            for i, b in enumerate(data):
+                memory[base_addr + address + i] = b
+        elif record_type == 0x02:  # Extended Segment Address
+            base_addr = (data[0] << 8 | data[1]) << 4
+        elif record_type == 0x04:  # Extended Linear Address
+            base_addr = (data[0] << 8 | data[1]) << 16
+        elif record_type == 0x01:  # EOF
+            break
+
+    return memory
+
+
+def _write_ihex(memory: dict[int, int], path: Path, bytes_per_line: int = 16) -> None:
+    """Write a flat memory dict to an Intel HEX file."""
+    if not memory:
+        die("Cannot write empty Intel HEX file.")
+
+    addresses = sorted(memory.keys())
+    lines: list[str] = []
+    current_ela = -1  # current Extended Linear Address (upper 16 bits)
+
+    i = 0
+    while i < len(addresses):
+        addr = addresses[i]
+        ela = addr >> 16
+
+        # Emit Extended Linear Address record if needed
+        if ela != current_ela:
+            current_ela = ela
+            data = bytes([(ela >> 8) & 0xFF, ela & 0xFF])
+            checksum = (-(0x02 + 0x00 + 0x00 + 0x04 + data[0] + data[1])) & 0xFF
+            lines.append(f":02000004{data.hex().upper()}{checksum:02X}")
+
+        # Collect contiguous bytes up to bytes_per_line
+        run_start = addr
+        run_data: list[int] = []
+        while (
+            i < len(addresses)
+            and addresses[i] == run_start + len(run_data)
+            and len(run_data) < bytes_per_line
+            and (addresses[i] >> 16) == current_ela
+        ):
+            run_data.append(memory[addresses[i]])
+            i += 1
+
+        # Emit Data record
+        low_addr = run_start & 0xFFFF
+        byte_count = len(run_data)
+        data_bytes = bytes(run_data)
+        s = byte_count + (low_addr >> 8) + (low_addr & 0xFF) + 0x00
+        s += sum(data_bytes)
+        checksum = (-s) & 0xFF
+        lines.append(f":{byte_count:02X}{low_addr:04X}00{data_bytes.hex().upper()}{checksum:02X}")
+
+    # EOF record
+    lines.append(":00000001FF")
+
+    path.write_text("\n".join(lines) + "\n")
+
+
+def merge_hex(bootloader_hex: Path, app_hex: Path, output_hex: Path) -> Path:
+    """Merge bootloader and application Intel HEX files into a single HEX."""
+    if not bootloader_hex.is_file():
+        die(f"Bootloader HEX not found: {bootloader_hex}")
+    if not app_hex.is_file():
+        die(f"Application HEX not found: {app_hex}")
+
+    boot_mem = _parse_ihex(bootloader_hex)
+    app_mem = _parse_ihex(app_hex)
+
+    # Check for overlap
+    overlap = set(boot_mem.keys()) & set(app_mem.keys())
+    if overlap:
+        overlap_start = min(overlap)
+        overlap_end = max(overlap)
+        warn(f"Address overlap detected: 0x{overlap_start:05X}-0x{overlap_end:05X} ({len(overlap)} bytes)")
+
+    # Merge: app overwrites bootloader in case of overlap
+    merged = {**boot_mem, **app_mem}
+
+    output_hex.parent.mkdir(parents=True, exist_ok=True)
+    _write_ihex(merged, output_hex)
+
+    boot_range = (min(boot_mem), max(boot_mem)) if boot_mem else (0, 0)
+    app_range = (min(app_mem), max(app_mem)) if app_mem else (0, 0)
+    ok(
+        f"Merged HEX → {output_hex.name}  "
+        f"(boot 0x{boot_range[0]:05X}-0x{boot_range[1]:05X}, "
+        f"app 0x{app_range[0]:05X}-0x{app_range[1]:05X}, "
+        f"total {len(merged)} bytes)"
+    )
+    return output_hex
+
+
+def _hex_to_bin(hex_path: Path, bin_path: Path) -> None:
+    """Convert an Intel HEX file to a raw binary file."""
+    memory = _parse_ihex(hex_path)
+    if not memory:
+        die(f"Empty HEX file: {hex_path}")
+    addresses = sorted(memory.keys())
+    start = addresses[0]
+    end = addresses[-1] + 1
+    data = bytearray(b'\xFF' * (end - start))
+    for addr, byte in memory.items():
+        data[addr - start] = byte
+    bin_path.write_bytes(data)
+
+
+def build_full(keyboard: str, profile: str) -> Path:
+    """Build JumpIAP + app + IAP app, then merge into a single -full.hex for ISP."""
+    keyboard = _normalize_keyboard(keyboard)
+    profile = _normalize_profile(profile)
+
+    # 1. Build JumpIAP stub + high-flash IAP app
+    jumpiap_build()
+    bootloader_build()
+
+    # 2. Build app
+    app_build_dir = build(keyboard, profile)
+
+    # 3. Merge hex
+    jump_hex = jumpiap_hex_path()
+    iap_hex = bootloader_hex_path()
+    arts = artifact_paths(app_build_dir, keyboard)
+    app_hex = arts["hex"]
+    stage_hex = app_build_dir / ".merge-stage.hex"
+
+    sep()
+    info("Merging JumpIAP + app + IAP → full HEX")
+    merge_hex(jump_hex, app_hex, stage_hex)
+    merge_hex(stage_hex, iap_hex, arts["full_hex"])
+    if stage_hex.is_file():
+        stage_hex.unlink()
+
+    # 4. Generate full .bin from merged hex
+    _hex_to_bin(arts["full_hex"], arts["full_bin"])
+
+    # 5. Copy IAP artifacts with keyboard-prefixed names
+    boot_build = IAP_BUILD_DIR
+    for suffix in ("hex", "bin"):
+        src = boot_build / f"CH592F_IAP.{suffix}"
+        dst = arts[f"iap_{suffix}"]
+        if src.is_file():
+            shutil.copy2(src, dst)
+
+    # 6. Print user-facing artifacts
+    sep()
+    info("Build artifacts:")
+    for label, key in [
+        ("FULL HEX (ISP)", "full_hex"),
+        ("FULL BIN (ISP)", "full_bin"),
+        ("IAP HEX", "iap_hex"),
+        ("IAP BIN", "iap_bin"),
+        ("APP HEX (OTA)", "hex"),
+        ("APP BIN (OTA)", "bin"),
+    ]:
+        path = arts[key]
+        if path.is_file():
+            ok(f"{label:16s} → {_c('32;1', path.name)}  ({path.stat().st_size:,} B)")
+
+    return app_build_dir
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tools/scripts/ch592f.py",
@@ -482,7 +817,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-t",
         "--type",
         default="all",
-        choices=("all", "elf", "bin", "hex", "map"),
+        choices=("all", "elf", "bin", "hex", "map", "full_hex", "full_bin", "iap_hex", "iap_bin", "bootloader_hex", "bootloader_bin"),
         help="Artifact type to print",
     )
 
@@ -491,14 +826,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_size.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
     p_size.add_argument("-o", "--out", required=True, type=Path, help="Output JSON path")
 
+    # IAP commands
+    sub.add_parser("bootloader-build", help="Build high-flash IAP app (compat alias)")
+    sub.add_parser("bootloader-clean", help="Clean high-flash IAP build directory")
+    sub.add_parser("jumpiap-build", help="Build JumpIAP stub (4KB @ 0x00000)")
+    sub.add_parser("jumpiap-clean", help="Clean JumpIAP build directory")
+
+    # Full build (JumpIAP + app + IAP merged)
+    p_full = sub.add_parser("build-full", help="Build JumpIAP + app + IAP and merge into full HEX for ISP")
+    p_full.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
+    p_full.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
+
     return parser
 
 
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    keyboard = args.keyboard
-    profile = args.profile
+    keyboard = getattr(args, "keyboard", DEFAULT_KEYBOARD)
+    profile = getattr(args, "profile", DEFAULT_PROFILE)
 
     try:
         if args.command == "status":
@@ -520,6 +866,21 @@ def main() -> int:
             return emit_size_json(keyboard, profile, args.out)
         if args.command == "artifact":
             return show_artifact(keyboard, profile, args.type)
+        if args.command == "bootloader-build":
+            bootloader_build()
+            return 0
+        if args.command == "bootloader-clean":
+            bootloader_clean()
+            return 0
+        if args.command == "jumpiap-build":
+            jumpiap_build()
+            return 0
+        if args.command == "jumpiap-clean":
+            jumpiap_clean()
+            return 0
+        if args.command == "build-full":
+            build_full(keyboard, profile)
+            return 0
         parser.error(f"Unsupported command: {args.command}")
     except subprocess.CalledProcessError as exc:
         die(f"Command failed (exit {exc.returncode})")

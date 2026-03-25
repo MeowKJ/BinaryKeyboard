@@ -107,6 +107,14 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     await this.codec.setFullKeymap(this.transport, config);
   }
 
+  async sendRawFrame(frame: Uint8Array, timeout = 3000): Promise<DataView> {
+    const resp = await this.sendAndWait(frame, { timeout });
+    // TResponse is DataView for CH592 — wrap if needed
+    if (resp instanceof DataView) return resp;
+    // Fallback: shouldn't happen for CH592
+    throw new Error('sendRawFrame: unexpected response type');
+  }
+
   protected addTerminalEntry(entry: Parameters<ReturnType<typeof useTerminalStore>['addEntry']>[0]): void {
     try {
       const terminalStore = useTerminalStore();

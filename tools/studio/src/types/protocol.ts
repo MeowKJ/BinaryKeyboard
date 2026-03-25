@@ -63,6 +63,7 @@ export interface DeviceCapabilities {
   reset: boolean;
   explicitSave: boolean;
   wireless: boolean;
+  iap: boolean;
 }
 
 export function createDeviceCapabilities(
@@ -81,6 +82,7 @@ export function createDeviceCapabilities(
     reset: true,
     explicitSave: true,
     wireless: true,
+    iap: true,
     ...overrides,
   };
 }
@@ -99,6 +101,7 @@ export const CH552_CAPABILITIES = createDeviceCapabilities({
   reset: true,
   explicitSave: false,
   wireless: false,
+  iap: false,
 });
 
 // ============================================================================
@@ -142,6 +145,13 @@ export enum Command {
   LOG = 0x70,
   LOG_GET = 0x71,
   LOG_SET = 0x72,
+
+  // IAP 固件更新 0x80-0x8F
+  IAP_INFO = 0x80,
+  IAP_PREPARE = 0x81,
+  IAP_WRITE = 0x82,
+  IAP_VERIFY = 0x83,
+  IAP_ACTIVATE = 0x84,
 }
 
 // ============================================================================

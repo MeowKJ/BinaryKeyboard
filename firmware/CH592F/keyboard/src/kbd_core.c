@@ -83,12 +83,6 @@ void KBD_Core_Process(void)
     while (FnKey_GetEvent(&fn_evt)) {
         KBD_Core_HandleFnEvent(&fn_evt);
     }
-
-    /* 检查 BOOT 键 */
-    if (BootKey_IsPressed()) {
-        LOG_W(TAG, "BOOT key pressed!");
-        Hal_JumpToBootloader();
-    }
 }
 
 /**
@@ -494,7 +488,7 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param)
         break;
 
     case KBD_FN_BOOTLOADER:
-        LOG_W(TAG, "FN: bootloader");
+        LOG_W(TAG, "FN: enter IAP");
         Hal_JumpToBootloader();
         break;
 

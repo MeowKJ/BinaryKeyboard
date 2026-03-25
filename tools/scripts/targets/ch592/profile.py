@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, preset_for
+from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, artifact_paths as _artifact_paths, preset_for
 from common import display_path as _display_path
 from firmware_naming import ch592_filename_for_keyboard
 from i18n import t
@@ -34,11 +34,16 @@ def _build_dir(state: dict) -> Path:
 
 
 def _artifact_path(state: dict) -> Path:
+    """Return the -full.hex (JumpIAP + app + IAP merged) for ISP flashing."""
     build_dir = _build_dir(state)
-    filename = ch592_filename_for_keyboard(state["keyboard"], "bin")
-    named = build_dir / filename
+    arts = _artifact_paths(build_dir, state["keyboard"])
+    full = arts["full_hex"]
+    if full.is_file():
+        return full
+    # Fallback: app .bin (before bootloader integration)
+    app_bin = arts["bin"]
     legacy = build_dir / "CH592F.bin"
-    return named if named.is_file() or not legacy.is_file() else legacy
+    return app_bin if app_bin.is_file() or not legacy.is_file() else legacy
 
 
 def _build_label(state: dict) -> str:
@@ -46,7 +51,7 @@ def _build_label(state: dict) -> str:
 
 
 def _build_command(state: dict) -> list[str]:
-    return [sys.executable, str(SCRIPT_DIR / "ch592f.py"), "build", "--keyboard", state["keyboard"], "--profile", state["build_type"]]
+    return [sys.executable, str(SCRIPT_DIR / "ch592f.py"), "build-full", "--keyboard", state["keyboard"], "--profile", state["build_type"]]
 
 
 def _flash_command(state: dict) -> list[str]:
@@ -58,7 +63,7 @@ def _verify_command(state: dict) -> list[str]:
 
 
 def _build_command_display(state: dict) -> str:
-    return f"python tools/scripts/ch592f.py build --keyboard {state['keyboard']} --profile {state['build_type']}"
+    return f"python tools/scripts/ch592f.py build-full --keyboard {state['keyboard']} --profile {state['build_type']}"
 
 
 def _flash_command_display(state: dict) -> str:

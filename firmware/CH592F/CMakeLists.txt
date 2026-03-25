@@ -119,6 +119,7 @@ set(CH592_KEYBOARD_SOURCES
     # Keyboard
     keyboard/src/kbd_command.c
     keyboard/src/kbd_core.c
+    keyboard/src/kbd_iap.c
     keyboard/src/kbd_macro.c
     keyboard/src/kbd_log.c
     keyboard/src/kbd_rgb.c
@@ -179,6 +180,7 @@ set(CH592_INCLUDE_DIRS
     ${GENERATED_DIR}
     SDK/StdPeriphDriver/inc
     SDK/RVMSIS
+    iap
     hal/include
     usb/include
     ble/lib
