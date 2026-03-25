@@ -2,7 +2,7 @@
  * IAP (In-Application Programming) 固件更新服务
  *
  * 完整流程:
- *   1. 从 GitHub Release 下载 .bin 固件
+ *   1. 通过 GitHub Releases API 下载 .bin 固件
  *   2. 通过 HID 发送 IAP_PREPARE 擦除 Image B
  *   3. 分块发送固件数据 (IAP_WRITE)
  *   4. CRC32 校验 (IAP_VERIFY)
@@ -43,6 +43,17 @@ export type IapProgressCallback = (progress: IapProgress) => void;
 /** 底层 HID 传输接口 (与 codec 解耦) */
 export interface IapTransport {
   sendAndWait(frame: Uint8Array, options?: { timeout?: number }): Promise<DataView>;
+}
+
+interface GitHubReleaseAsset {
+  name: string;
+  url: string;
+  browser_download_url: string;
+}
+
+interface GitHubRelease {
+  tag_name: string;
+  assets: GitHubReleaseAsset[];
 }
 
 // ============================================================================
@@ -101,12 +112,35 @@ function checkResponse(resp: DataView, cmdName: string): void {
 // 固件下载
 // ============================================================================
 
-/**
- * 构建固件 .bin 下载 URL
- * 格式: https://github.com/{repo}/releases/latest/download/CH592F-{model}-{version}.bin
- */
-function buildFirmwareUrl(version: string, model: string): string {
-  return `https://github.com/${RELEASE_FEED.repository}/releases/latest/download/CH592F-${model}-${version}.bin`;
+const GITHUB_RELEASE_API_URL = `https://api.github.com/repos/${RELEASE_FEED.repository}/releases/latest`;
+
+function buildFirmwareAssetName(version: string, model: string): string {
+  return `CH592F-${model}-${version}.bin`;
+}
+
+async function resolveFirmwareAsset(
+  version: string,
+  model: string,
+): Promise<{ asset: GitHubReleaseAsset; releaseTag: string }> {
+  const response = await fetch(GITHUB_RELEASE_API_URL, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`查询 GitHub Release 失败: HTTP ${response.status}`);
+  }
+
+  const release = (await response.json()) as GitHubRelease;
+  const assetName = buildFirmwareAssetName(version, model);
+  const asset = release.assets.find((item) => item.name === assetName);
+
+  if (!asset) {
+    throw new Error(`最新 Release (${release.tag_name}) 尚未包含 ${assetName}`);
+  }
+
+  return { asset, releaseTag: release.tag_name };
 }
 
 /**
@@ -117,12 +151,16 @@ async function downloadFirmware(
   model: string,
   onProgress: IapProgressCallback,
 ): Promise<Uint8Array> {
-  const url = buildFirmwareUrl(version, model);
+  const { asset, releaseTag } = await resolveFirmwareAsset(version, model);
   onProgress({ stage: 'downloading', percent: 0, message: `正在下载固件 v${version}...` });
 
-  const response = await fetch(url);
+  const response = await fetch(asset.url, {
+    headers: {
+      Accept: 'application/octet-stream',
+    },
+  });
   if (!response.ok) {
-    throw new Error(`下载失败: HTTP ${response.status} — ${url}`);
+    throw new Error(`下载失败: HTTP ${response.status} — ${asset.name} @ ${releaseTag}`);
   }
 
   const contentLength = Number(response.headers.get('content-length') || 0);
