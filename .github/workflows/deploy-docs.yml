@@ -37,6 +37,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sync latest firmware assets for Pages
+        run: |
+          mkdir -p docs/public/firmware
+          python3 tools/scripts/sync_pages_firmware.py docs/public/firmware
+
       - name: Generate release manifest
         run: |
           mkdir -p docs/public/api

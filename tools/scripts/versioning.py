@@ -10,6 +10,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import re
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -28,6 +29,12 @@ CHIP_TO_COMPONENT = {
     "CH552G": "ch552",
     "CH592F": "ch592",
 }
+
+CH592_MODELS = ("5KEY", "KNOB")
+CH552_MODELS = ("BASIC", "5KEY", "KNOB")
+FIRMWARE_ASSET_RE = re.compile(
+    r"^(?P<chip>CH592F|CH552G)-(?P<model>BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?P<suffix>-full)?\.(?P<ext>bin|hex)$"
+)
 
 
 def _split_base_version(value: str) -> tuple[int, int]:
@@ -140,14 +147,94 @@ def release_settings() -> dict[str, str]:
     }
 
 
-def release_manifest_payload(build_number: int | None = None) -> dict[str, Any]:
+def pages_base_url() -> str:
+    manifest_url = release_settings()["manifest_url"].rstrip("/")
+    suffix = "/api/release-manifest.json"
+    if manifest_url.endswith(suffix):
+        return manifest_url[: -len(suffix)]
+    return manifest_url.rsplit("/", 1)[0]
+
+
+def _scan_pages_firmware_assets() -> dict[str, dict[str, dict[str, str]]]:
+    firmware_dir = PROJECT_ROOT / "docs" / "public" / "firmware"
+    scanned: dict[str, dict[str, dict[str, str]]] = {"ch592": {}, "ch552": {}}
+    if not firmware_dir.is_dir():
+        return scanned
+
+    for path in firmware_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        match = FIRMWARE_ASSET_RE.match(path.name)
+        if not match:
+            continue
+
+        chip = "ch592" if match.group("chip") == "CH592F" else "ch552"
+        model = match.group("model")
+        version = match.group("version")
+        rel_path = path.relative_to(PROJECT_ROOT / "docs" / "public").as_posix()
+
+        entry = scanned[chip].setdefault(model, {"version": version})
+        if match.group("chip") == "CH592F":
+            if match.group("ext") == "bin":
+                entry["binPath"] = rel_path
+            elif match.group("suffix") == "-full" and match.group("ext") == "hex":
+                entry["fullHexPath"] = rel_path
+        else:
+            if match.group("ext") == "bin":
+                entry["binPath"] = rel_path
+            elif match.group("ext") == "hex":
+                entry["hexPath"] = rel_path
+
+    return scanned
+
+
+def release_artifact_manifest(build_number: int | None = None) -> tuple[dict[str, Any], dict[str, str]]:
     versions = current_component_versions(build_number)
+    base_url = pages_base_url().rstrip("/")
+    scanned = _scan_pages_firmware_assets()
+
+    for chip_key, component_key in (("ch592", "ch592"), ("ch552", "ch552")):
+        versions_found = {
+            entry["version"]
+            for entry in scanned[chip_key].values()
+            if entry.get("version")
+        }
+        if len(versions_found) == 1:
+            versions[component_key] = next(iter(versions_found))
+
+    def ch592_asset(model: str) -> dict[str, str]:
+        scanned_entry = scanned["ch592"].get(model)
+        version = scanned_entry["version"] if scanned_entry else versions["ch592"]
+        return {
+            "version": version,
+            "binUrl": f"{base_url}/{scanned_entry['binPath']}" if scanned_entry and scanned_entry.get("binPath") else f"{base_url}/firmware/ch592f/CH592F-{model}-{version}.bin",
+            "fullHexUrl": f"{base_url}/{scanned_entry['fullHexPath']}" if scanned_entry and scanned_entry.get("fullHexPath") else f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-full.hex",
+        }
+
+    def ch552_asset(model: str) -> dict[str, str]:
+        scanned_entry = scanned["ch552"].get(model)
+        version = scanned_entry["version"] if scanned_entry else versions["ch552"]
+        return {
+            "version": version,
+            "binUrl": f"{base_url}/{scanned_entry['binPath']}" if scanned_entry and scanned_entry.get("binPath") else f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.bin",
+            "hexUrl": f"{base_url}/{scanned_entry['hexPath']}" if scanned_entry and scanned_entry.get("hexPath") else f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.hex",
+        }
+
+    return ({
+        "ch592": {model: ch592_asset(model) for model in CH592_MODELS},
+        "ch552": {model: ch552_asset(model) for model in CH552_MODELS},
+    }, versions)
+
+
+def release_manifest_payload(build_number: int | None = None) -> dict[str, Any]:
+    artifacts, versions = release_artifact_manifest(build_number)
     settings = release_settings()
     return {
         "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "commit": _git_short_sha(),
         "repository": settings["repository"],
         "versions": versions,
+        "artifacts": artifacts,
     }
 
 
