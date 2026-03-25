@@ -14,6 +14,7 @@
  */
 
 #include "kbd_command.h"
+#include "kbd_iap.h"
 #include "debug.h"
 #include "kbd_config.h"
 #include "kbd_battery.h"
@@ -21,6 +22,7 @@
 #include "kbd_rgb.h"
 #include "kbd_log.h"
 #include "kbd_storage.h"
+#include "iap_config.h"
 #include <string.h>
 
 /** @brief 模块日志标签 */
@@ -145,6 +147,15 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
     break;
   case KBD_CMD_LOG_SET:
     HandleLogSet(frame);
+    break;
+
+  /* IAP 固件更新 */
+  case KBD_CMD_IAP_INFO:
+  case KBD_CMD_IAP_PREPARE:
+  case KBD_CMD_IAP_WRITE:
+  case KBD_CMD_IAP_VERIFY:
+  case KBD_CMD_IAP_ACTIVATE:
+    KBD_IAP_Process(frame);
     break;
 
   default:

@@ -50,19 +50,22 @@ jobs:
       - name: Fix git ownership
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Build
-        run: python3 tools/scripts/ch592f.py build --keyboard ${{ matrix.keyboard }} --profile release
+      - name: Build (bootloader + app + merge)
+        run: python3 tools/scripts/ch592f.py build-full --keyboard ${{ matrix.keyboard }} --profile release
 
       - name: Resolve artifacts
         id: artifacts
         run: |
-          echo "hex=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type hex)" >> "$GITHUB_OUTPUT"
+          echo "bin=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type bin)" >> "$GITHUB_OUTPUT"
+          echo "full_hex=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type full_hex)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-ch592f-${{ matrix.keyboard }}-${{ github.sha }}
-          path: ${{ steps.artifacts.outputs.hex }}
+          path: |
+            ${{ steps.artifacts.outputs.bin }}
+            ${{ steps.artifacts.outputs.full_hex }}
           retention-days: 7
 
       - name: Emit size report
@@ -108,12 +111,15 @@ jobs:
         id: artifacts
         run: |
           echo "hex=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type hex)" >> "$GITHUB_OUTPUT"
+          echo "bin=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type bin)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-ch552g-${{ matrix.keyboard }}-${{ github.sha }}
-          path: ${{ steps.artifacts.outputs.hex }}
+          path: |
+            ${{ steps.artifacts.outputs.hex }}
+            ${{ steps.artifacts.outputs.bin }}
           retention-days: 7
 
       - name: Emit size report
@@ -391,7 +397,7 @@ jobs:
             echo "|:-----|:----------|:---------|:-----|"
           } > release-notes-header.md
 
-          # Generate file table rows from size reports + hex files
+          # Generate file table rows from size reports + firmware files
           python3 - <<'PYEOF' >> release-notes-header.md
           import json, os
           from pathlib import Path
@@ -407,11 +413,6 @@ jobs:
               data = json.loads(p.read_text())
               chip = data.get("chip", "")
               keyboard = data.get("keyboard", "")
-
-              hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
-              if not hex_files:
-                  continue
-              fname = hex_files[0].name
 
               regions = data.get("regions", {})
 
@@ -435,16 +436,41 @@ jobs:
               else:
                   ram_info = "—"
 
-              desc = chip_labels.get(chip, chip)
               kb_label = kb_labels.get(keyboard, keyboard)
-              desc = f"{desc} · {kb_label}"
 
-              order = (0 if chip == "CH552G" else 1, keyboard)
-              rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
+              if chip == "CH592F":
+                  # .bin for OTA update
+                  bin_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.bin"))
+                  if bin_files:
+                      fname = bin_files[0].name
+                      desc = f"{chip_labels.get(chip, chip)} · {kb_label} · Studio 在线更新"
+                      order = (1, keyboard, 0)
+                      rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
+                  # -full.hex for ISP
+                  full_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*-full.hex"))
+                  if full_files:
+                      fname = full_files[0].name
+                      desc = f"{chip_labels.get(chip, chip)} · {kb_label} · ⚡ 首次烧录 / 手动 ISP"
+                      order = (1, keyboard, 1)
+                      rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
+              else:
+                  # CH552G: .hex only
+                  hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
+                  if hex_files:
+                      fname = hex_files[0].name
+                      desc = f"{chip_labels.get(chip, chip)} · {kb_label}"
+                      order = (0, keyboard, 0)
+                      rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
 
           rows.sort(key=lambda x: x[0])
           for _, row in rows:
               print(row)
+
+          print()
+          print("> [!TIP]")
+          print("> **CH592F 无线版固件更新方式：**")
+          print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，自动下载 `.bin` 并通过 HID 刷写，无需任何工具")
+          print("> - ⚡ **首次烧录 / 手动恢复**：下载 `-full.hex`（含 Bootloader），使用 ISP 工具烧入")
           PYEOF
 
           REPO="${{ github.repository }}"
@@ -551,7 +577,7 @@ jobs:
             echo "<details><summary>SHA-256 校验值</summary>"
             echo
             echo '```'
-            for f in dist/*.hex; do
+            for f in dist/*.hex dist/*.bin; do
               [ -f "$f" ] || continue
               sha256sum "$f" | sed 's|dist/||'
             done
@@ -649,5 +675,6 @@ jobs:
           prerelease: false
           files: |
             dist/*.hex
+            dist/*.bin
             dist/*.dmg
             dist/*.exe
