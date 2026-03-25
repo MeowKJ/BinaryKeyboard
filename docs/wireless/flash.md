@@ -8,13 +8,10 @@
 
 ## 准备
 
-- 安装 `Python 3`
-- 打开这个仓库根目录
-- 用 `PY` 终端控制台刷写：
-
-```bash
-python tools/scripts/console.py
-```
+- 首次烧录使用 `CH592F-<MODEL>-<version>-full.hex`
+- 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>.bin`
+- Windows 推荐使用 `WCHISPStudio`
+- macOS / Linux 推荐使用喵喵的终端工具：`python tools/scripts/console.py`
 
 ## 进入 Bootloader 模式
 
@@ -29,20 +26,13 @@ python tools/scripts/console.py
 
 ## Windows
 
-1. 在仓库根目录运行：
-
-```bash
-python tools/scripts/console.py
-```
-
-2. 进入 `Home`
-3. 先点 `Install or update wchisp`
-4. 再点 `Probe ISP devices`，确认已经识别到设备
-5. 五键款保持当前 `Layout = 5KEY`
-6. 旋钮款先点 `Toggle layout` 切到 `KNOB`
-7. 点 `Flash selected preset`
-8. 等待刷写完成
-9. 拔插 USB，测试蓝牙配对
+1. 打开 `WCHISPStudio`
+2. 顶部工具栏选择 **低功耗蓝牙系列** → **CH57x-CH59x**
+3. 芯片系列选择 `CH59x`，芯片型号选择 `CH592`
+4. 目标程序文件选择对应型号的 `-full.hex`
+5. 点击 `下载`
+6. 等待刷写完成
+7. 重新拔插 USB，测试蓝牙配对
 
 ## macOS / Linux
 

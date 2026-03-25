@@ -10,18 +10,21 @@
 | :--------------------- | :----------------------------------- |
 | 🔧 热风枪/加热台 + 锡膏 | 焊接 PCB                             |
 | 🖨️ 3D 打印机            | 或找人代打印                         |
-| 💻 电脑                 | 当前主要在 Windows 环境下验证        |
+| 💻 电脑                 | 用于连接键盘和刷写固件               |
 | 🔋 锂电池               | 3.7V，根据外壳大小选择容量           |
 | 🔌 USB-C 数据线         | 充电和刷固件                         |
 
 ### 下载文件
 
 1. **固件** - 从 [GitHub Releases](https://github.com/MeowKJ/BinaryKeyboard/releases) 下载
-
+   - 首次烧录使用 `CH592F-<MODEL>-<version>-full.hex`
+   - 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>.bin`
 
 2. **外壳 STL** - 从 Releases 或 OSHWHub 下载（无线版专用，带电池仓）
 
-3. **刷写方式** - `python tools/scripts/console.py`
+3. **初次下载**
+   - Windows 推荐使用 [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
+   - macOS / Linux 推荐使用喵喵的终端工具：`python tools/scripts/console.py`
 
 ## 复刻流程
 
@@ -44,7 +47,14 @@
 
 ### Step 3：刷写固件
 
-#### 软件配置
+#### Windows
+
+1. 打开 **WCHISPStudio**
+2. 顶部工具栏选择 **低功耗蓝牙系列** → **CH57x-CH59x**
+3. 芯片系列选择 **CH59x**，芯片型号选择 **CH592**
+4. 目标程序文件选择对应型号的 `-full.hex`
+
+#### macOS / Linux
 
 1. 在仓库根目录运行 `python tools/scripts/console.py`
 2. 进入 `Home`
@@ -60,9 +70,9 @@
 
 #### 开始烧录
 
-9. 回到 `PY` 终端控制台
-10. 点 `Flash selected preset`
-11. 等待刷写完成，提示成功
+9. Windows 点击 **下载**
+10. macOS / Linux 回到 `PY` 终端控制台，点 `Flash selected preset`
+11. 等待刷写完成
 
 详细步骤见 [刷写固件](./flash)
 

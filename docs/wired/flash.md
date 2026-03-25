@@ -2,7 +2,7 @@
 
 ## 准备工作
 
-- **WCHISPStudio** - [下载地址](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
+- **下载程序：WCHISPStudio** - [下载地址](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
 - 对应版本的 `.hex` 固件文件 - [GitHub Releases](https://github.com/MeowKJ/BinaryKeyboard/releases)
 
 ## 固件文件说明

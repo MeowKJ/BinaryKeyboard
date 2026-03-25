@@ -10,7 +10,7 @@
 | :-------------- | :----------------------------------- |
 | 🔧 电烙铁 + 焊锡 | 焊接 PCB                             |
 | 🖨️ 3D 打印机     | 或者使用 3D 打印服务                 |
-| 💻 电脑          | 当前主要在 Windows 环境下验证        |
+| 💻 电脑          | 用于连接键盘和刷写固件               |
 | 🔌 USB-C 数据线  | 连接键盘                             |
 
 ### 下载文件
@@ -22,7 +22,7 @@
 
 2. **外壳 STL** - 从 Releases 或 [OSHWHub](https://oshwhub.com/kjpig/Binary-Keyboard) 下载。
 
-3. **烧录工具** - [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
+3. **下载程序** - [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
 
 ## 复刻流程
 
