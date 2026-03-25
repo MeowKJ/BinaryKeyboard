@@ -36,6 +36,8 @@ export interface IapProgress {
   message: string;
   /** 错误信息 (stage === 'error') */
   error?: string;
+  /** 额外提示 */
+  hint?: string;
 }
 
 export type IapProgressCallback = (progress: IapProgress) => void;
@@ -112,6 +114,55 @@ function checkResponse(resp: DataView, cmdName: string): void {
   if (status !== ResponseCode.OK) {
     throw new Error(`${cmdName} 失败: status=0x${status.toString(16)}`);
   }
+}
+
+function formatIapError(err: unknown): { message: string; error?: string; hint?: string } {
+  const raw = err instanceof Error ? err.message : '未知错误';
+
+  if (raw.includes('发布清单里缺少')) {
+    return {
+      message: '下载清单还没准备好',
+      error: '当前版本的固件地址还没有出现在发布清单里。',
+      hint: '如果这是刚发布的新版本，通常等 Pages 部署完成后再试即可。',
+    };
+  }
+
+  if (raw.includes('发布清单版本不匹配')) {
+    return {
+      message: '固件版本还在同步中',
+      error: raw,
+      hint: '页面内置版本和线上清单还没完全对齐，稍后刷新重试。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP 404')) {
+    return {
+      message: '固件文件暂时还不可下载',
+      error: '下载站上还没有这个版本的固件文件。',
+      hint: '一般是 Release 已更新，但 Pages 静态文件还没同步完成。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP 403')) {
+    return {
+      message: '固件下载被拒绝',
+      error: '下载站暂时拒绝了这次请求。',
+      hint: '稍后重试；如果持续出现，再检查发布资源权限或缓存状态。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP ')) {
+    return {
+      message: '固件下载失败',
+      error: raw,
+      hint: '请稍后重试；如果问题持续存在，通常是发布链路还没完成。',
+    };
+  }
+
+  return {
+    message: raw,
+    error: raw,
+  };
 }
 
 // ============================================================================
@@ -302,8 +353,14 @@ export async function performIapUpdate(
       message: '设备正在重启，请等待自动重连...',
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    onProgress({ stage: 'error', percent: 0, message, error: message });
+    const formatted = formatIapError(err);
+    onProgress({
+      stage: 'error',
+      percent: 0,
+      message: formatted.message,
+      error: formatted.error,
+      hint: formatted.hint,
+    });
     throw err;
   }
 }
