@@ -173,6 +173,15 @@ export class HidService {
   async deleteMacro(slot: number): Promise<void> {
     await this.requireOptionalOperation('deleteMacro')(slot);
   }
+
+  /** 获取 IAP 传输接口 (用于固件更新) */
+  getIapTransport(): { sendAndWait(frame: Uint8Array, options?: { timeout?: number }): Promise<DataView> } | null {
+    const adapter = this.activeAdapter;
+    if (!adapter || !adapter.isConnected()) return null;
+    return {
+      sendAndWait: (frame, options) => adapter.sendRawFrame(frame, options?.timeout),
+    };
+  }
 }
 
 export const hidService = new HidService();

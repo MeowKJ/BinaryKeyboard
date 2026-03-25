@@ -31,8 +31,16 @@
         <span class="ver-hue-dot" :style="{ background: hueColor(ch592Hue) }" :title="`CH592 色相 ${ch592Hue}°`"></span>
       </div>
     </div>
+    <button
+      v-if="showIapUpdate"
+      class="firmware-update-btn"
+      @click="showUpdateDialog = true"
+    >
+      <i class="pi pi-download"></i>
+      <span>{{ iapButtonLabel }}</span>
+    </button>
     <a
-      v-if="showFirmwareUpdateLink"
+      v-else-if="showFirmwareUpdateLink"
       class="firmware-update-link"
       :href="firmwareReleaseUrl"
       target="_blank"
@@ -41,19 +49,26 @@
       <span>下载最新 {{ firmwareChipLabel }} 固件 v{{ latestFirmwareVersion }}</span>
       <i class="pi pi-external-link"></i>
     </a>
+    <FirmwareUpdateDialog
+      v-model:visible="showUpdateDialog"
+      :target-version="targetFirmwareVersion"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import CatEmoji from '@/components/CatEmoji.vue';
+import FirmwareUpdateDialog from '@/components/FirmwareUpdateDialog.vue';
 import { useReleaseStore } from '@/stores/releaseStore';
 import { versionToHue } from '@/composables/useTheme';
 import { DeviceProtocol } from '@/types/protocol';
 
 const deviceStore = useDeviceStore();
 const releaseStore = useReleaseStore();
+
+const showUpdateDialog = ref(false);
 
 const studioHue = computed(() => versionToHue(releaseStore.studioVersion));
 const ch552Hue = computed(() => versionToHue(releaseStore.latestVersions.ch552));
@@ -69,6 +84,7 @@ const latestFirmwareVersion = computed(() => {
   }
   return '';
 });
+const targetFirmwareVersion = computed(() => latestFirmwareVersion.value || deviceStore.firmwareVersion);
 const firmwareChipLabel = computed(() => {
   const protocol = deviceStore.deviceInfo?.protocol;
   if (protocol === DeviceProtocol.CH552) {
@@ -84,6 +100,18 @@ const showFirmwareUpdateLink = computed(() => {
     return false;
   }
   return deviceStore.firmwareVersion !== latestFirmwareVersion.value;
+});
+const showIapUpdate = computed(() => {
+  return Boolean(deviceStore.deviceInfo && targetFirmwareVersion.value && deviceStore.capabilities.iap);
+});
+const iapButtonLabel = computed(() => {
+  if (!deviceStore.deviceInfo) {
+    return '一键更新固件';
+  }
+  if (!latestFirmwareVersion.value || latestFirmwareVersion.value === deviceStore.firmwareVersion) {
+    return `重刷当前版本 v${targetFirmwareVersion.value}`;
+  }
+  return `一键更新到 v${targetFirmwareVersion.value}`;
 });
 const firmwareReleaseUrl = computed(() => `https://github.com/${releaseStore.repository}/releases/latest`);
 
@@ -227,6 +255,34 @@ function hueColor(hue: number) {
 }
 
 .firmware-update-link .pi {
+  font-size: 0.72rem;
+}
+
+.firmware-update-btn {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ade80;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.firmware-update-btn:hover {
+  background: rgba(74, 222, 128, 0.14);
+  border-color: rgba(74, 222, 128, 0.45);
+  transform: translateY(-1px);
+}
+
+.firmware-update-btn .pi {
   font-size: 0.72rem;
 }
 </style>

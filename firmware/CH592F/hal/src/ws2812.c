@@ -78,6 +78,10 @@ void WS2812_Init(void) {
   // 这一句是之前的代码里漏掉的，导致 PA10 没输出
   PWR_UnitModCfg(DISABLE, UNIT_SYS_LSE);
 
+  // 1.5. 打开 WS2812 供电/使能脚（PA9）
+  GPIOA_SetBits(WS2812_EN_PIN);
+  GPIOA_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
+
   // 2. 配置 PA10 为推挽输出
   GPIOA_ModeCfg(GPIO_Pin_10, GPIO_ModeOut_PP_5mA);
 

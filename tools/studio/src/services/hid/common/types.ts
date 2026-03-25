@@ -69,6 +69,9 @@ export interface HidAdapter {
   getSysStatus(): Promise<DeviceStatus>;
   getFullKeymap(): Promise<KeymapConfig>;
   setFullKeymap(config: KeymapConfig): Promise<void>;
+
+  /** 发送原始 HID 帧并等待响应 (IAP 等底层操作使用) */
+  sendRawFrame(frame: Uint8Array, timeout?: number): Promise<DataView>;
 }
 
 export interface HidDevicePlugin extends DeviceUiProvider {

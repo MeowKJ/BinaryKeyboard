@@ -1,14 +1,19 @@
 #include "hal_utils.h"
 
 #include "CH59x_common.h"
+#include "iap_config.h"
 
 __HIGH_CODE
 void Hal_JumpToBootloader(void) {
-    FLASH_ROM_ERASE(0, EEPROM_BLOCK_SIZE); /* 营造空片现象 */
-    FLASH_ROM_SW_RESET();
-    sys_safe_access_enable();
-    R16_INT32K_TUNE = 0xFFFF;
-    sys_safe_access_disable();
+    __attribute__((aligned(4))) uint8_t buf[4] = {0};
+
+    EEPROM_READ(IAP_DATAFLASH_ADD, (uint32_t *)buf, 4);
+    if (buf[0] != IMAGE_IAP_FLAG) {
+        EEPROM_ERASE(IAP_DATAFLASH_ADD, EEPROM_BLOCK_SIZE);
+        buf[0] = IMAGE_IAP_FLAG;
+        EEPROM_WRITE(IAP_DATAFLASH_ADD, (uint32_t *)buf, 4);
+    }
+
     SYS_ResetExecute();
     while (1);
 }

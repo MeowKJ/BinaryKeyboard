@@ -35,6 +35,7 @@ export const useDeviceStore = defineStore("device", () => {
     reset: false,
     explicitSave: false,
     wireless: false,
+    iap: false,
   };
 
   // ========================================
