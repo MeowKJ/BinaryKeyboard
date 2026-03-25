@@ -6,13 +6,11 @@ import { ref, watch, computed } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { HidService, hidService } from '@/services/HidService';
 import { showToast } from '@/services/toastService';
-import { useTheme } from '@/composables/useTheme';
 
 export type ViewPhase = 'welcome' | 'connecting' | 'connected';
 
 export function useConnection() {
   const deviceStore = useDeviceStore();
-  const { syncFromVersion } = useTheme();
 
   const viewPhase = ref<ViewPhase>('welcome');
   const welcomeReturning = ref(false);
@@ -20,9 +18,6 @@ export function useConnection() {
   function onConnectionResult(success: boolean) {
     if (success && deviceStore.isConnected) {
       viewPhase.value = 'connected';
-      // 自动同步版本配色
-      const fwVer = deviceStore.firmwareVersion;
-      if (fwVer && fwVer !== '0.0.0') syncFromVersion(fwVer);
     } else {
       welcomeReturning.value = true;
       viewPhase.value = 'welcome';

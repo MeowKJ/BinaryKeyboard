@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useRegisterSW } from 'virtual:pwa-register/vue';
@@ -48,6 +48,7 @@ import { initToastService, showToast } from '@/services/toastService';
 import { useReleaseStore } from '@/stores/releaseStore';
 import { useConnection } from '@/composables/useConnection';
 import { useTheme } from '@/composables/useTheme';
+import { DeviceProtocol } from '@/types/protocol';
 
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
@@ -75,7 +76,18 @@ const {
 } = useConnection();
 
 // 主题系统
-const { themeId, themeMode, toggleMode, init: initTheme } = useTheme();
+const { themeId, themeMode, toggleMode, init: initTheme, syncFromVersion } = useTheme();
+
+const latestThemeVersion = computed(() => {
+  const protocol = deviceStore.deviceInfo?.protocol;
+  if (protocol === DeviceProtocol.CH552) {
+    return releaseStore.latestVersions.ch552;
+  }
+  if (protocol === DeviceProtocol.CH592) {
+    return releaseStore.latestVersions.ch592;
+  }
+  return '';
+});
 
 // PWA
 const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
@@ -107,6 +119,12 @@ onMounted(async () => {
 onUnmounted(() => {
   teardownHidListeners();
 });
+
+watch(latestThemeVersion, (version) => {
+  if (version && version !== '0.0.0') {
+    syncFromVersion(version);
+  }
+}, { immediate: true });
 </script>
 
 <style>
