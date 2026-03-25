@@ -5,7 +5,7 @@
     :modal="true"
     :closable="!isUpdating"
     :close-on-escape="!isUpdating"
-    :style="{ width: '420px' }"
+    :style="{ width: '460px', maxWidth: 'calc(100vw - 2rem)' }"
   >
     <div class="iap-dialog">
       <!-- 更新前确认 -->
@@ -47,7 +47,16 @@
       <template v-else-if="progress.stage === 'error'">
         <div class="iap-result iap-error">
           <i class="pi pi-times-circle"></i>
-          <span>{{ progress.error || '更新失败' }}</span>
+          <div class="iap-result-copy">
+            <div class="iap-result-title">{{ progress.message || '更新失败' }}</div>
+            <div v-if="progress.error && progress.error !== progress.message" class="iap-result-detail">
+              {{ progress.error }}
+            </div>
+            <div v-if="progress.hint" class="iap-result-hint">
+              <i class="pi pi-info-circle"></i>
+              <span>{{ progress.hint }}</span>
+            </div>
+          </div>
         </div>
       </template>
     </div>
@@ -213,12 +222,39 @@ async function startUpdate() {
 
 .iap-result {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
   gap: 0.5rem;
   padding: 1rem;
   border-radius: var(--radius-sm);
-  font-weight: 600;
+}
+
+.iap-result-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.iap-result-title {
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.iap-result-detail {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--c-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.iap-result-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding-top: 0.25rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #fbbf24;
 }
 
 .iap-success {

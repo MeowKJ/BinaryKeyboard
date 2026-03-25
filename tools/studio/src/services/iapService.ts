@@ -2,7 +2,7 @@
  * IAP (In-Application Programming) 固件更新服务
  *
  * 完整流程:
- *   1. 从 GitHub Release 下载 .bin 固件
+ *   1. 从 GitHub Pages 发布的 manifest / 静态文件下载 .bin 固件
  *   2. 通过 HID 发送 IAP_PREPARE 擦除 Image B
  *   3. 分块发送固件数据 (IAP_WRITE)
  *   4. CRC32 校验 (IAP_VERIFY)
@@ -11,7 +11,7 @@
  */
 
 import { Command, FRAME_SIZE, ResponseCode } from '@/types/protocol';
-import { RELEASE_FEED } from '@/generated/versionConfig';
+import { LOCAL_RELEASE_MANIFEST, RELEASE_FEED } from '@/generated/versionConfig';
 
 // ============================================================================
 // 类型定义
@@ -36,6 +36,8 @@ export interface IapProgress {
   message: string;
   /** 错误信息 (stage === 'error') */
   error?: string;
+  /** 额外提示 */
+  hint?: string;
 }
 
 export type IapProgressCallback = (progress: IapProgress) => void;
@@ -43,6 +45,23 @@ export type IapProgressCallback = (progress: IapProgress) => void;
 /** 底层 HID 传输接口 (与 codec 解耦) */
 export interface IapTransport {
   sendAndWait(frame: Uint8Array, options?: { timeout?: number }): Promise<DataView>;
+}
+
+interface ReleaseFirmwareAsset {
+  version?: string;
+  binUrl?: string;
+  fullHexUrl?: string;
+  hexUrl?: string;
+}
+
+interface ReleaseManifest {
+  artifacts?: {
+    ch592?: Record<string, ReleaseFirmwareAsset>;
+  };
+}
+
+function getCh592Asset(manifest: ReleaseManifest, model: string): ReleaseFirmwareAsset | undefined {
+  return manifest.artifacts?.ch592?.[model];
 }
 
 // ============================================================================
@@ -97,16 +116,100 @@ function checkResponse(resp: DataView, cmdName: string): void {
   }
 }
 
+function formatIapError(err: unknown): { message: string; error?: string; hint?: string } {
+  const raw = err instanceof Error ? err.message : '未知错误';
+
+  if (raw.includes('发布清单里缺少')) {
+    return {
+      message: '下载清单还没准备好',
+      error: '当前版本的固件地址还没有出现在发布清单里。',
+      hint: '如果这是刚发布的新版本，通常等 Pages 部署完成后再试即可。',
+    };
+  }
+
+  if (raw.includes('发布清单版本不匹配')) {
+    return {
+      message: '固件版本还在同步中',
+      error: raw,
+      hint: '页面内置版本和线上清单还没完全对齐，稍后刷新重试。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP 404')) {
+    return {
+      message: '固件文件暂时还不可下载',
+      error: '下载站上还没有这个版本的固件文件。',
+      hint: '一般是 Release 已更新，但 Pages 静态文件还没同步完成。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP 403')) {
+    return {
+      message: '固件下载被拒绝',
+      error: '下载站暂时拒绝了这次请求。',
+      hint: '稍后重试；如果持续出现，再检查发布资源权限或缓存状态。',
+    };
+  }
+
+  if (raw.startsWith('下载失败: HTTP ')) {
+    return {
+      message: '固件下载失败',
+      error: raw,
+      hint: '请稍后重试；如果问题持续存在，通常是发布链路还没完成。',
+    };
+  }
+
+  return {
+    message: raw,
+    error: raw,
+  };
+}
+
 // ============================================================================
 // 固件下载
 // ============================================================================
 
-/**
- * 构建固件 .bin 下载 URL
- * 格式: https://github.com/{repo}/releases/latest/download/CH592F-{model}-{version}.bin
- */
-function buildFirmwareUrl(version: string, model: string): string {
-  return `https://github.com/${RELEASE_FEED.repository}/releases/latest/download/CH592F-${model}-${version}.bin`;
+async function loadReleaseManifest(): Promise<ReleaseManifest> {
+  try {
+    const response = await fetch(RELEASE_FEED.manifestUrl, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`manifest request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as ReleaseManifest;
+  } catch {
+    return LOCAL_RELEASE_MANIFEST as ReleaseManifest;
+  }
+}
+
+async function resolveFirmwareUrl(
+  version: string,
+  model: string,
+) {
+  const remoteManifest = await loadReleaseManifest();
+  const localManifest = LOCAL_RELEASE_MANIFEST as ReleaseManifest;
+
+  let asset = getCh592Asset(remoteManifest, model);
+  if (!asset?.binUrl) {
+    asset = getCh592Asset(localManifest, model);
+  }
+
+  if (!asset?.binUrl) {
+    throw new Error(`发布清单里缺少 CH592F-${model} 的 bin 下载地址`);
+  }
+  if (asset.version && asset.version !== version) {
+    const localAsset = getCh592Asset(localManifest, model);
+    if (localAsset?.binUrl && localAsset.version === version) {
+      return localAsset.binUrl;
+    }
+    throw new Error(`发布清单版本不匹配: 需要 ${version}，当前为 ${asset.version}`);
+  }
+  return asset.binUrl;
 }
 
 /**
@@ -117,7 +220,7 @@ async function downloadFirmware(
   model: string,
   onProgress: IapProgressCallback,
 ): Promise<Uint8Array> {
-  const url = buildFirmwareUrl(version, model);
+  const url = await resolveFirmwareUrl(version, model);
   onProgress({ stage: 'downloading', percent: 0, message: `正在下载固件 v${version}...` });
 
   const response = await fetch(url);
@@ -250,8 +353,14 @@ export async function performIapUpdate(
       message: '设备正在重启，请等待自动重连...',
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '未知错误';
-    onProgress({ stage: 'error', percent: 0, message, error: message });
+    const formatted = formatIapError(err);
+    onProgress({
+      stage: 'error',
+      percent: 0,
+      message: formatted.message,
+      error: formatted.error,
+      hint: formatted.hint,
+    });
     throw err;
   }
 }
