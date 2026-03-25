@@ -58,6 +58,10 @@ interface ReleaseManifest {
   };
 }
 
+function getCh592Asset(manifest: ReleaseManifest, model: string): ReleaseFirmwareAsset | undefined {
+  return manifest.artifacts?.ch592?.[model];
+}
+
 // ============================================================================
 // 常量
 // ============================================================================
@@ -136,12 +140,22 @@ async function resolveFirmwareUrl(
   version: string,
   model: string,
 ) {
-  const manifest = await loadReleaseManifest();
-  const asset = manifest.artifacts?.ch592?.[model];
+  const remoteManifest = await loadReleaseManifest();
+  const localManifest = LOCAL_RELEASE_MANIFEST as ReleaseManifest;
+
+  let asset = getCh592Asset(remoteManifest, model);
+  if (!asset?.binUrl) {
+    asset = getCh592Asset(localManifest, model);
+  }
+
   if (!asset?.binUrl) {
     throw new Error(`发布清单里缺少 CH592F-${model} 的 bin 下载地址`);
   }
   if (asset.version && asset.version !== version) {
+    const localAsset = getCh592Asset(localManifest, model);
+    if (localAsset?.binUrl && localAsset.version === version) {
+      return localAsset.binUrl;
+    }
     throw new Error(`发布清单版本不匹配: 需要 ${version}，当前为 ${asset.version}`);
   }
   return asset.binUrl;
