@@ -3,18 +3,16 @@
 基于 **CH592F** 芯片的 USB/蓝牙双模键盘固件开发指南。
 
 ::: warning
-如果你使用 `MounRiver Studio` 开发，导入工程配置下编译目录和include即可，这一页的CMake环境配置可以直接跳过。
-
-// TODO: 未来补充 MRS 导入配置说明，主要是几个include，还有个.a文件和几个宏需要配一下（欢迎各路大神COMMIT这个）
+`MounRiver Studio` 开发时，导入工程后配置编译目录和 include 即可，这一页的 CMake 环境配置可以跳过。
 :::
 
 **仓库流程**：开发在 `dev` 分支进行，完成后 PR 到 `main`。
 
 ## 开发环境
 
-> 推荐使用 CMake 构建，可以用 VSCode 或 Clion 这种功能更强大的 IDE。Debug？我不知道。
+> 当前构建流程使用 CMake，可配合 VS Code、CLion 等 IDE 使用。
 
-> 换成 CMake 其实主要目的就是 CI-CD。之前每次发布还得在 IDE 里面切换宏定义然后手动编译导出上传 Github，非常麻烦，还特别容易污染 git。现在改成 CMake 之后，Github 直接调用 Docker CMake 构建不同版本的固件，自动化发布，爽歪歪。还能做代码分析验证，AI 自动化编译测试等等。
+> 当前发布流程基于 CMake 构建，CI 会按不同布局自动编译、校验并生成发布产物。
 
 ### 常用环境
 
@@ -53,18 +51,18 @@
 5. 可选：启动统一控制台：`python tools/scripts/console.py`
 
 ## 通用
-如果你想用一些顺手的小工具，可以再看一页：
+相关辅助工具见：
 
 - [便捷开发工具](./dev-tools.md)
 
-如果你不走 `CMake`，这一段可以直接跳过。
+不使用 `CMake` 时，这一段可以跳过。
 
 可选工具链配置方式（`cmake/toolchain-ch59x.cmake` 已支持）：
-- `MRS_TOOLCHAIN_ROOT`（推荐，填 MounRiver Toolchain 根目录）
+- `MRS_TOOLCHAIN_ROOT`（填写 MounRiver Toolchain 根目录）
 - `RISCV_TOOLCHAIN_DIR` / `TOOLCHAIN_DIR`（直接指定 `bin` 目录）
 - 将 `riscv-none-embed-gcc` / `riscv-wch-elf-gcc` 加入系统 `PATH`
 
-### 首次推荐流程
+### 首次流程
 
 安装好工具链后，直接启动统一控制台开始开发：
 
@@ -72,21 +70,49 @@
 python tools/scripts/console.py
 ```
 
-如果你更习惯手动命令行，也可以逐步操作：
+手动命令行流程如下：
 
 ```bash
 # 1. 先探测工具链与缓存路径
 python tools/scripts/ch592f.py status --keyboard KNOB --profile release
 
-# 2. 构建
-python tools/scripts/ch592f.py build --keyboard KNOB --profile release
+# 2. 构建首刷整包
+python tools/scripts/ch592f.py build-full --keyboard KNOB --profile release
 
 # 3. 查看导出产物
-python tools/scripts/ch592f.py artifact --keyboard KNOB --profile release --type bin
+python tools/scripts/ch592f.py artifact --keyboard KNOB --profile release --type full_hex
 
-# 4. 烧录
-python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin
+# 4. 首刷 / 恢复
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>-full.hex
 ```
+
+### 发布产物
+
+`CH592F` 发布以下几类产物：
+
+| 文件 | 用途 |
+| :--- | :--- |
+| `CH592F-<MODEL>-<version>-full.hex` | **首次 ISP 烧录 / 救砖恢复**。包含 `JumpIAP + app + 高地址 IAP` |
+| `CH592F-<MODEL>-<version>-full.bin` | 和上面内容一致，只是二进制格式 |
+| `CH592F-<MODEL>-<version>.bin` | **Studio 在线更新 / OTA** 用的 app 包 |
+| `CH592F-<MODEL>-<version>.hex` | app 的 HEX 版本，调试或手动检查时用 |
+| `CH592F-<MODEL>-<version>-iap.hex/.bin` | 高地址 IAP 程序单独产物 |
+
+::: tip
+- **WCHISP 首刷** 用 `-full.hex`
+- **Studio 热更新** 用普通 `.bin`
+:::
+
+### IAP 结构
+
+`CH592F` 使用高地址 IAP 结构：
+
+- `0x00000 ~ 0x00FFF`：JumpIAP 跳板
+- `0x01000 ~ 0x36FFF`：Image A，当前运行中的 app
+- `0x37000 ~ 0x6CFFF`：Image B，Studio 下载的新固件暂存区
+- `0x6D000 ~ 0x6FFFF`：高地址 IAP 程序
+
+设备上电后先经过 `JumpIAP`，再决定是否执行 `B -> A` 搬运。
 
 ### 工具缓存
 
@@ -288,9 +314,9 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 
 ## 编译与烧录
 
-### 统一控制台（推荐）
+### 统一控制台
 
-日常开发推荐直接使用统一控制台，所有操作都可在交互菜单中完成：
+日常开发通过统一控制台完成，所有操作都在交互菜单中提供：
 
 ```bash
 python tools/scripts/console.py
@@ -307,7 +333,7 @@ python tools/scripts/console.py
 ### 烧录
 
 ```bash
-python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>.bin
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH592F-KNOB-<version>-full.hex
 ```
 
 ### 进入 Bootloader 模式
@@ -318,20 +344,23 @@ python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH
 
 ### 脚本参数
 
-如果你需要脱离控制台直接调用脚本：
+脱离控制台直接调用脚本时：
 
 ```bash
 # 首次使用：下载 wchisp 烧录工具
 python tools/scripts/setup.py
 
-# 构建
-python tools/scripts/ch592f.py build --keyboard 5KEY --profile release
+# 构建首刷整包
+python tools/scripts/ch592f.py build-full --keyboard 5KEY --profile release
 
 # 查看产物
-python tools/scripts/ch592f.py artifact --keyboard 5KEY --profile release --type bin
+python tools/scripts/ch592f.py artifact --keyboard 5KEY --profile release --type full_hex
 
-# 烧录
-python tools/scripts/flash.py flash --file firmware/CH592F/build/release-5key/CH592F-5KEY-<version>.bin
+# ISP 首刷 / 恢复
+python tools/scripts/flash.py flash --file firmware/CH592F/build/release-5key/CH592F-5KEY-<version>-full.hex
+
+# Studio 在线更新使用的 app 包
+python tools/scripts/ch592f.py artifact --keyboard 5KEY --profile release --type bin
 ```
 
 ### 直接使用 CMake
@@ -348,7 +377,7 @@ cmake --build --preset release-5key
 - `release-5key` / `debug-5key`：五键款共享预设
 - `release-knob` / `debug-knob`：旋钮款共享预设
 
-推荐（本机开发）：
+常用本机构建方式：
 
 ```bash
 cd firmware/CH592F

@@ -1,18 +1,18 @@
 # 便捷开发工具
 
 ::: warning
-如果你使用 `MounRiver Studio` 开发，这一页可以直接跳过。
+`MounRiver Studio` 开发时，这一页可以跳过。
 :::
 
-这里放两个可选小工具：
+这里整理两类辅助工具：
 
 - `tools/scripts/console.py`：统一 TUI 入口
 - `.vscode/tasks.json` / `.vscode/settings.json`：VS Code 任务栏按钮示例
 
 ## 怎么选
 
-- 喜欢在终端里用方向键、回车、鼠标点选，就用 `tools/scripts/console.py`
-- 使用 VS Code，就直接配一套任务按钮
+- 终端交互入口使用 `tools/scripts/console.py`
+- VS Code 使用任务按钮
 
 ## 统一 TUI
 
@@ -85,13 +85,13 @@ python tools/scripts/console.py
       "problemMatcher": []
     },
     {
-      "label": "CH592F: Build (release)",
+      "label": "CH592F: Build (full release)",
       "type": "shell",
       "command": "python3",
       "windows": { "command": "python" },
       "args": [
         "${workspaceFolder}/tools/scripts/ch592f.py",
-        "build",
+        "build-full",
         "--keyboard",
         "5KEY",
         "--profile",
@@ -102,7 +102,7 @@ python tools/scripts/console.py
       "problemMatcher": []
     },
     {
-      "label": "CH592F: Flash (release bin)",
+      "label": "CH592F: Flash (full hex)",
       "type": "shell",
       "command": "python3",
       "windows": { "command": "python" },
@@ -110,7 +110,7 @@ python tools/scripts/console.py
         "${workspaceFolder}/tools/scripts/flash.py",
         "flash",
         "--file",
-        "${workspaceFolder}/firmware/CH592F/build/release-5key/CH592F-5KEY-<version>.bin"
+        "${workspaceFolder}/firmware/CH592F/build/release-5key/CH592F-5KEY-<version>-full.hex"
       ],
       "presentation": { "reveal": "always", "panel": "shared", "clear": true },
       "problemMatcher": []
@@ -211,8 +211,8 @@ python tools/scripts/console.py
   "VsCodeTaskButtons.showCounter": false,
   "VsCodeTaskButtons.tasks": [
     { "label": "$(terminal) TUI", "tooltip": "BinaryKeyboard TUI", "task": "BK: TUI Console" },
-    { "label": "$(tools) 592", "tooltip": "Build CH592F release", "task": "CH592F: Build (release)" },
-    { "label": "$(zap) 592", "tooltip": "Flash CH592F release bin", "task": "CH592F: Flash (release bin)" },
+    { "label": "$(tools) 592", "tooltip": "Build CH592F full release", "task": "CH592F: Build (full release)" },
+    { "label": "$(zap) 592", "tooltip": "Flash CH592F full hex", "task": "CH592F: Flash (full hex)" },
     { "label": "$(tools) 552", "tooltip": "Build CH552G BASIC", "task": "CH552G: Build (BASIC)" },
     { "label": "$(zap) 552", "tooltip": "Flash CH552G BASIC bin", "task": "CH552G: Flash (BASIC bin)" },
     { "label": "$(search) ISP", "tooltip": "Probe WCH ISP devices", "task": "WCH: Probe Devices" },
