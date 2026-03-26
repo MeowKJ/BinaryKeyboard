@@ -3,21 +3,21 @@
 基于 **CH552G** 芯片的 USB 直连版本固件开发指南。
 
 ::: tip
-如果你只是想刷现成固件，可以直接看 [经典版固件刷写](./flash.md)。
+现成固件刷写流程见 [经典版固件刷写](./flash.md)。
 :::
 
-**仓库流程**：推荐在功能分支或 `dev` 分支开发，验证通过后再合并到 `main`。
+**仓库流程**：在功能分支或 `dev` 分支开发，验证通过后合并到 `main`。
 
 ## 开发环境
 
-> CH552G 已统一到 CMake + Python 脚本工作流，推荐直接使用仓库里的 `console.py` 作为入口。
+> CH552G 使用统一的 CMake + Python 脚本工作流，入口为仓库里的 `console.py`。
 
 ### 常用环境
 
 | 工具 | 说明 |
 | :--- | :--- |
 | CMake ≥ 3.21 | 项目生成与构建入口 |
-| Ninja | 推荐生成器 |
+| Ninja | 常用生成器 |
 | SDCC | CH552G 8051 交叉编译器 |
 | Python 3 | 构建、烧录、console 脚本入口 |
 | wchisp | 底层烧录工具，`tools/scripts/setup.py` 可自动下载 |
@@ -51,7 +51,7 @@ CH552G 实际直接依赖的查找顺序：
 3. `PATH`
 4. 常见本机安装目录
 
-如果你想手动指定，也可以直接传：
+手动指定时可直接传入：
 
 ```bash
 SDCC_PATH=/path/to/sdcc python tools/scripts/ch552g.py build --keyboard BASIC
@@ -113,9 +113,9 @@ CH552G 当前统一使用 `keyboard` 作为构建参数，而不是旧的 `varia
 
 ## 编译与烧录
 
-### 统一控制台（推荐）
+### 统一控制台
 
-日常开发推荐直接使用统一控制台，所有操作都可在交互菜单中完成：
+日常开发通过统一控制台完成，所有操作都在交互菜单中提供：
 
 ```bash
 python tools/scripts/console.py
@@ -154,7 +154,7 @@ python tools/scripts/flash.py verify --file firmware/CH552G/build/basic/CH552G-B
 
 ### 脚本参数
 
-如果你需要脱离控制台直接调用脚本，也可以手动传参：
+脱离控制台时，也可以直接调用脚本并手动传参：
 
 ```bash
 # 配置
@@ -172,7 +172,7 @@ python tools/scripts/ch552g.py status --keyboard BASIC
 
 ### 直接使用 CMake
 
-如果你想跳过脚本，直接用 CMake：
+直接使用 CMake 时：
 
 ```bash
 cmake -S firmware/CH552G -B firmware/CH552G/build/basic -G Ninja -DKEYBOARD=BASIC
@@ -181,7 +181,7 @@ cmake --build firmware/CH552G/build/basic
 
 ### 顶层 Superbuild
 
-如果你想把固件构建入口统一交给顶层 `firmware/`：
+顶层 `firmware/` 统一构建入口如下：
 
 ```bash
 cmake -S firmware -B firmware/build/dev

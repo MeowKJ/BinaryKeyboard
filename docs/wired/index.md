@@ -10,7 +10,7 @@
 | :-------------- | :----------------------------------- |
 | 🔧 电烙铁 + 焊锡 | 焊接 PCB                             |
 | 🖨️ 3D 打印机     | 或者使用 3D 打印服务                 |
-| 💻 电脑          | 推荐 Windows，没有测试过 macOS/Linux |
+| 💻 电脑          | 用于连接键盘和刷写固件               |
 | 🔌 USB-C 数据线  | 连接键盘                             |
 
 ### 下载文件
@@ -22,13 +22,13 @@
 
 2. **外壳 STL** - 从 Releases 或 [OSHWHub](https://oshwhub.com/kjpig/Binary-Keyboard) 下载。
 
-3. **烧录工具** - [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
+3. **下载程序** - [WCHISPStudio](https://www.wch.cn/downloads/WCHISPTool_Setup_exe.html)
 
 ## 复刻流程
 
 ### Step 1：3D 打印外壳
 
-- 普通 FDM 打印即可，没有特殊要求。
+- 普通 FDM 打印即可。
 - 层高 0.2mm
 
 ### Step 2：焊接 PCB
@@ -38,7 +38,7 @@
 3. 焊接按键
 
 ::: warning 注意
-USB-C接口的焊接难度略大，需要小心。可以寻找相关教程视频学习。我个人推荐使用一些助焊剂帮助焊接。一般复刻失败的原因都是USB-C接口焊接失败。
+USB-C 接口焊接需要重点检查焊点完整性与引脚连通性。
 :::
 
 ### Step 3：刷写固件

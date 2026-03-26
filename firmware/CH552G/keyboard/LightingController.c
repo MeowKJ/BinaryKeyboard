@@ -76,5 +76,5 @@ void LightingController_process(void)
     updateLEDs();
   }
 
-  digitalWrite(LED_PIN, indicatorEnabled ? LOW : HIGH);
+  digitalWrite(LED_PIN, funcCurrent ? LOW : HIGH);
 }

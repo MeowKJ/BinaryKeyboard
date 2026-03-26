@@ -184,6 +184,11 @@ describe("tap operand completions — step-by-step flow", () => {
     expect(hasLabel("tap Ctrl+", "C")).toBe(true);
     expect(hasLabel("tap Ctrl+", "A")).toBe(true);
   });
+
+  it("'tap Shift+-' should not show duplicate minus suggestions", () => {
+    const labels = labelsAt("tap Shift+-");
+    expect(labels.filter((label) => label === "-")).toHaveLength(1);
+  });
 });
 
 // ─── 4. down/up operand completions ────────────────────────────────────────
@@ -371,5 +376,32 @@ describe("tap mouse:xxx compiles correctly", () => {
       MacroActionType.MOUSE_DOWN,
       MacroActionType.MOUSE_UP,
     ]);
+  });
+});
+
+describe("symbol key parsing", () => {
+  it("tap - compiles to the minus key", () => {
+    const { actions, diagnostics } = compileMacroDsl("tap -");
+    expect(diagnostics).toHaveLength(0);
+    expect(actions[0]).toMatchObject({ type: MacroActionType.KEY_DOWN, param: 0x2d });
+    expect(actions[1]).toMatchObject({ type: MacroActionType.KEY_UP, param: 0x2d });
+  });
+
+  it("tap Shift+- hold 50ms wait 20ms keeps minus as a key", () => {
+    const { actions, diagnostics } = compileMacroDsl("tap Shift+- hold 50ms wait 20ms");
+    expect(diagnostics).toHaveLength(0);
+    expect(actions[0]).toMatchObject({ type: MacroActionType.MOD_DOWN, param: 0x02 });
+    expect(actions[1]).toMatchObject({ type: MacroActionType.KEY_DOWN, param: 0x2d });
+    expect(actions[2]).toMatchObject({ type: MacroActionType.DELAY, param: 5 });
+    expect(actions[3]).toMatchObject({ type: MacroActionType.KEY_UP, param: 0x2d });
+    expect(actions[4]).toMatchObject({ type: MacroActionType.MOD_UP, param: 0x02 });
+    expect(actions[5]).toMatchObject({ type: MacroActionType.DELAY, param: 2 });
+  });
+
+  it("tap NumPlus compiles to keypad plus", () => {
+    const { actions, diagnostics } = compileMacroDsl("tap NumPlus");
+    expect(diagnostics).toHaveLength(0);
+    expect(actions[0]).toMatchObject({ type: MacroActionType.KEY_DOWN, param: 0x57 });
+    expect(actions[1]).toMatchObject({ type: MacroActionType.KEY_UP, param: 0x57 });
   });
 });

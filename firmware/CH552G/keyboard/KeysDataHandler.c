@@ -106,8 +106,6 @@ static void initDefaultConfig(void)
   eeprom_write_byte(EEPROM_RGB_COLOR_R_ADDR, 255);
   eeprom_write_byte(EEPROM_RGB_COLOR_G_ADDR, 255);
   eeprom_write_byte(EEPROM_RGB_COLOR_B_ADDR, 255);
-  eeprom_write_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR, 0);
-  eeprom_write_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR, 13);
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, PRESS_EFFECT_NONE);
   // USB 轮询率默认 100Hz (bInterval=10)
   eeprom_write_byte(EEPROM_POLL_RATE_ADDR, 10);
@@ -260,8 +258,8 @@ void fillRgbResponse(uint8_t *__xdata buf)
   buf[5] = currentColorR;
   buf[6] = currentColorG;
   buf[7] = currentColorB;
-  buf[8] = indicatorEnabled;
-  buf[9] = indicatorBrightness;
+  buf[8] = 0;
+  buf[9] = 0;
   buf[10] = pressEffect;
   buf[11] = eeprom_read_byte(EEPROM_POLL_RATE_ADDR);
   if (buf[11] == 0xFF || buf[11] == 0)
@@ -273,7 +271,6 @@ void applyRgbConfig(void)
   // 直接从 Ep1Buffer 读取, 无参数传递
   extern __xdata uint8_t Ep1Buffer[];
   __xdata uint8_t mode = Ep1Buffer[3];
-  __xdata uint8_t ibv = Ep1Buffer[10];
   __xdata uint8_t pev = Ep1Buffer[11];
   __xdata uint8_t pollRate = Ep1Buffer[12];
 
@@ -281,8 +278,6 @@ void applyRgbConfig(void)
     mode = EFFECT_OFF;
   if (pev >= PRESS_EFFECT_COUNT)
     pev = PRESS_EFFECT_NONE;
-  if (ibv < 13)
-    ibv = 13;
 
   rgbEnabled = Ep1Buffer[2] ? 1 : 0;
   effectMode = mode;
@@ -291,8 +286,6 @@ void applyRgbConfig(void)
   currentColorR = Ep1Buffer[6];
   currentColorG = Ep1Buffer[7];
   currentColorB = Ep1Buffer[8];
-  indicatorEnabled = Ep1Buffer[9] ? 1 : 0;
-  indicatorBrightness = ibv;
   pressEffect = pev;
 
   eeprom_write_byte(EEPROM_RGB_ENABLED_ADDR, rgbEnabled);
@@ -302,8 +295,6 @@ void applyRgbConfig(void)
   eeprom_write_byte(EEPROM_RGB_COLOR_R_ADDR, currentColorR);
   eeprom_write_byte(EEPROM_RGB_COLOR_G_ADDR, currentColorG);
   eeprom_write_byte(EEPROM_RGB_COLOR_B_ADDR, currentColorB);
-  eeprom_write_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR, indicatorEnabled);
-  eeprom_write_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR, ibv);
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, pev);
 
   // 轮询率: 仅支持 1/2/5/10, 重启后生效
@@ -337,12 +328,6 @@ static void loadRgbFromEEPROM(void)
 
   v = eeprom_read_byte(EEPROM_RGB_COLOR_B_ADDR);
   currentColorB = v;
-
-  v = eeprom_read_byte(EEPROM_RGB_INDICATOR_ENABLED_ADDR);
-  indicatorEnabled = (v == 0xFF) ? 0 : (v ? 1 : 0);
-
-  v = eeprom_read_byte(EEPROM_RGB_INDICATOR_BRIGHTNESS_ADDR);
-  indicatorBrightness = (v == 0xFF || v < 13) ? 13 : v;
 
   v = eeprom_read_byte(EEPROM_RGB_PRESS_EFFECT_ADDR);
   pressEffect = (v == 0xFF || v >= PRESS_EFFECT_COUNT) ? PRESS_EFFECT_NONE : v;
