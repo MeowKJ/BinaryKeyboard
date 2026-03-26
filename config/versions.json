@@ -3,8 +3,7 @@
     "studio": {
       "base_version": "3.0",
       "paths": [
-        "tools/studio",
-        "tools/scripts/versioning.py"
+        "tools/studio"
       ]
     },
     "ch592": {
@@ -12,11 +11,7 @@
       "chip_family": "CH592F",
       "protocol_family": "BKHID64",
       "paths": [
-        "firmware/CH592F",
-        "firmware/cmake",
-        "tools/scripts/ch592f.py",
-        "tools/scripts/firmware_naming.py",
-        "tools/scripts/versioning.py"
+        "firmware/CH592F"
       ]
     },
     "ch552": {
@@ -24,11 +19,7 @@
       "chip_family": "CH552G",
       "protocol_family": "BKHID31",
       "paths": [
-        "firmware/CH552G",
-        "firmware/cmake",
-        "tools/scripts/ch552g.py",
-        "tools/scripts/firmware_naming.py",
-        "tools/scripts/versioning.py"
+        "firmware/CH552G"
       ]
     }
   },

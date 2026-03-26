@@ -139,3 +139,4 @@ tools/studio/src/generated/
 tools/studio/components.d.ts
 docs/public/api/
 docs/public/firmware/
+docs/changelog.md

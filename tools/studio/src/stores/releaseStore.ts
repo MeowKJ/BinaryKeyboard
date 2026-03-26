@@ -3,7 +3,6 @@ import { defineStore } from "pinia";
 import {
   LOCAL_RELEASE_MANIFEST,
   RELEASE_FEED,
-  STUDIO_VERSION,
 } from "@/generated/versionConfig";
 
 type ReleaseVersions = {
@@ -27,6 +26,16 @@ const DEFAULT_VERSIONS: ReleaseVersions = {
 
 const RELEASE_RETRY_DELAY_MS = 60_000;
 
+function isNewerVersion(latest: string, current: string): boolean {
+  const a = latest.split(".").map(Number);
+  const b = current.split(".").map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] ?? 0) > (b[i] ?? 0)) return true;
+    if ((a[i] ?? 0) < (b[i] ?? 0)) return false;
+  }
+  return false;
+}
+
 export const useReleaseStore = defineStore("release", () => {
   const latestVersions = ref<ReleaseVersions>({ ...DEFAULT_VERSIONS });
   const isLoading = ref(false);
@@ -34,7 +43,11 @@ export const useReleaseStore = defineStore("release", () => {
   const errorMessage = ref<string | null>(null);
   let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
 
-  const studioVersion = computed(() => STUDIO_VERSION);
+  const currentStudioVersion = DEFAULT_VERSIONS.studio;
+  const latestStudioVersion = computed(() => latestVersions.value.studio);
+  const studioUpdateAvailable = computed(
+    () => hasLoaded.value && isNewerVersion(latestStudioVersion.value, currentStudioVersion),
+  );
   const repository = computed(() => RELEASE_FEED.repository);
 
   function applyManifest(manifest: ReleaseManifest): void {
@@ -95,7 +108,9 @@ export const useReleaseStore = defineStore("release", () => {
 
   return {
     latestVersions,
-    studioVersion,
+    currentStudioVersion,
+    latestStudioVersion,
+    studioUpdateAvailable,
     repository,
     isLoading,
     hasLoaded,

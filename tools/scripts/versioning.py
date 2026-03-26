@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 import re
+from urllib import error, request
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -32,8 +35,14 @@ CHIP_TO_COMPONENT = {
 
 CH592_MODELS = ("5KEY", "KNOB")
 CH552_MODELS = ("BASIC", "5KEY", "KNOB")
-FIRMWARE_ASSET_RE = re.compile(
-    r"^(?P<chip>CH592F|CH552G)-(?P<model>BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?P<suffix>-full)?\.(?P<ext>bin|hex)$"
+STUDIO_ASSET_RE = re.compile(
+    r"^BinaryKeyboard\.Studio-(?P<version>\d+\.\d+\.\d+)-"
+)
+CH592_RELEASE_ASSET_RE = re.compile(
+    r"^CH592F-(?:BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?:-full)?\.(?:bin|hex)$"
+)
+CH552_RELEASE_ASSET_RE = re.compile(
+    r"^CH552G-(?:BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)\.(?:bin|hex)$"
 )
 
 
@@ -69,9 +78,107 @@ def _git_commit_count_for_paths(paths: list[str]) -> int:
         return 0
 
 
+def _git_paths_changed_since(ref: str, paths: list[str]) -> bool:
+    if not ref or not paths:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--quiet", f"{ref}..HEAD", "--", *paths],
+            cwd=PROJECT_ROOT,
+            check=False,
+        )
+    except subprocess.SubprocessError as exc:
+        print(f"WARNING: git diff failed for {ref}: {exc}", file=sys.stderr)
+        return False
+    if result.returncode == 0:
+        return False
+    if result.returncode == 1:
+        return True
+    print(f"WARNING: git diff exited with {result.returncode} for {ref}", file=sys.stderr)
+    return False
+
+
 def _git_short_sha() -> str:
     sha = _git_output(["git", "rev-parse", "--short", "HEAD"])
     return sha or "unknown"
+
+
+def _github_headers() -> dict[str, str]:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "BinaryKeyboard-Versioning",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _fetch_json(url: str) -> dict[str, Any] | None:
+    req = request.Request(url, headers=_github_headers())
+    try:
+        with request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except error.HTTPError as exc:
+        print(f"WARNING: request failed {url}: HTTP {exc.code}", file=sys.stderr)
+        return None
+    except Exception as exc:
+        print(f"WARNING: request failed {url}: {exc}", file=sys.stderr)
+        return None
+
+
+def _split_version(value: str) -> tuple[int, int, int]:
+    parts = [int(part, 10) for part in value.strip().split(".")]
+    if len(parts) != 3:
+        raise ValueError(f"Expected version 'x.y.z', got: {value}")
+    return parts[0], parts[1], parts[2]
+
+
+@lru_cache(maxsize=1)
+def _latest_release_payload() -> dict[str, Any] | None:
+    settings = release_settings()
+    repo = settings["repository"]
+    return _fetch_json(f"https://api.github.com/repos/{repo}/releases/latest")
+
+
+def _version_from_release_assets(component: str, assets: list[dict[str, Any]]) -> str | None:
+    versions_found: set[str] = set()
+    matcher = {
+        "studio": STUDIO_ASSET_RE,
+        "ch592": CH592_RELEASE_ASSET_RE,
+        "ch552": CH552_RELEASE_ASSET_RE,
+    }[component]
+
+    for asset in assets:
+        name = str(asset.get("name", ""))
+        match = matcher.match(name)
+        if match:
+            versions_found.add(match.group("version"))
+
+    if len(versions_found) == 1:
+        return next(iter(versions_found))
+    return None
+
+
+@lru_cache(maxsize=1)
+def _latest_release_versions() -> tuple[str, dict[str, str]] | None:
+    payload = _latest_release_payload()
+    if not payload:
+        return None
+
+    tag = str(payload.get("tag_name") or "").strip()
+    assets = payload.get("assets") or []
+    versions: dict[str, str] = {}
+
+    for component in ("studio", "ch552", "ch592"):
+        version = _version_from_release_assets(component, assets)
+        if version:
+            versions[component] = version
+
+    if not tag or not versions:
+        return None
+    return tag, versions
 
 
 def load_versions() -> dict[str, Any]:
@@ -98,7 +205,22 @@ def component_meta(component: str) -> dict[str, Any]:
 def component_version(component: str, build_number: int | None = None) -> str:
     meta = component_meta(component)
     major, minor = _split_base_version(str(meta["base_version"]))
-    patch = build_number if build_number is not None else _git_commit_count_for_paths(list(meta.get("paths", [])))
+    if build_number is not None:
+        patch = build_number
+        return f"{major}.{minor}.{patch}"
+
+    paths = list(meta.get("paths", []))
+    latest_release = _latest_release_versions()
+    if latest_release:
+        release_tag, released_versions = latest_release
+        released_version = released_versions.get(_normalize_component(component))
+        if released_version:
+            rel_major, rel_minor, rel_patch = _split_version(released_version)
+            if rel_major == major and rel_minor == minor:
+                patch = rel_patch + 1 if _git_paths_changed_since(release_tag, paths) else rel_patch
+                return f"{major}.{minor}.{patch}"
+
+    patch = _git_commit_count_for_paths(paths)
     return f"{major}.{minor}.{patch}"
 
 
@@ -155,69 +277,24 @@ def pages_base_url() -> str:
     return manifest_url.rsplit("/", 1)[0]
 
 
-def _scan_pages_firmware_assets() -> dict[str, dict[str, dict[str, str]]]:
-    firmware_dir = PROJECT_ROOT / "docs" / "public" / "firmware"
-    scanned: dict[str, dict[str, dict[str, str]]] = {"ch592": {}, "ch552": {}}
-    if not firmware_dir.is_dir():
-        return scanned
-
-    for path in firmware_dir.rglob("*"):
-        if not path.is_file():
-            continue
-        match = FIRMWARE_ASSET_RE.match(path.name)
-        if not match:
-            continue
-
-        chip = "ch592" if match.group("chip") == "CH592F" else "ch552"
-        model = match.group("model")
-        version = match.group("version")
-        rel_path = path.relative_to(PROJECT_ROOT / "docs" / "public").as_posix()
-
-        entry = scanned[chip].setdefault(model, {"version": version})
-        if match.group("chip") == "CH592F":
-            if match.group("ext") == "bin":
-                entry["binPath"] = rel_path
-            elif match.group("suffix") == "-full" and match.group("ext") == "hex":
-                entry["fullHexPath"] = rel_path
-        else:
-            if match.group("ext") == "bin":
-                entry["binPath"] = rel_path
-            elif match.group("ext") == "hex":
-                entry["hexPath"] = rel_path
-
-    return scanned
-
-
 def release_artifact_manifest(build_number: int | None = None) -> tuple[dict[str, Any], dict[str, str]]:
     versions = current_component_versions(build_number)
     base_url = pages_base_url().rstrip("/")
-    scanned = _scan_pages_firmware_assets()
-
-    for chip_key, component_key in (("ch592", "ch592"), ("ch552", "ch552")):
-        versions_found = {
-            entry["version"]
-            for entry in scanned[chip_key].values()
-            if entry.get("version")
-        }
-        if len(versions_found) == 1:
-            versions[component_key] = next(iter(versions_found))
 
     def ch592_asset(model: str) -> dict[str, str]:
-        scanned_entry = scanned["ch592"].get(model)
-        version = scanned_entry["version"] if scanned_entry else versions["ch592"]
+        version = versions["ch592"]
         return {
             "version": version,
-            "binUrl": f"{base_url}/{scanned_entry['binPath']}" if scanned_entry and scanned_entry.get("binPath") else f"{base_url}/firmware/ch592f/CH592F-{model}-{version}.bin",
-            "fullHexUrl": f"{base_url}/{scanned_entry['fullHexPath']}" if scanned_entry and scanned_entry.get("fullHexPath") else f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-full.hex",
+            "binUrl": f"{base_url}/firmware/ch592f/CH592F-{model}-{version}.bin",
+            "fullHexUrl": f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-full.hex",
         }
 
     def ch552_asset(model: str) -> dict[str, str]:
-        scanned_entry = scanned["ch552"].get(model)
-        version = scanned_entry["version"] if scanned_entry else versions["ch552"]
+        version = versions["ch552"]
         return {
             "version": version,
-            "binUrl": f"{base_url}/{scanned_entry['binPath']}" if scanned_entry and scanned_entry.get("binPath") else f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.bin",
-            "hexUrl": f"{base_url}/{scanned_entry['hexPath']}" if scanned_entry and scanned_entry.get("hexPath") else f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.hex",
+            "binUrl": f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.bin",
+            "hexUrl": f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.hex",
         }
 
     return ({
@@ -285,10 +362,6 @@ def emit_ts_module(out: Path, build_number: int | None = None) -> None:
 
     lines = [
         "/* Auto-generated by tools/scripts/versioning.py. Do not edit manually. */",
-        "export const COMPONENT_VERSIONS = " + json.dumps(versions, ensure_ascii=True) + " as const;",
-        "",
-        "export const STUDIO_VERSION = COMPONENT_VERSIONS.studio;",
-        "",
         "export const FIRMWARE_VERSION_META = {",
         firmware_meta_block("ch592"),
         firmware_meta_block("ch552"),

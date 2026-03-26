@@ -8,6 +8,12 @@
       <button class="pwa-update-btn" @click="onPwaUpdate">更新</button>
     </div>
 
+    <!-- Electron 新版本提示 -->
+    <div v-else-if="isElectron && releaseStore.studioUpdateAvailable" class="pwa-update-banner">
+      <span>发现新版本 v{{ releaseStore.latestStudioVersion }}</span>
+      <a class="pwa-update-btn" :href="`https://github.com/${releaseStore.repository}/releases/latest`" target="_blank" rel="noopener">下载</a>
+    </div>
+
     <!-- 加载遮罩 -->
     <div v-if="deviceStore.isLoading && viewPhase === 'connected'" class="loading-overlay">
       <ProgressSpinner strokeWidth="4" />
@@ -61,6 +67,7 @@ const toast = useToast();
 initToastService(toast);
 const deviceStore = useDeviceStore();
 const releaseStore = useReleaseStore();
+const isElectron = navigator.userAgent.includes('Electron');
 
 // 连接状态
 const {
@@ -183,5 +190,9 @@ onUnmounted(() => {
 .pwa-update-btn:hover {
   background: #fff;
   color: var(--c-accent);
+}
+
+a.pwa-update-btn {
+  text-decoration: none;
 }
 </style>
