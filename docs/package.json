@@ -5,8 +5,12 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
+    "sync-changelog": "node ./scripts/sync-changelog.mjs",
+    "predev": "pnpm run sync-changelog",
     "dev": "vitepress dev --host 0.0.0.0 --port 5174 --no-open",
+    "prebuild": "pnpm run sync-changelog",
     "build": "vitepress build",
+    "prepreview": "pnpm run sync-changelog",
     "preview": "vitepress preview --host 0.0.0.0 --port 5174"
   },
   "devDependencies": {
