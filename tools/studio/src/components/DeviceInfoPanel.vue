@@ -17,7 +17,7 @@
     <div class="version-badges-compact">
       <div class="ver-badge studio">
         <span class="ver-badge-icon"><CatEmoji /></span>
-        <span class="ver-badge-ver">v{{ releaseStore.studioVersion }}</span>
+        <span class="ver-badge-ver">v{{ releaseStore.latestStudioVersion }}</span>
         <span class="ver-hue-dot" :style="{ background: hueColor(studioHue) }" :title="`Studio 色相 ${studioHue}°`"></span>
       </div>
       <div class="ver-badge ch552">
@@ -70,7 +70,7 @@ const releaseStore = useReleaseStore();
 
 const showUpdateDialog = ref(false);
 
-const studioHue = computed(() => versionToHue(releaseStore.studioVersion));
+const studioHue = computed(() => versionToHue(releaseStore.latestStudioVersion));
 const ch552Hue = computed(() => versionToHue(releaseStore.latestVersions.ch552));
 const ch592Hue = computed(() => versionToHue(releaseStore.latestVersions.ch592));
 const deviceHue = computed(() => versionToHue(deviceStore.firmwareVersion));

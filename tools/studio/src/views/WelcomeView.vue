@@ -86,8 +86,8 @@ const { toggleMode, themeMode } = useTheme();
           <div class="version-badge studio-badge">
             <div class="badge-icon"><CatEmoji /></div>
             <div class="badge-info">
-              <span class="badge-label">Studio</span>
-              <span class="badge-version">v{{ releaseStore.studioVersion }}</span>
+              <span class="badge-label">Studio 最新</span>
+              <span class="badge-version">v{{ releaseStore.latestStudioVersion }}</span>
             </div>
           </div>
           <div class="version-badge chip-badge ch552-badge">
