@@ -210,6 +210,7 @@ const CONSUMER_ALIASES: Record<string, number> = {
 
 const KEY_ALIASES: Record<string, number> = buildKeyAliases();
 const CONSUMER_TOKEN_MAP: Record<number, string> = buildConsumerTokenMap();
+const DSL_KEY_COMPLETION_ITEMS = buildDslKeyCompletionItems();
 const COMMAND_KEYWORDS = [
   "tap",
   "down",
@@ -270,7 +271,10 @@ function buildKeyAliases(): Record<string, number> {
     if (!keycode || !name) {
       continue;
     }
-    aliases[normalizeToken(name)] = keycode;
+    const token = normalizeToken(name);
+    if (!(token in aliases)) {
+      aliases[token] = keycode;
+    }
   }
 
   Object.assign(aliases, {
@@ -297,9 +301,67 @@ function buildKeyAliases(): Record<string, number> {
     PRINTSCREEN: 0x46,
     APPS: 0x65,
     MENU: 0x65,
+    MINUS: 0x2d,
+    HYPHEN: 0x2d,
+    DASH: 0x2d,
+    EQUAL: 0x2e,
+    EQUALS: 0x2e,
+    NUMSLASH: 0x54,
+    NUMDIVIDE: 0x54,
+    NUMPADDIVIDE: 0x54,
+    NUMSTAR: 0x55,
+    NUMASTERISK: 0x55,
+    NUMMULTIPLY: 0x55,
+    NUMPADMULTIPLY: 0x55,
+    NUMPLUS: 0x57,
+    NUMADD: 0x57,
+    NUMPADPLUS: 0x57,
+    NUMMINUS: 0x56,
+    NUMSUBTRACT: 0x56,
+    NUMPADMINUS: 0x56,
+    NUMPADSUBTRACT: 0x56,
+    NUMENTER: 0x58,
+    NUMPADENTER: 0x58,
+    NUMDOT: 0x63,
+    NUMDECIMAL: 0x63,
+    NUMPADDOT: 0x63,
+    NUMPADDECIMAL: 0x63,
   });
 
   return aliases;
+}
+
+function buildDslKeyCompletionItems(): Array<{
+  label: string;
+  detail: string;
+  kind: "value";
+}> {
+  const items: Array<{ label: string; detail: string; kind: "value" }> = [];
+  const seen = new Set<string>();
+
+  const push = (label: string, detail = "普通按键") => {
+    if (!label || seen.has(label)) {
+      return;
+    }
+    seen.add(label);
+    items.push({ label, detail, kind: "value" });
+  };
+
+  for (const name of Object.values(KEYCODE_NAMES)) {
+    if (!name || name === "+") {
+      continue;
+    }
+    push(formatKeycode(parseKeyToken(name) ?? 0));
+  }
+
+  push("NumPlus", "小键盘加号键");
+  push("NumMinus", "小键盘减号键");
+  push("NumEnter", "小键盘回车键");
+  push("NumSlash", "小键盘除号键");
+  push("NumStar", "小键盘乘号键");
+  push("NumDot", "小键盘小数点键");
+
+  return items;
 }
 
 function buildConsumerTokenMap(): Record<number, string> {
@@ -320,8 +382,11 @@ function buildConsumerTokenMap(): Record<number, string> {
 }
 
 function normalizeToken(value: string): string {
-  return value
-    .trim()
+  const trimmed = value.trim();
+  if (/^[-=[\]\\;'`,./]$/.test(trimmed)) {
+    return trimmed;
+  }
+  return trimmed
     .replace(/[\s_-]+/g, "")
     .toUpperCase();
 }
@@ -921,8 +986,17 @@ function buildCompletionItems(
   replaceFrom: number,
   replaceTo: number,
 ): MacroDslCompletionItem[] {
+  const seen = new Set<string>();
   return suggestions
     .filter((item) => matchToken(fragment, item.label))
+    .filter((item) => {
+      const key = `${item.kind}:${item.label}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
     .map((item) => ({
       label: item.label,
       insertText: item.insertText ?? item.label,
@@ -1114,13 +1188,7 @@ function completeTapOperand(
   );
 
   const keyItems = buildCompletionItems(
-    Object.values(KEYCODE_NAMES)
-      .filter(Boolean)
-      .map((label) => ({
-        label: formatKeycode(parseKeyToken(label) ?? 0),
-        detail: "普通按键",
-        kind: "value" as const,
-      })),
+    DSL_KEY_COMPLETION_ITEMS,
     fragment,
     replaceFrom,
     replaceTo,
@@ -1169,13 +1237,7 @@ function completeDownUpOperand(
   );
 
   const keyItems = buildCompletionItems(
-    Object.values(KEYCODE_NAMES)
-      .filter(Boolean)
-      .map((label) => ({
-        label: formatKeycode(parseKeyToken(label) ?? 0),
-        detail: "普通按键",
-        kind: "value" as const,
-      })),
+    DSL_KEY_COMPLETION_ITEMS,
     fragment,
     replaceFrom,
     replaceTo,
