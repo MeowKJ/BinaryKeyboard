@@ -232,9 +232,9 @@ jobs:
         working-directory: tools/studio
         run: pnpm run build:electron
 
-      - name: Package (portable)
+      - name: Package (x64 + arm64 portable)
         working-directory: tools/studio
-        run: pnpm exec electron-builder --win
+        run: pnpm exec electron-builder --win portable --x64 --arm64
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -386,8 +386,7 @@ jobs:
             echo "|:-----|:-----|:-----|"
             echo "| macOS | Apple Silicon (arm64) | DMG |"
             echo "| macOS | Intel (x64) | DMG |"
-            echo "| Windows | x64 | 便携式 EXE |"
-            echo "| Windows | x86 / 32位 (ia32) | 便携式 EXE |"
+            echo "| Windows | AMD64 / x64 | 便携式 EXE |"
             echo "| Windows | ARM64 | 便携式 EXE |"
             echo
             echo "---"
