@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, artifact_paths as _artifact_paths, preset_for
 from common import display_path as _display_path
-from firmware_naming import ch592_filename_for_keyboard
+from firmware_naming import ch592_filename_for_keyboard, ch592_full_filenames_for_keyboard
 from i18n import t
 from targets.common import FLASH_SCRIPT, PROJECT_ROOT, SCRIPT_DIR, TargetActionSpec, TargetProfile
 from tool_cache import get_cached_tool_path
@@ -40,10 +40,22 @@ def _artifact_path(state: dict) -> Path:
     full = arts["full_hex"]
     if full.is_file():
         return full
+    for filename in ch592_full_filenames_for_keyboard(state["keyboard"], "bin"):
+        candidate = build_dir / filename
+        if candidate.is_file():
+            return candidate
     # Fallback: app .bin (before bootloader integration)
     app_bin = arts["bin"]
     legacy = build_dir / "CH592F.bin"
     return app_bin if app_bin.is_file() or not legacy.is_file() else legacy
+
+
+def _build_artifact_path(state: dict) -> Path:
+    build_dir = _build_dir(state)
+    filename = ch592_filename_for_keyboard(state["keyboard"], "bin")
+    named = build_dir / filename
+    legacy = build_dir / "CH592F.bin"
+    return named if named.is_file() or not legacy.is_file() else legacy
 
 
 def _build_label(state: dict) -> str:
@@ -182,6 +194,8 @@ def _resolve_toolchain(state: dict) -> dict[str, object]:
 def _target_details_lines(state: dict) -> list[str]:
     return [
         f"{t('detail.build_dir')}: {_display_path(_build_dir(state))}",
+        f"{t('bar.artifact')}: {_display_path(_artifact_path(state))}",
+        f"build bin: {_display_path(_build_artifact_path(state))}",
     ]
 
 

@@ -3,7 +3,7 @@
  * @brief   电池电压 ADC 采样 + TP4054 充电状态检测
  *
  * 采样电路 (VDD = 2.5V):
- * - PA15 (VBAT_AD_EN): 低电平启动分压电路 (PMOS, 默认下拉=使能)
+ * - PA15 (VBAT_AD_EN): 高电平启动分压电路, 低电平关闭
  * - PA14 (AIN4): VBAT 经两个 100K 电阻分压 (1/2) 后进入 ADC
  * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -6dB (1/2x)
  * - Vref = 内部 1.05V 带隙基准 (与 VDD 无关)
@@ -82,8 +82,8 @@ static void adc_vbat_init(void) {
 static uint16_t adc_sample_avg(void) {
   uint32_t sum = 0;
 
-  /* 使能分压电路 (PA15 拉低) */
-  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
+  /* 使能分压电路 (PA15 拉高) */
+  GPIOA_SetBits(KBD_VBAT_EN_PIN);
 
   /* 初始化 ADC 通道 */
   adc_vbat_init();
@@ -95,8 +95,8 @@ static uint16_t adc_sample_avg(void) {
     sum += ADC_ExcutSingleConver();
   }
 
-  /* 关闭分压电路 (PA15 拉高, 省电) */
-  GPIOA_SetBits(KBD_VBAT_EN_PIN);
+  /* 关闭分压电路 (PA15 拉低, 省电) */
+  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
 
   int32_t avg = (int32_t)(sum >> 3) + s_adc_calib;
   if (avg < 0)
@@ -112,8 +112,8 @@ static uint16_t adc_sample_avg(void) {
 /*============================================================================*/
 
 void KBD_Battery_Init(void) {
-  /* PA15: 分压使能, 推挽输出, 默认高 (关闭分压省电) */
-  GPIOA_SetBits(KBD_VBAT_EN_PIN);
+  /* PA15: 分压使能, 推挽输出, 默认低 (关闭分压省电) */
+  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
   GPIOA_ModeCfg(KBD_VBAT_EN_PIN, GPIO_ModeOut_PP_5mA);
 
   /* PA14: ADC 输入, 浮空 */
@@ -129,8 +129,8 @@ void KBD_Battery_Init(void) {
 #endif
 
   /* 初始采样验证 */
-  uint16_t mv = KBD_Battery_GetVoltage_mV();
-  LOG_I(TAG, "Battery init: %dmV calib=%d", mv, s_adc_calib);
+  LOG_I(TAG, "Battery init: %dmV calib=%d", KBD_Battery_GetVoltage_mV(),
+        s_adc_calib);
 }
 
 uint16_t KBD_Battery_GetVoltage_mV(void) {

@@ -14,7 +14,6 @@
 #define WS2812_LED_NUM (1 + KBD_NUM_KEYS) /**< 键盘 LED 数量 */
 #endif
 
-#define WS2812_PIN GPIO_Pin_10 /**< WS2812 数据引脚 PA10 */
 #define WS2812_INDICATOR_MIN_BRIGHTNESS                                        \
   16                       /**< 指示灯最低亮度 (~6%)，不可完全关闭 */
 #define WS2812_CLK_FREQ 60 /**< 系统时钟频率 (MHz) */
@@ -29,6 +28,7 @@
 #define WS2812_T1H (uint32_t)(0.85 * WS2812_CLK_FREQ)
 #define WS2812_BIT_CYCLE (uint32_t)(1.25 * WS2812_CLK_FREQ)
 #define WS2812_RESET_CYCLES 300 /**< 复位信号周期数 (≈300μs @ 1.25μs/cycle) */
+#define WS2812_POWER_ON_US 300 /**< RGB 上电后的稳定时间 */
 
 /** 缓冲区长度：LED数据(每个LED 24bit) + 复位信号 */
 #define WS2812_BUF_LEN (WS2812_LED_NUM * 24 + WS2812_RESET_CYCLES)
@@ -54,7 +54,7 @@ typedef struct {
 
 /**
  * @brief 初始化 WS2812 驱动
- * @note 配置 GPIO、定时器和 DMA
+ * @note 配置 GPIO、定时器、DMA 与 RGB 使能脚
  */
 void WS2812_Init(void);
 

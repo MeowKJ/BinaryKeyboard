@@ -14,6 +14,7 @@
 #include "kbd_log.h"
 #include "hal_utils.h"
 #include "key.h"
+#include "encoder.h"
 #include "debug.h"
 
 #define TAG "CORE"
@@ -76,6 +77,11 @@ void KBD_Core_Process(void)
 
     /* 处理普通按键事件 */
     while (Key_GetEvent(&key_evt)) {
+        KBD_Core_HandleKeyEvent(&key_evt);
+    }
+
+    /* 处理旋钮事件 */
+    while (Encoder_GetEvent(&key_evt)) {
         KBD_Core_HandleKeyEvent(&key_evt);
     }
 

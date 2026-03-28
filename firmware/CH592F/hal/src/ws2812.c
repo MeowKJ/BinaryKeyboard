@@ -5,7 +5,7 @@
  *
  * 硬件连接：
  *   - PA10: WS2812 数据线 (DIN)
- *   - 通过 TMR1 PWM + DMA 生成时序信号
+ *   - PA9 : RGB_EN，高电平给 RGB 电路上电
  *
  * 数据格式：
  *   - 每个 LED 需要 24bit 数据 (GRB 顺序)
@@ -25,11 +25,6 @@
  *  ============================================================================
  */
 
-/**
- * @brief WS2812 数据缓冲区
- * @note 4字节对齐，用于 DMA 传输
- *       布局：[LED数据区] + [复位信号区(全0)]
- */
 __attribute__((aligned(4))) static uint32_t ws2812_buf[WS2812_BUF_LEN];
 
 /**
@@ -42,27 +37,65 @@ static uint8_t s_rgb_brightness = 255;
  */
 static uint8_t s_indicator_brightness = 255;
 
+static uint8_t s_rgb_powered = 0;
+
 /** ============================================================================
  *  内部函数
  *  ============================================================================
  */
 
+static void WS2812_EnablePower(void) {
+#if WS2812_EN_ACTIVE_HIGH
+  if (WS2812_EN_PORT == GPIO_PORT_A) {
+    GPIOA_SetBits(WS2812_EN_PIN);
+  } else {
+    GPIOB_SetBits(WS2812_EN_PIN);
+  }
+#else
+  if (WS2812_EN_PORT == GPIO_PORT_A) {
+    GPIOA_ResetBits(WS2812_EN_PIN);
+  } else {
+    GPIOB_ResetBits(WS2812_EN_PIN);
+  }
+#endif
+}
+
+static void WS2812_DisablePower(void) {
+#if WS2812_EN_ACTIVE_HIGH
+  if (WS2812_EN_PORT == GPIO_PORT_A) {
+    GPIOA_ResetBits(WS2812_EN_PIN);
+  } else {
+    GPIOB_ResetBits(WS2812_EN_PIN);
+  }
+#else
+  if (WS2812_EN_PORT == GPIO_PORT_A) {
+    GPIOA_SetBits(WS2812_EN_PIN);
+  } else {
+    GPIOB_SetBits(WS2812_EN_PIN);
+  }
+#endif
+}
+
+static uint8_t WS2812_HasAnyLitPixel(void) {
+  for (uint16_t i = 0; i < WS2812_LED_NUM * 24u; i++) {
+    if (ws2812_buf[i] != 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 /**
  * @brief 填充单字节数据到缓冲区 (MSB First)
  * @param p_buf 缓冲区指针 (需要指向8个连续的uint32_t空间)
  * @param data 要编码的字节数据
- *
- * @note WS2812 时序编码规则：
- *       - 逻辑 0: T0H=0.35μs (21 cycles)
- *       - 逻辑 1: T1H=0.85μs (51 cycles)
- *       - 总周期: 1.25μs (75 cycles)
  */
 static void WS2812_Fill_Byte(uint32_t *p_buf, uint8_t data) {
   for (int8_t i = 7; i >= 0; i--) {
     if (data & (1 << i)) {
-      *p_buf = WS2812_T1H; // 逻辑1: 高电平持续51个周期
+      *p_buf = WS2812_T1H;
     } else {
-      *p_buf = WS2812_T0H; // 逻辑0: 高电平持续21个周期
+      *p_buf = WS2812_T0H;
     }
     p_buf++;
   }
@@ -74,33 +107,22 @@ static void WS2812_Fill_Byte(uint32_t *p_buf, uint8_t data) {
  */
 
 void WS2812_Init(void) {
-  // 1. ⭐⭐ 核心修复：关闭 LSE，释放 PA10 给 PWM 使用 ⭐⭐
-  // 这一句是之前的代码里漏掉的，导致 PA10 没输出
   PWR_UnitModCfg(DISABLE, UNIT_SYS_LSE);
-
-  // 1.5. 打开 WS2812 供电/使能脚（PA9）
-  GPIOA_SetBits(WS2812_EN_PIN);
-  GPIOA_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
-
-  // 2. 配置 PA10 为推挽输出
-  GPIOA_ModeCfg(GPIO_Pin_10, GPIO_ModeOut_PP_5mA);
-
-  // 3. 初始化定时器1 PWM模式
-  // 先关闭以防万一
+  GPIOA_ModeCfg(WS2812_PIN, GPIO_ModeOut_PP_5mA);
+  if (WS2812_EN_PORT == GPIO_PORT_A) {
+    GPIOA_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
+  } else {
+    GPIOB_ModeCfg(WS2812_EN_PIN, GPIO_ModeOut_PP_5mA);
+  }
+  WS2812_DisablePower();
   TMR1_Disable();
   TMR1_PWMInit(High_Level, PWM_Times_1);
-
-  // 4. 设置周期 (1.25us = 75 ticks @ 60MHz)
   TMR1_PWMCycleCfg(75);
-
-  // 6. 开启 PWM 引擎 (官方例程有这一步)
   TMR1_PWMEnable();
-
-  // 7. 开启定时器 (WS2812_Update 会再次操作这个，但这里初始化一下也好)
   TMR1_Enable();
 
-  // 8. 清空数据缓冲区
   memset(ws2812_buf, 0, sizeof(ws2812_buf));
+  s_rgb_powered = 0;
 }
 
 /**
@@ -145,14 +167,10 @@ void WS2812_Set(uint8_t index, uint8_t r, uint8_t g, uint8_t b) {
     b = (uint16_t)b * br / 255;
   }
 
-  // 计算在缓冲区中的位置
-  // 关键修复：LED数据从缓冲区起始位置开始，复位信号在最后
   uint32_t *p = &ws2812_buf[index * 24];
-
-  // WS2812 标准发送顺序：G -> R -> B
-  WS2812_Fill_Byte(p, g);      // Green (字节0-7)
-  WS2812_Fill_Byte(p + 8, r);  // Red   (字节8-15)
-  WS2812_Fill_Byte(p + 16, b); // Blue  (字节16-23)
+  WS2812_Fill_Byte(p, g);
+  WS2812_Fill_Byte(p + 8, r);
+  WS2812_Fill_Byte(p + 16, b);
 }
 
 /**
@@ -189,17 +207,24 @@ void WS2812_FillKeys(uint8_t r, uint8_t g, uint8_t b) {
  * @note 通过 DMA 将缓冲区数据发送到 TMR1 PWM FIFO
  */
 void WS2812_Update(void) {
-  // 1. 停止定时器
-  TMR1_Disable();
+  if (!WS2812_HasAnyLitPixel()) {
+    TMR1_Disable();
+    TMR1_PWMDisable();
+    TMR1_DMACfg(DISABLE, 0, 0, Mode_Single);
+    WS2812_DisablePower();
+    s_rgb_powered = 0;
+    return;
+  }
 
-  // 2. 配置 DMA 传输
-  //    - 起始地址：ws2812_buf (LED数据从这里开始)
-  //    - 结束地址：ws2812_buf + WS2812_BUF_LEN (包含复位信号)
-  //    - 模式：单次传输
+  if (!s_rgb_powered) {
+    WS2812_EnablePower();
+    DelayUs(WS2812_POWER_ON_US);
+    s_rgb_powered = 1;
+  }
+
+  TMR1_Disable();
   TMR1_DMACfg(ENABLE, (uint16_t)(uint32_t)ws2812_buf,
               (uint16_t)(uint32_t)(ws2812_buf + WS2812_BUF_LEN), Mode_Single);
-
-  // 3. 启动 PWM 和定时器
   TMR1_PWMEnable();
   TMR1_Enable();
 }

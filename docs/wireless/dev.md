@@ -302,13 +302,25 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 // WS2812 数据引脚
 #define WS2812_PORT GPIO_PORT_A
 #define WS2812_PIN  GPIO_Pin_10
+#define WS2812_EN_PORT GPIO_PORT_A
+#define WS2812_EN_PIN  GPIO_Pin_9
 
 // 旋钮款额外引脚
 #ifdef KBD_LAYOUT_KNOB
-#define KBD_ENCODER_A_PORT  GPIO_PORT_A
-#define KBD_ENCODER_A_PIN   GPIO_Pin_12
-#define KBD_ENCODER_B_PORT  GPIO_PORT_A
-#define KBD_ENCODER_B_PIN   GPIO_Pin_13
+#define KBD_K1_PORT GPIO_PORT_B
+#define KBD_K1_PIN  GPIO_Pin_7
+#define KBD_K2_PORT GPIO_PORT_B
+#define KBD_K2_PIN  GPIO_Pin_12
+#define KBD_K3_PORT GPIO_PORT_A
+#define KBD_K3_PIN  GPIO_Pin_8
+#define KBD_K4_PORT GPIO_PORT_A
+#define KBD_K4_PIN  GPIO_Pin_12
+#define KBD_ENCODER_A_PORT  GPIO_PORT_B
+#define KBD_ENCODER_A_PIN   GPIO_Pin_14
+#define KBD_ENCODER_B_PORT  GPIO_PORT_B
+#define KBD_ENCODER_B_PIN   GPIO_Pin_15
+#define KBD_ENCODER_BTN_PORT GPIO_PORT_B
+#define KBD_ENCODER_BTN_PIN  GPIO_Pin_4
 #endif
 ```
 

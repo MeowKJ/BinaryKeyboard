@@ -140,7 +140,7 @@ typedef enum {
  * @brief 普通按键事件结构。
  */
 typedef struct {
-  uint8_t  key;      /**< 按键索引（0..KBD_NUM_KEYS-1），对应 g_key_pins[] */
+  uint8_t  key;      /**< 逻辑按键索引（0..KBD_TOTAL_KEYS-1） */
   uint8_t  type;     /**< 事件类型，见 @ref key_evt_type_t */
   uint32_t tick_ms;  /**< 事件产生时的毫秒计数（自 Key_Init() 起） */
 } key_event_t;
@@ -203,10 +203,11 @@ uint8_t Key_GetEvent(key_event_t *evt);
 
 /**
  * @brief 查询普通按键当前是否处于按下状态。
- * @param key_index 按键索引（0..KBD_NUM_KEYS-1）
+ * @param key_index 逻辑按键索引
  * @return 1=按下，0=松开，-1=索引非法
  * @note
  * 若 KEY_ENABLE_RELEASE_EVENT=0，则 is_down 在按下后不会被 release 更新。
+ * 仅对普通按键扫描链路中的键有效；旋钮转动等虚拟键返回 -1。
  */
 int8_t  Key_IsDown(uint8_t key_index);
 
