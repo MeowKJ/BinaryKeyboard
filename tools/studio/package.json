@@ -47,7 +47,6 @@
     },
     "dmg": {
       "title": "BinaryKeyboard Studio",
-      "volumeName": "${productName}-${arch}",
       "window": {
         "width": 540,
         "height": 280
