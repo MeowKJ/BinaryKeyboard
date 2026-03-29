@@ -88,6 +88,7 @@ set(CH592_ENTRY_SOURCES
 set(CH592_BOARD_SOURCES
     # HAL
     hal/src/debug.c
+    hal/src/encoder.c
     hal/src/hal_utils.c
     hal/src/kbd_battery.c
     hal/src/key.c

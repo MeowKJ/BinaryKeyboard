@@ -37,17 +37,17 @@
 # 快速开始
 
 - 在线文档：https://meowkj.github.io/BinaryKeyboard/
-- 统一终端控制台：`python tools/scripts/console.py`
+- 统一终端控制台：`./run.sh` 或 `python tools/scripts/console.py`
 
 ## 推荐入口
 
 仓库根目录下直接运行：
 
 ```bash
-python tools/scripts/console.py
+./run.sh
 ```
 
-脚本会自动在仓库根目录创建 `.venv`，检查并安装 `tools/scripts/requirements-console.txt` 里的控制台依赖，然后用这个虚拟环境重启自己。
+脚本会自动在仓库根目录创建 `.venv`，检查并安装 `tools/scripts/requirements-console.txt` 里的控制台依赖，然后启动 `console.py`。
 
 <p align="center">
   <img src="https://picui.ogmua.cn/s1/2026/03/16/69b7b522be225.webp" width="960" alt="BinaryKeyboard console.py TUI">

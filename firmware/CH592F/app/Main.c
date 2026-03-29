@@ -24,6 +24,7 @@
 #include "kbd_battery.h"
 #include "hal_utils.h"
 #include "ws2812.h"
+#include "encoder.h"
 #include "debug.h"
 
 /* ============== TMOS 内存池 ============== */
@@ -70,6 +71,9 @@ int main(void)
 
     /* 按键驱动初始化 */
     Key_Init();
+
+    /* 旋钮驱动初始化 */
+    Encoder_Init();
 
     /* 存储系统初始化（需在模式判定前完成，以读取 last_mode） */
     KBD_Storage_Init();

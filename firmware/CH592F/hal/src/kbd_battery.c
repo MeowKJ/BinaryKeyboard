@@ -3,7 +3,7 @@
  * @brief   电池电压 ADC 采样 + TP4054 充电状态检测
  *
  * 采样电路 (VDD = 2.5V):
- * - PA15 (VBAT_AD_EN): 低电平启动分压电路 (PMOS, 默认下拉=使能)
+ * - PA15 (VBAT_AD_EN): 高电平启动分压电路, 低电平关闭
  * - PA14 (AIN4): VBAT 经两个 100K 电阻分压 (1/2) 后进入 ADC
  * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -6dB (1/2x)
  * - Vref = 内部 1.05V 带隙基准 (与 VDD 无关)
@@ -22,12 +22,24 @@
 
 #define TAG "BAT"
 
+/* TMOS 事件 */
+#define BAT_SAMPLE_EVT 0x0001
+#define BAT_PERIODIC_EVT 0x0002
+
+/* 采样时序 */
+#define BAT_SETTLE_MS 5u
+#define BAT_PERIODIC_MS (30u * 1000u)
+
 /*============================================================================*/
 /*                              私有变量                                      */
 /*============================================================================*/
 
 /** ADC 粗调校准偏移量 */
 static int16_t s_adc_calib = 0;
+static tmosTaskID s_task_id = TASK_NO_TASK;
+static uint16_t s_cached_voltage_mv = 3700;
+static uint8_t s_cache_ready = FALSE;
+static uint8_t s_sample_pending = FALSE;
 
 /*============================================================================*/
 /*                              LiPo 电压 → 百分比                            */
@@ -63,6 +75,8 @@ static uint8_t voltage_to_percent(uint16_t mv) {
   return 100;
 }
 
+static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
+
 /*============================================================================*/
 /*                              ADC 采样                                       */
 /*============================================================================*/
@@ -76,27 +90,15 @@ static void adc_vbat_init(void) {
 }
 
 /**
- * @brief 使能分压电路, 多次采样取平均, 然后关闭分压
+ * @brief 在分压已稳定后执行多次 ADC 采样并求平均
  * @return 校准后的 ADC 值
  */
 static uint16_t adc_sample_avg(void) {
   uint32_t sum = 0;
 
-  /* 使能分压电路 (PA15 拉低) */
-  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
-
-  /* 初始化 ADC 通道 */
-  adc_vbat_init();
-
-  /* 丢弃首次采样 (等待分压电路稳定) */
-  ADC_ExcutSingleConver();
-
   for (uint8_t i = 0; i < 8; i++) {
     sum += ADC_ExcutSingleConver();
   }
-
-  /* 关闭分压电路 (PA15 拉高, 省电) */
-  GPIOA_SetBits(KBD_VBAT_EN_PIN);
 
   int32_t avg = (int32_t)(sum >> 3) + s_adc_calib;
   if (avg < 0)
@@ -107,13 +109,48 @@ static uint16_t adc_sample_avg(void) {
   return (uint16_t)avg;
 }
 
+static void battery_schedule_periodic_refresh(void) {
+  if (s_task_id != TASK_NO_TASK) {
+    tmos_start_task(s_task_id, BAT_PERIODIC_EVT, MS1_TO_SYSTEM_TIME(BAT_PERIODIC_MS));
+  }
+}
+
+static void battery_start_sample(void) {
+  if (s_task_id == TASK_NO_TASK || s_sample_pending) {
+    return;
+  }
+
+  /* 使能分压后交给 TMOS 延时，避免阻塞主循环。 */
+  GPIOA_SetBits(KBD_VBAT_EN_PIN);
+  adc_vbat_init();
+  s_sample_pending = TRUE;
+  tmos_start_task(s_task_id, BAT_SAMPLE_EVT, MS1_TO_SYSTEM_TIME(BAT_SETTLE_MS));
+}
+
+static void battery_finish_sample(void) {
+  uint16_t adc;
+
+  if (!s_sample_pending) {
+    return;
+  }
+
+  /* 丢弃首次采样，等待模拟前端稳定。 */
+  ADC_ExcutSingleConver();
+  adc = adc_sample_avg();
+  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
+
+  s_cached_voltage_mv = (uint16_t)((uint32_t)adc * KBD_VBAT_FULL_SCALE_MV / 2048);
+  s_cache_ready = TRUE;
+  s_sample_pending = FALSE;
+}
+
 /*============================================================================*/
 /*                              公共接口                                       */
 /*============================================================================*/
 
 void KBD_Battery_Init(void) {
-  /* PA15: 分压使能, 推挽输出, 默认高 (关闭分压省电) */
-  GPIOA_SetBits(KBD_VBAT_EN_PIN);
+  /* PA15: 分压使能, 推挽输出, 默认低 (关闭分压省电) */
+  GPIOA_ResetBits(KBD_VBAT_EN_PIN);
   GPIOA_ModeCfg(KBD_VBAT_EN_PIN, GPIO_ModeOut_PP_5mA);
 
   /* PA14: ADC 输入, 浮空 */
@@ -123,19 +160,31 @@ void KBD_Battery_Init(void) {
   adc_vbat_init();
   s_adc_calib = ADC_DataCalib_Rough();
 
+  s_task_id = TMOS_ProcessEventRegister(KBD_Battery_ProcessEvent);
+  if (s_task_id == TASK_NO_TASK) {
+    LOG_W(TAG, "Battery TMOS task register failed");
+  }
+
 #if KBD_HAS_CHARGE_DET
   /* PA13: 充电引脚, 上拉输入 (检测 TP4054 开漏输出) */
   GPIOA_ModeCfg(KBD_CHG_PIN, GPIO_ModeIN_PU);
 #endif
 
-  /* 初始采样验证 */
-  uint16_t mv = KBD_Battery_GetVoltage_mV();
-  LOG_I(TAG, "Battery init: %dmV calib=%d", mv, s_adc_calib);
+  KBD_Battery_RequestRefresh();
+  battery_schedule_periodic_refresh();
+  LOG_I(TAG, "Battery init: cached=%dmV calib=%d", s_cached_voltage_mv,
+        s_adc_calib);
+}
+
+void KBD_Battery_RequestRefresh(void) {
+  battery_start_sample();
 }
 
 uint16_t KBD_Battery_GetVoltage_mV(void) {
-  uint16_t adc = adc_sample_avg();
-  return (uint16_t)((uint32_t)adc * KBD_VBAT_FULL_SCALE_MV / 2048);
+  if (!s_cache_ready || !s_sample_pending) {
+    KBD_Battery_RequestRefresh();
+  }
+  return s_cached_voltage_mv;
 }
 
 uint8_t KBD_Battery_GetLevel(void) {
@@ -153,4 +202,23 @@ kbd_charge_state_t KBD_Battery_GetChargeState(void) {
 
 uint8_t KBD_Battery_GetVoltage_dV(void) {
   return (uint8_t)(KBD_Battery_GetVoltage_mV() / 100);
+}
+
+static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events) {
+  (void)task_id;
+
+  if (events & BAT_SAMPLE_EVT) {
+    battery_finish_sample();
+    return (events ^ BAT_SAMPLE_EVT);
+  }
+
+  if (events & BAT_PERIODIC_EVT) {
+    if (!s_sample_pending) {
+      battery_start_sample();
+    }
+    battery_schedule_periodic_refresh();
+    return (events ^ BAT_PERIODIC_EVT);
+  }
+
+  return 0;
 }

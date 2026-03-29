@@ -48,5 +48,12 @@ def ch592_filename_for_keyboard(keyboard: str, ext: str) -> str:
     return firmware_filename("CH592F", ch592_model_from_keyboard(keyboard), ch592_version(), ext)
 
 
+def ch592_full_filenames_for_keyboard(keyboard: str, ext: str) -> tuple[str, str]:
+    base = ch592_filename_for_keyboard(keyboard, ext)
+    suffix = f".{ext.lstrip('.')}"
+    stem = base[:-len(suffix)] if base.endswith(suffix) else base
+    return (f"{stem}-full{suffix}", f"{stem}.full{suffix}")
+
+
 def ch552_filename_for_keyboard(keyboard: str, ext: str) -> str:
     return firmware_filename("CH552G", ch552_model_from_keyboard(keyboard), ch552_version(), ext)

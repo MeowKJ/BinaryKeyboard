@@ -171,7 +171,7 @@ static const kbd_keymap_t s_default_keymap = {
 
 #elif defined(KBD_LAYOUT_KNOB)
 /*---------------------------------------------------------------------------*/
-/* 旋钮款: 4 普通键 + 3 旋钮动作, 5 层 (4键 + 旋钮按下可切换) */
+/* 旋钮款: 4 普通键 + 3 旋钮动作, 4 层 */
 /* [0-3] 普通键 → 数字键 1-4 */
 /* [4]   旋钮顺时针 → 音量增加 */
 /* [5]   旋钮逆时针 → 音量减少 */
@@ -198,7 +198,7 @@ static const kbd_keymap_t s_default_keymap = {
         {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 2 */
         {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 3 */
         {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 4 */
-        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 层 5 */
+        {.keys = {{KBD_ACTION_NONE, 0, 0, 0}}}, /* 预留 */
     }};
 
 #else

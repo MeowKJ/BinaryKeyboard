@@ -78,13 +78,14 @@ typedef struct
  * @{
  */
 
-/* WS2812 数据引脚: TMR1 PWM 输出 (PA10) */
+/* WS2812 数据引脚 */
 #define WS2812_PORT GPIO_PORT_A
 #define WS2812_PIN GPIO_Pin_10
 
-/* WS2812 使能引脚 (PA9) */
+/* WS2812 使能引脚 (PA9), 高电平上电 */
 #define WS2812_EN_PORT GPIO_PORT_A
 #define WS2812_EN_PIN GPIO_Pin_9
+#define WS2812_EN_ACTIVE_HIGH 1
 
 /* WS2812 LED 配置：仅指示灯模式 (注释掉则启用按键灯) */
 // #define WS2812_INDICATOR_ONLY
@@ -93,18 +94,13 @@ typedef struct
 #define KBD_INDICATOR_MIN_BRIGHTNESS 13
 
 /* TP4054 充电状态引脚: PA13 (开漏输出, 低=充电中, 高阻=未充电) */
-/* 注意: KNOB 款 PA13 用于编码器 B，充电检测不可用 */
-#if !defined(KBD_LAYOUT_KNOB)
 #define KBD_HAS_CHARGE_DET 1
 #define KBD_CHG_PORT GPIO_PORT_A
 #define KBD_CHG_PIN GPIO_Pin_13
-#else
-#define KBD_HAS_CHARGE_DET 0
-#endif
 
 /* VBAT 电压采样: 两个 100K 电阻分压 (1/2), 经 PMOS 使能 */
 /* PA14 (AIN4): ADC 输入 */
-/* PA15: 分压电路使能 (低电平有效, PMOS 默认下拉) */
+/* PA15: 分压电路使能 (高电平有效) */
 #define KBD_VBAT_ADC_CH CH_EXTIN_4
 #define KBD_VBAT_ADC_PIN GPIO_Pin_14
 #define KBD_VBAT_EN_PIN GPIO_Pin_15
@@ -188,10 +184,10 @@ typedef struct
 
 /* 普通按键 */
 #define KBD_K1_PORT GPIO_PORT_B
-#define KBD_K1_PIN GPIO_Pin_4
+#define KBD_K1_PIN GPIO_Pin_7
 
-#define KBD_K2_PORT GPIO_PORT_B
-#define KBD_K2_PIN GPIO_Pin_7
+#define KBD_K2_PORT GPIO_PORT_A
+#define KBD_K2_PIN GPIO_Pin_12
 
 #define KBD_K3_PORT GPIO_PORT_B
 #define KBD_K3_PIN GPIO_Pin_12
@@ -200,15 +196,15 @@ typedef struct
 #define KBD_K4_PIN GPIO_Pin_8
 
 /* 旋钮编码器引脚 */
-#define KBD_ENCODER_A_PORT GPIO_PORT_A
-#define KBD_ENCODER_A_PIN GPIO_Pin_12
+#define KBD_ENCODER_A_PORT GPIO_PORT_B
+#define KBD_ENCODER_A_PIN GPIO_Pin_14
 
-#define KBD_ENCODER_B_PORT GPIO_PORT_A
-#define KBD_ENCODER_B_PIN GPIO_Pin_13
+#define KBD_ENCODER_B_PORT GPIO_PORT_B
+#define KBD_ENCODER_B_PIN GPIO_Pin_15
 
 /* 旋钮按键 (可选，复用 FN 或独立) */
-#define KBD_ENCODER_BTN_PORT GPIO_PORT_A
-#define KBD_ENCODER_BTN_PIN GPIO_Pin_14
+#define KBD_ENCODER_BTN_PORT GPIO_PORT_B
+#define KBD_ENCODER_BTN_PIN GPIO_Pin_4
 
 #else
 #error \
@@ -241,7 +237,7 @@ typedef struct
 #if defined(KBD_LAYOUT_5KEY)
 #define KBD_LOGICAL_TO_PHYSICAL_MAP {2, 3, 4, 1, 0}
 #elif defined(KBD_LAYOUT_KNOB)
-#define KBD_LOGICAL_TO_PHYSICAL_MAP {1, 0, 2, 3}
+#define KBD_LOGICAL_TO_PHYSICAL_MAP {3, 2, 0, 1}
 #endif
 
 /**

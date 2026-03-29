@@ -11,6 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-push:
@@ -22,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set lowercase image name
         run: echo "IMAGE_NAME=$(echo '${{ github.repository_owner }}/binarykeyboard-builder' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV

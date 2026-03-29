@@ -120,6 +120,7 @@
 
 #include "key.h"
 #include "kbd_config.h"
+#include "encoder.h"
 
 #include <string.h>
 
@@ -154,24 +155,29 @@ STATIC_ASSERT ((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_b
 /*---------------------------------------------------------------------------*/
 /* 五键款: 5 键                                                               */
 /*---------------------------------------------------------------------------*/
-static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+#define KBD_SCAN_KEY_COUNT KBD_NUM_KEYS
+static const kbd_key_pin_t g_key_pins[KBD_SCAN_KEY_COUNT] = {
     {KBD_K1_PORT, KBD_K1_PIN},
     {KBD_K2_PORT, KBD_K2_PIN},
     {KBD_K3_PORT, KBD_K3_PIN},
     {KBD_K4_PORT, KBD_K4_PIN},
     {KBD_K5_PORT, KBD_K5_PIN},
 };
+static const uint8_t g_key_logical_ids[KBD_SCAN_KEY_COUNT] = {0, 1, 2, 3, 4};
 
 #elif defined(KBD_LAYOUT_KNOB)
 /*---------------------------------------------------------------------------*/
-/* 旋钮款: 4 普通键 (旋钮由编码器模块单独处理)                                   */
+/* 旋钮款: 4 主键 + 旋钮按下 (旋转由独立编码器模块处理)                         */
 /*---------------------------------------------------------------------------*/
-static const kbd_key_pin_t g_key_pins[KBD_NUM_KEYS] = {
+#define KBD_SCAN_KEY_COUNT 5u
+static const kbd_key_pin_t g_key_pins[KBD_SCAN_KEY_COUNT] = {
     {KBD_K1_PORT, KBD_K1_PIN},
     {KBD_K2_PORT, KBD_K2_PIN},
     {KBD_K3_PORT, KBD_K3_PIN},
     {KBD_K4_PORT, KBD_K4_PIN},
+    {KBD_ENCODER_BTN_PORT, KBD_ENCODER_BTN_PIN},
 };
+static const uint8_t g_key_logical_ids[KBD_SCAN_KEY_COUNT] = {0, 1, 2, 3, KBD_KNOB_CLICK_IDX};
 
 #else
 #error "请通过 CMake 或 MRS 预处理宏选择一个键盘型号"
@@ -252,7 +258,7 @@ typedef struct {
 } key_ctx_t;
 
 /** @brief 普通按键上下文数组（每个键一个 ctx）。 */
-static volatile key_ctx_t s_key_ctx[KBD_NUM_KEYS];
+static volatile key_ctx_t s_key_ctx[KBD_SCAN_KEY_COUNT];
 
 /**
  * @brief FN 按键上下文（边沿 + 锁定去抖 + 按下时间戳）。
@@ -450,7 +456,7 @@ static inline void StopTimer1ms (void) {
 
 /**
  * @brief 处理普通按键的边沿中断（press/release + lockout）。
- * @param idx 普通按键索引（0..KBD_NUM_KEYS-1）
+ * @param idx 扫描按键索引
  * @details
  * - lock_ms>0：忽略（仍处于锁定去抖）
  * - expect==0：认为是按下边沿，推送 PRESS，必要时切换到 rise edge 等 release
@@ -461,6 +467,7 @@ static inline void StopTimer1ms (void) {
  */
 static inline void HandleNormalKeyEdge (uint8_t idx) {
     const kbd_key_pin_t *pin = &g_key_pins[idx];
+    uint8_t logical_key = g_key_logical_ids[idx];
     if (s_key_ctx[idx].lock_ms > 0)
         return;
 
@@ -468,7 +475,7 @@ static inline void HandleNormalKeyEdge (uint8_t idx) {
 
     if (s_key_ctx[idx].expect == 0) {
         s_key_ctx[idx].is_down = 1;
-        PushKeyEvent (idx, KEY_EVT_PRESS, now);
+        PushKeyEvent (logical_key, KEY_EVT_PRESS, now);
 
 #if KEY_ENABLE_RELEASE_EVENT
         s_key_ctx[idx].expect = 1;
@@ -478,7 +485,7 @@ static inline void HandleNormalKeyEdge (uint8_t idx) {
 #endif
     } else {
         s_key_ctx[idx].is_down = 0;
-        PushKeyEvent (idx, KEY_EVT_RELEASE, now);
+        PushKeyEvent (logical_key, KEY_EVT_RELEASE, now);
         s_key_ctx[idx].expect = 0;
         ConfigPinFallEdge (pin);
     }
@@ -554,7 +561,7 @@ static inline void HandlePortIrq (gpio_port_t port) {
     if (flags == 0)
         return;
 
-    for (uint8_t i = 0; i < KBD_NUM_KEYS && flags; i++) {
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT && flags; i++) {
         if (g_key_pins[i].port != port)
             continue;
         uint32_t pin = g_key_pins[i].pin;
@@ -575,6 +582,8 @@ static inline void HandlePortIrq (gpio_port_t port) {
             HandleFnKeyEdge (id);
         }
     }
+
+    Encoder_HandlePortIrq(port);
 }
 
 /**
@@ -607,7 +616,7 @@ __INTERRUPT __HIGH_CODE void TMR0_IRQHandler (void) {
 
     s_tick_ms++;
 
-    for (uint8_t i = 0; i < KBD_NUM_KEYS; i++) {
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
         uint16_t lm = s_key_ctx[i].lock_ms;
         if (lm == 0)
             continue;
@@ -634,6 +643,8 @@ __INTERRUPT __HIGH_CODE void TMR0_IRQHandler (void) {
             EnablePinIrq (port, pin);
         }
     }
+
+    Encoder_TimerTick1ms();
 }
 
 /* ============================================================================
@@ -677,9 +688,12 @@ uint8_t FnKey_GetEvent (fnkey_event_t *evt) {
  * @return 1=按下；0=松开；-1=非法索引
  */
 int8_t Key_IsDown (uint8_t key_index) {
-    if (key_index >= KBD_NUM_KEYS)
-        return -1;
-    return s_key_ctx[key_index].is_down ? 1 : 0;
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
+        if (g_key_logical_ids[i] == key_index) {
+            return s_key_ctx[i].is_down ? 1 : 0;
+        }
+    }
+    return -1;
 }
 
 /**
@@ -727,7 +741,7 @@ void Key_Init (void) {
     ConfigPinInputPullup (&g_boot_pin);
 
     /* Normal keys: input + falling/rising edge depends on current level. */
-    for (uint8_t i = 0; i < KBD_NUM_KEYS; i++) {
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
         const kbd_key_pin_t *pin = &g_key_pins[i];
         ConfigPinInputPullup (pin);
 
@@ -781,6 +795,7 @@ void Key_Init (void) {
  * @brief 进入低功耗：停止 1ms 定时器。
  */
 void Key_EnterSleep (void) {
+    Encoder_EnterSleep();
     if (s_timer_active)
         StopTimer1ms();
 }
@@ -789,6 +804,7 @@ void Key_EnterSleep (void) {
  * @brief 退出低功耗：启动 1ms 定时器。
  */
 void Key_ExitSleep (void) {
+    Encoder_ExitSleep();
     if (!s_timer_active)
         StartTimer1ms();
 }
