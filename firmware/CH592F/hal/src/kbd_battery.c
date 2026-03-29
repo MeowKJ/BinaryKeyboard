@@ -18,6 +18,7 @@
 
 #include "kbd_battery.h"
 #include "kbd_config.h"
+#include "ble_config.h"
 #include "debug.h"
 
 #define TAG "BAT"
