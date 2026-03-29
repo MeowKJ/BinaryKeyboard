@@ -186,14 +186,14 @@ typedef struct
 #define KBD_K1_PORT GPIO_PORT_B
 #define KBD_K1_PIN GPIO_Pin_7
 
-#define KBD_K2_PORT GPIO_PORT_B
+#define KBD_K2_PORT GPIO_PORT_A
 #define KBD_K2_PIN GPIO_Pin_12
 
-#define KBD_K3_PORT GPIO_PORT_A
-#define KBD_K3_PIN GPIO_Pin_8
+#define KBD_K3_PORT GPIO_PORT_B
+#define KBD_K3_PIN GPIO_Pin_12
 
 #define KBD_K4_PORT GPIO_PORT_A
-#define KBD_K4_PIN GPIO_Pin_12
+#define KBD_K4_PIN GPIO_Pin_8
 
 /* 旋钮编码器引脚 */
 #define KBD_ENCODER_A_PORT GPIO_PORT_B

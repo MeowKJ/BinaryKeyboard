@@ -309,12 +309,12 @@ uint8_t physical = KBD_GetPhysicalKeyCount();  // 5 / 4
 #ifdef KBD_LAYOUT_KNOB
 #define KBD_K1_PORT GPIO_PORT_B
 #define KBD_K1_PIN  GPIO_Pin_7
-#define KBD_K2_PORT GPIO_PORT_B
+#define KBD_K2_PORT GPIO_PORT_A
 #define KBD_K2_PIN  GPIO_Pin_12
-#define KBD_K3_PORT GPIO_PORT_A
-#define KBD_K3_PIN  GPIO_Pin_8
+#define KBD_K3_PORT GPIO_PORT_B
+#define KBD_K3_PIN  GPIO_Pin_12
 #define KBD_K4_PORT GPIO_PORT_A
-#define KBD_K4_PIN  GPIO_Pin_12
+#define KBD_K4_PIN  GPIO_Pin_8
 #define KBD_ENCODER_A_PORT  GPIO_PORT_B
 #define KBD_ENCODER_A_PIN   GPIO_Pin_14
 #define KBD_ENCODER_B_PORT  GPIO_PORT_B
