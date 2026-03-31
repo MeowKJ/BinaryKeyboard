@@ -1,25 +1,23 @@
-component BigButton inherits Rectangle {
+import { ScrollView } from "std-widgets.slint";
+
+component ActionButton inherits Rectangle {
     in property <string> label;
-    in property <brush> accent: #2e8b57;
+    in property <brush> accent: #7d5f4b;
     in property <bool> enabled: true;
     callback clicked;
 
-    height: 44px;
-    border-radius: 14px;
+    border-radius: 22px;
     background: touch.pressed && root.enabled
-        ? root.accent.darker(0.25)
+        ? root.accent.darker(0.18)
         : touch.has-hover && root.enabled
-            ? root.accent.darker(0.1)
+            ? root.accent.darker(0.06)
             : root.accent;
-    opacity: root.enabled ? 1.0 : 0.35;
-    drop-shadow-blur: root.enabled && touch.has-hover ? 10px : 0px;
-    drop-shadow-color: root.accent.with-alpha(0.3);
-    drop-shadow-offset-y: root.enabled && touch.has-hover ? 3px : 0px;
+    opacity: root.enabled ? 1.0 : 0.38;
+    border-width: 1px;
+    border-color: root.accent.darker(0.18);
 
     animate background { duration: 120ms; easing: ease; }
-    animate opacity { duration: 200ms; }
-    animate drop-shadow-blur { duration: 200ms; easing: ease-out; }
-    animate drop-shadow-offset-y { duration: 200ms; easing: ease-out; }
+    animate opacity { duration: 160ms; }
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -29,31 +27,34 @@ component BigButton inherits Rectangle {
 
     Text {
         text: root.label;
-        color: #fffaf6;
-        font-size: 15px;
-        font-weight: 800;
+        color: #fffaf4;
+        font-size: 17px;
+        font-weight: 900;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
 }
 
-component SmallButton inherits Rectangle {
+component MiniButton inherits Rectangle {
     in property <string> label;
-    in property <brush> accent: #3d2b1f;
+    in property <brush> accent: #ffffff;
+    in property <brush> text-color: #3d3026;
     in property <bool> enabled: true;
     callback clicked;
 
-    height: 28px;
-    border-radius: 10px;
+    height: 34px;
+    border-radius: 15px;
     background: touch.pressed && root.enabled
-        ? root.accent.darker(0.25)
+        ? root.accent.darker(0.08)
         : touch.has-hover && root.enabled
-            ? root.accent.darker(0.1)
+            ? root.accent.darker(0.03)
             : root.accent;
-    opacity: root.enabled ? 1.0 : 0.35;
+    opacity: root.enabled ? 1.0 : 0.38;
+    border-width: 1px;
+    border-color: root.accent.darker(0.16);
 
     animate background { duration: 120ms; easing: ease; }
-    animate opacity { duration: 200ms; }
+    animate opacity { duration: 160ms; }
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -63,9 +64,9 @@ component SmallButton inherits Rectangle {
 
     Text {
         text: root.label;
-        color: #fffaf6;
-        font-size: 11px;
-        font-weight: 700;
+        color: root.text-color;
+        font-size: 12px;
+        font-weight: 800;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -74,23 +75,22 @@ component SmallButton inherits Rectangle {
 component IconButton inherits Rectangle {
     in property <string> icon: "⧉";
     in property <bool> enabled: true;
+    in property <bool> framed: false;
     callback clicked;
 
-    width: 24px;
-    height: 24px;
-    border-radius: 8px;
-    background: touch.pressed && root.enabled
-        ? #e6ddd4
-        : touch.has-hover && root.enabled
-            ? #f2ebe3
-            : transparent;
-    border-width: 1px;
-    border-color: touch.has-hover && root.enabled ? #dbcab8 : transparent;
-    opacity: root.enabled ? 1.0 : 0.35;
-
-    animate background { duration: 120ms; easing: ease; }
-    animate border-color { duration: 120ms; easing: ease; }
-    animate opacity { duration: 200ms; }
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    background: root.framed
+        ? touch.pressed && root.enabled
+            ? #efe3d5
+            : touch.has-hover && root.enabled
+                ? #f8efe7
+                : transparent
+        : transparent;
+    border-width: root.framed ? 1px : 0px;
+    border-color: root.framed && touch.has-hover && root.enabled ? #d8c2af : transparent;
+    opacity: root.enabled ? 1.0 : 0.38;
 
     touch := TouchArea {
         enabled: root.enabled;
@@ -101,7 +101,7 @@ component IconButton inherits Rectangle {
     Text {
         text: root.icon;
         color: #70584b;
-        font-size: 12px;
+        font-size: 14px;
         font-weight: 800;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -109,17 +109,28 @@ component IconButton inherits Rectangle {
 }
 
 export component AppWindow inherits Window {
+    in-out property <string> ui-font-family: "";
+    in-out property <string> brand-font-family: "";
     in-out property <int> cat-mood: 0;
-    in-out property <string> chip-name: "未识别";
-    in-out property <string> chip-category: "等待连接";
+    // 固件目标芯片信息（由固件文件名解析）
+    in-out property <string> chip-name: "";
+    in-out property <string> chip-category: "";
     in-out property <string> chip-family: "";
-    in-out property <string> firmware-name: "未选择";
-    in-out property <string> firmware-path: "";
+    in-out property <string> chip-detail: "";
+    // 实际连接设备信息（由 USB 探测）
+    in-out property <bool> device-connected: false;
+    in-out property <string> device-name: "待连接设备";
+    in-out property <string> device-category: "待连接";
+    in-out property <string> device-family: "";
+    in-out property <string> firmware-name: "未选择固件";
+    in-out property <string> firmware-badge: "";
+    in-out property <string> firmware-summary: "";
+    in-out property <string> firmware-detail: "";
     in-out property <bool> has-firmware: false;
     in-out property <bool> busy: false;
     in-out property <string> log-title: "准备就绪";
     in-out property <string> log-text: "欢迎使用 MeowISP~";
-    in-out property <string> status-text: "Ready";
+    in-out property <string> status-text: "准备就绪";
     in-out property <bool> show-permission-bar: false;
     in-out property <bool> udev-installed: false;
     in-out property <bool> progress-visible: false;
@@ -128,8 +139,21 @@ export component AppWindow inherits Window {
     in-out property <bool> show-success: false;
     in-out property <string> success-title: "刷写完成";
     in-out property <string> success-text: "";
+    in-out property <image> success-animation-image;
+    in-out property <bool> show-error: false;
+    in-out property <string> error-title: "操作失败";
+    in-out property <string> error-text: "";
+    in-out property <bool> online-sheet-visible: false;
+    in-out property <bool> online-loading: false;
+    in-out property <string> online-status: "";
+    in-out property <[string]> online-options: [];
+    in-out property <[string]> online-subtitles: [];
 
     callback request-pick-bin();
+    callback request-open-online();
+    callback request-refresh-online();
+    callback request-close-online();
+    callback request-select-online(int);
     callback request-flash-bin();
     callback request-verify-bin();
     callback request-erase-code();
@@ -138,396 +162,483 @@ export component AppWindow inherits Window {
     callback request-remove-permission();
     callback request-copy-log();
     callback request-dismiss-success();
+    callback request-dismiss-error();
 
     title: "MeowISP";
-    width: 392px;
-    height: 520px;
-    background: #f5efe7;
+    width: 430px;
+    height: root.show-permission-bar ? 450px : 410px;
+    background: #f8f1e8;
+    default-font-family: root.ui-font-family;
 
     Rectangle {
         width: 100%;
         height: 100%;
-        background: @linear-gradient(165deg, #f7f1e9 0%, #f0e6da 50%, #f8f4ef 100%);
+        background: @linear-gradient(180deg, #faf4ec 0%, #f2e7d8 100%);
 
         VerticalLayout {
-            padding: 10px;
-            spacing: 8px;
+            padding: 14px;
+            spacing: 6px;
 
+            // ── HEADER ──────────────────────────────────────────────────
             Rectangle {
-                height: 86px;
-                border-radius: 18px;
-                background: @linear-gradient(135deg, #ffd4a8 0%, #ffb88c 45%, #ffc9a8 100%);
-                drop-shadow-blur: 8px;
-                drop-shadow-color: #d4a07018;
-                drop-shadow-offset-y: 2px;
-
-                VerticalLayout {
-                    padding: 10px;
-                    spacing: 6px;
-
-                    HorizontalLayout {
-                        spacing: 8px;
-
-                        Rectangle {
-                            width: 32px;
-                            height: 32px;
-
-                            Image {
-                                source: root.cat-mood == 1
-                                    ? @image-url("../../../assets/cat_face_3d.png")
-                                    : root.cat-mood == 2
-                                        ? @image-url("../../../assets/smiling_cat_with_heart-eyes_3d.png")
-                                        : root.cat-mood == 3
-                                            ? @image-url("../../../assets/crying_cat_3d.png")
-                                            : @image-url("../../../assets/grinning_cat_3d.png");
-                                width: cat-touch.has-hover ? 34px : 30px;
-                                height: cat-touch.has-hover ? 34px : 30px;
-
-                                animate width { duration: 200ms; easing: ease-out; }
-                                animate height { duration: 200ms; easing: ease-out; }
-
-                                cat-touch := TouchArea {
-                                    mouse-cursor: pointer;
-                                }
-                            }
-                        }
-
-                        Text {
-                            text: "MeowISP";
-                            color: #2b1810;
-                            font-size: 19px;
-                            font-weight: 900;
-                            vertical-alignment: center;
-                            horizontal-stretch: 1;
-                        }
-
-                        Rectangle {
-                            height: 22px;
-                            min-width: 54px;
-                            border-radius: 11px;
-                            background: root.busy ? #7b5d4f : #f7ede1;
-                            border-width: root.busy ? 0px : 1px;
-                            border-color: #e2c4ad;
-
-                            HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 8px;
-                                alignment: center;
-
-                                Text {
-                                    text: root.busy ? "处理中" : root.status-text;
-                                    color: root.busy ? #fff7f0 : #85593d;
-                                    font-size: 10px;
-                                    font-weight: 700;
-                                }
-                            }
-                        }
-                    }
-
-                    HorizontalLayout {
-                        alignment: center;
-                        spacing: 6px;
-
-                        Rectangle {
-                            height: 24px;
-                            min-width: 68px;
-                            border-radius: 12px;
-                            background: root.chip-category == "有线款" ? #2f8f5b
-                                : root.chip-category == "无线款" ? #4576d6
-                                : root.chip-category == "其他 WCH" ? #7c6ac8
-                                : #c8b8a8;
-
-                            HorizontalLayout {
-                                padding-left: 10px;
-                                padding-right: 10px;
-                                alignment: center;
-
-                                Text {
-                                    text: root.chip-category;
-                                    color: white;
-                                    font-size: 10px;
-                                    font-weight: 800;
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            height: 24px;
-                            min-width: 58px;
-                            border-radius: 12px;
-                            background: #fff5eb;
-                            border-width: 1px;
-                            border-color: #e9cdb4;
-
-                            HorizontalLayout {
-                                padding-left: 10px;
-                                padding-right: 10px;
-                                alignment: center;
-
-                                Text {
-                                    text: root.chip-name;
-                                    color: #704936;
-                                    font-size: 10px;
-                                    font-weight: 800;
-                                }
-                            }
-                        }
-                    }
-
-                    Text {
-                        text: root.chip-family != "" ? root.chip-family : "BinaryKeyboard first-flash companion";
-                        color: #775548;
-                        font-size: 10px;
-                        horizontal-alignment: center;
-                    }
-                }
-            }
-
-            if root.show-permission-bar: Rectangle {
-                height: 30px;
-                border-radius: 10px;
-                background: #fff0e0;
+                height: 62px;
+                border-radius: 22px;
+                background: @linear-gradient(135deg, #ffd5b0 0%, #ffba95 50%, #ffc8a8 100%);
                 border-width: 1px;
-                border-color: #f0c080;
+                border-color: #f0b48d;
 
                 HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 6px;
-                    spacing: 6px;
+                    padding: 12px;
+                    spacing: 10px;
 
-                    Text {
-                        text: "USB 权限未配置";
-                        color: #8a5a20;
-                        font-size: 10px;
-                        font-weight: 600;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
+                    Rectangle {
+                        width: 36px;
+                        height: 36px;
+
+                        Image {
+                            source: root.cat-mood == 1
+                                ? @image-url("../../../assets/cat_face_3d.png")
+                                : root.cat-mood == 2
+                                    ? @image-url("../../../assets/smiling_cat_with_heart-eyes_3d.png")
+                                    : root.cat-mood == 3
+                                        ? @image-url("../../../assets/crying_cat_3d.png")
+                                        : @image-url("../../../assets/grinning_cat_3d.png");
+                            width: 36px;
+                            height: 36px;
+                        }
                     }
 
-                    SmallButton {
-                        width: 80px;
-                        label: "自动配置";
-                        accent: #d48030;
-                        clicked => { root.request-fix-permission(); }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        background: transparent;
+
+                        Text {
+                            x: 0px;
+                            y: (parent.height - self.height) / 2 + 2px;
+                            text: "MeowISP";
+                            color: #241914;
+                            font-family: root.brand-font-family;
+                            font-size: 25px;
+                            font-weight: 700;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: 80px;
+                            height: 30px;
+                            border-radius: 15px;
+                            background: root.busy ? #6a5547
+                                : root.device-category == "有线款" ? #dff0db
+                                : root.device-category == "无线款" ? #dce8fb
+                                : root.device-category == "其他" ? #ece1fb
+                                : #fff5ea;
+                            border-width: 1px;
+                            border-color: root.busy ? #6a5547 : #e5c9b1;
+
+                            Text {
+                                text: root.busy ? "处理中" : root.device-category;
+                                color: root.busy ? #fff8f2 : #6f513f;
+                                font-size: 11px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
                     }
                 }
             }
 
+            // ── CHIP CARD (水平单行: 名字左 · family 右) ─────────────────
             Rectangle {
-                height: 54px;
-                border-radius: 14px;
-                background: #fff8f1;
+                height: 48px;
+                border-radius: 18px;
+                background: #fffaf6;
                 border-width: 1px;
-                border-color: #eddccd;
+                border-color: #e7d8ca;
+
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 8px;
+
+                    Text {
+                        text: root.device-name;
+                        color: #2a201b;
+                        font-size: 15px;
+                        font-weight: 900;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.device-family;
+                        color: #8f7767;
+                        font-size: 10px;
+                        font-weight: 700;
+                        horizontal-stretch: 1;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+            }
+
+            // ── FIRMWARE ROW (解析信息左 · 两按钮横排右) ─────────────────
+            Rectangle {
+                height: 68px;
+                border-radius: 22px;
+                background: #f3eeff;
+                border-width: 1px;
+                border-color: #ddd5f5;
+
+                HorizontalLayout {
+                    padding: 12px;
+                    spacing: 10px;
+
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        spacing: 4px;
+
+                        Text {
+                            text: root.has-firmware ? root.firmware-name : "未选择固件";
+                            color: #2b2150;
+                            font-size: 14px;
+                            font-weight: 900;
+                            overflow: elide;
+                        }
+
+                        if root.chip-name != "" || root.chip-family != "": Text {
+                            text: root.chip-name != "" && root.chip-family != ""
+                                ? root.chip-name + "  ·  " + root.chip-family
+                                : root.chip-name != ""
+                                    ? root.chip-name
+                                    : root.chip-family;
+                            color: #8b7bb0;
+                            font-size: 10px;
+                            font-weight: 700;
+                            overflow: elide;
+                        }
+                    }
+
+                    VerticalLayout {
+                        alignment: center;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+
+                            MiniButton {
+                                width: 84px;
+                                label: "本地 BIN";
+                                accent: #6c55a0;
+                                text-color: #fffaf6;
+                                enabled: !root.busy;
+                                clicked => { root.request-pick-bin(); }
+                            }
+
+                            MiniButton {
+                                width: 84px;
+                                label: "在线选择";
+                                accent: #f0ebff;
+                                text-color: #5c4389;
+                                enabled: !root.busy;
+                                clicked => { root.request-open-online(); }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── PERMISSION BAR (Linux only, conditional) ─────────────────
+            if root.show-permission-bar: Rectangle {
+                height: 34px;
+                border-radius: 16px;
+                background: #fff1df;
+                border-width: 1px;
+                border-color: #efc88c;
 
                 HorizontalLayout {
                     padding-left: 10px;
                     padding-right: 8px;
                     spacing: 8px;
 
-                    VerticalLayout {
-                        alignment: center;
+                    Text {
+                        text: "USB 权限未配置";
+                        color: #88561f;
+                        font-size: 11px;
+                        font-weight: 700;
+                        vertical-alignment: center;
                         horizontal-stretch: 1;
+                    }
 
-                        Text {
-                            text: root.chip-name == "未识别" ? "等待设备或选择固件" : root.chip-name;
-                            color: #2e211d;
-                            font-size: 13px;
-                            font-weight: 800;
-                            overflow: elide;
-                        }
-
-                        Text {
-                            text: root.chip-category == "等待连接"
-                                ? "选择固件后可先显示目标芯片；刷写时会读取真实芯片信息"
-                                : root.chip-category + " · " + root.chip-family;
-                            color: #7a675d;
-                            font-size: 10px;
-                            overflow: elide;
-                        }
+                    MiniButton {
+                        width: 80px;
+                        label: "自动配置";
+                        accent: #d58d3a;
+                        text-color: #fffaf6;
+                        clicked => { root.request-fix-permission(); }
                     }
                 }
             }
 
+            // ── ACTION AREA ──────────────────────────────────────────────
             Rectangle {
-                height: 48px;
-                border-radius: 14px;
-                background: #f0ecff;
+                height: 116px;
+                background: transparent;
 
                 HorizontalLayout {
-                    padding-left: 10px;
-                    padding-right: 6px;
-                    spacing: 6px;
+                    spacing: 10px;
+
+                    ActionButton {
+                        horizontal-stretch: 1;
+                        label: "刷写";
+                        accent: #69be7a;
+                        enabled: !root.busy && root.device-connected && root.has-firmware;
+                        clicked => { root.request-flash-bin(); }
+                    }
 
                     VerticalLayout {
-                        alignment: center;
                         horizontal-stretch: 1;
+                        spacing: 7px;
 
-                        Text {
-                            text: root.has-firmware ? root.firmware-name : "未选择固件";
-                            color: #2a2050;
-                            font-size: 12px;
-                            font-weight: 700;
-                            overflow: elide;
+                        MiniButton {
+                            label: "校验";
+                            accent: #dae5ec;
+                            text-color: #435b68;
+                            enabled: !root.busy && root.device-connected && root.has-firmware;
+                            clicked => { root.request-verify-bin(); }
                         }
 
-                        if root.has-firmware: Text {
-                            text: root.firmware-path;
-                            color: #6d6190;
-                            font-size: 9px;
-                            overflow: elide;
+                        MiniButton {
+                            label: "清空 Codeflash";
+                            accent: #c67d49;
+                            text-color: #fffaf6;
+                            enabled: !root.busy && root.device-connected;
+                            clicked => { root.request-erase-code(); }
+                        }
+
+                        MiniButton {
+                            label: "清空 Dataflash";
+                            accent: #bf8c57;
+                            text-color: #fffaf6;
+                            enabled: !root.busy && root.device-connected;
+                            clicked => { root.request-erase-data(); }
                         }
                     }
-
-                    SmallButton {
-                        width: 72px;
-                        label: "选择 BIN";
-                        accent: #6b5098;
-                        enabled: !root.busy;
-                        clicked => { root.request-pick-bin(); }
-                    }
                 }
             }
 
-            HorizontalLayout {
-                spacing: 6px;
-
-                BigButton {
-                    horizontal-stretch: 3;
-                    label: "刷写固件";
-                    accent: #2e8b57;
-                    enabled: !root.busy && root.has-firmware;
-                    clicked => { root.request-flash-bin(); }
-                }
-
-                BigButton {
-                    horizontal-stretch: 2;
-                    label: "校验";
-                    accent: #3a7ca5;
-                    enabled: !root.busy && root.has-firmware;
-                    clicked => { root.request-verify-bin(); }
-                }
-            }
-
-            HorizontalLayout {
-                spacing: 6px;
-
-                SmallButton {
-                    horizontal-stretch: 1;
-                    label: "清 Code";
-                    accent: #c0784a;
-                    enabled: !root.busy;
-                    clicked => { root.request-erase-code(); }
-                }
-
-                SmallButton {
-                    horizontal-stretch: 1;
-                    label: "清 Data";
-                    accent: #b8885a;
-                    enabled: !root.busy;
-                    clicked => { root.request-erase-data(); }
-                }
-
-                if root.udev-installed: SmallButton {
-                    horizontal-stretch: 1;
-                    label: "清除权限";
-                    accent: #a05050;
-                    enabled: !root.busy;
-                    clicked => { root.request-remove-permission(); }
-                }
-            }
-
+            // ── PROGRESS / STATUS AREA ───────────────────────────────────
             Rectangle {
-                vertical-stretch: 1;
-                border-radius: 16px;
+                height: 64px;
+                border-radius: 22px;
                 background: #fffaf6;
-                drop-shadow-blur: 4px;
-                drop-shadow-color: #00000006;
-                drop-shadow-offset-y: 1px;
+                border-width: 1px;
+                border-color: #e5d6c8;
 
                 VerticalLayout {
-                    padding: 10px;
-                    spacing: 6px;
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    padding-top: 10px;
+                    padding-bottom: 10px;
+                    spacing: 4px;
 
+                    // 标题行
                     HorizontalLayout {
-                        spacing: 5px;
-
-                        Image {
-                            source: root.cat-mood == 2
-                                ? @image-url("../../../assets/smiling_cat_with_heart-eyes_3d.png")
-                                : root.cat-mood == 3
-                                    ? @image-url("../../../assets/crying_cat_3d.png")
-                                    : root.cat-mood == 1
-                                        ? @image-url("../../../assets/cat_face_3d.png")
-                                        : @image-url("../../../assets/grinning_cat_3d.png");
-                            width: 16px;
-                            height: 16px;
-                        }
+                        spacing: 6px;
 
                         Text {
-                            text: "活动";
-                            color: #2e211d;
-                            font-size: 13px;
-                            font-weight: 800;
-                            vertical-alignment: center;
+                            text: root.progress-label;
+                            color: #2a201b;
+                            font-size: 12px;
+                            font-weight: 900;
                             horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        if root.progress-visible || root.progress-value > 0: Text {
+                            text: root.progress-value + "%";
+                            color: #8a7465;
+                            font-size: 11px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // 单一进度条：根据当前流程显示加载 / 识别 / 下载 / 刷写 / 校验等状态
+                    Rectangle {
+                        height: 7px;
+                        border-radius: 3.5px;
+                        background: #e4ede5;
+
+                        Rectangle {
+                            x: 0px;
+                            width: parent.width * root.progress-value / 100;
+                            height: parent.height;
+                            border-radius: 3.5px;
+                            background: @linear-gradient(90deg, #7ec47f 0%, #4aab6d 100%);
+                            animate width { duration: 180ms; easing: ease; }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── ONLINE SHEET OVERLAY ─────────────────────────────────────────
+        if root.online-sheet-visible: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #1e150faa;
+
+            Rectangle {
+                x: 20px;
+                y: 28px;
+                width: parent.width - 40px;
+                height: parent.height - 56px;
+                border-radius: 24px;
+                background: #faf5f0;
+                border-width: 1px;
+                border-color: #e3d3c5;
+
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 0px;
+
+                    // Header
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "在线固件";
+                            color: #2a201b;
+                            font-size: 17px;
+                            font-weight: 900;
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+
+                        if root.online-status != "": Text {
+                            text: root.online-status;
+                            color: #a08878;
+                            font-size: 10px;
+                            font-weight: 600;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
                         }
 
                         IconButton {
-                            icon: "⧉";
-                            enabled: root.log-text != "";
-                            clicked => { root.request-copy-log(); }
+                            icon: "↺";
+                            enabled: !root.online-loading;
+                            clicked => { root.request-refresh-online(); }
+                        }
+
+                        IconButton {
+                            icon: "X";
+                            clicked => { root.request-close-online(); }
                         }
                     }
 
-                    Text {
-                        text: root.progress-visible ? root.progress-label : root.log-title;
-                        color: #5b473c;
-                        font-size: 11px;
-                        font-weight: 700;
-                    }
-
+                    // Divider
                     Rectangle {
-                        height: 8px;
-                        border-radius: 4px;
-                        background: #efe4d8;
-
-                        Rectangle {
-                            width: parent.width * root.progress-value / 100;
-                            height: parent.height;
-                            border-radius: 4px;
-                            background: @linear-gradient(90deg, #ffb37c 0%, #ff8f67 100%);
-                        }
-                    }
-
-                    Text {
-                        text: root.progress-visible ? root.progress-value + "%" : "点击按钮开始操作，终端会同步输出底层 wchisp 调试日志。";
-                        color: #8b7769;
-                        font-size: 10px;
+                        height: 12px;
+                        background: transparent;
                     }
 
                     Rectangle {
                         height: 1px;
-                        background: #e8d8ca;
+                        background: #e8d8cc;
                     }
 
-                    Flickable {
+                    Rectangle {
+                        height: 8px;
+                        background: transparent;
+                    }
+
+                    if root.online-loading: VerticalLayout {
+                        spacing: 0px;
+                        alignment: center;
+
+                        Text {
+                            text: "正在读取...";
+                            color: #9a7f6f;
+                            font-size: 12px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                        }
+                    }
+
+                    ScrollView {
                         vertical-stretch: 1;
+                        enabled: !root.online-loading;
 
                         Rectangle {
-                            width: parent.width;
-                            min-height: 128px;
-                            border-radius: 12px;
-                            background: #2b211d;
+                            width: parent.width - 4px;
+                            height: max(1px, 54px * root.online-options.length);
+                            background: transparent;
 
-                            Text {
-                                x: 10px;
-                                y: 10px;
-                                width: parent.width - 20px;
-                                text: root.log-text;
-                                color: #f8efe8;
-                                font-size: 11px;
-                                wrap: word-wrap;
+                            for option[index] in root.online-options : Rectangle {
+                                x: 0px;
+                                y: index * 54px;
+                                width: parent.width;
+                                height: 48px;
+                                border-radius: 16px;
+                                background: option-touch.pressed ? #e8dff8
+                                    : option-touch.has-hover ? #f0eaff
+                                    : transparent;
+
+                                animate background { duration: 80ms; easing: ease; }
+
+                                option-touch := TouchArea {
+                                    clicked => { root.request-select-online(index); }
+                                    mouse-cursor: pointer;
+                                }
+
+                                HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    spacing: 8px;
+
+                                    // 左侧色块
+                                    Rectangle {
+                                        width: 4px;
+                                        height: 28px;
+                                        border-radius: 2px;
+                                        background: #9b82d4;
+                                        y: (parent.height - self.height) / 2;
+                                    }
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 3px;
+
+                                        Text {
+                                            text: option;
+                                            color: #2b1e46;
+                                            font-size: 12px;
+                                            font-weight: 900;
+                                            overflow: elide;
+                                        }
+
+                                        Text {
+                                            text: root.online-subtitles[index];
+                                            color: #8a7aaa;
+                                            font-size: 10px;
+                                            font-weight: 600;
+                                            overflow: elide;
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "›";
+                                        color: #c4b0e8;
+                                        font-size: 18px;
+                                        font-weight: 900;
+                                        vertical-alignment: center;
+                                    }
+                                }
                             }
                         }
                     }
@@ -535,6 +646,7 @@ export component AppWindow inherits Window {
             }
         }
 
+        // ── SUCCESS OVERLAY ──────────────────────────────────────────────
         if root.show-success: Rectangle {
             width: 100%;
             height: 100%;
@@ -543,24 +655,30 @@ export component AppWindow inherits Window {
             Rectangle {
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                width: 250px;
-                height: 240px;
-                border-radius: 22px;
+                width: 280px;
+                height: 280px;
+                border-radius: 28px;
                 background: #fff7f0;
-                drop-shadow-blur: 18px;
-                drop-shadow-color: #00000020;
-                drop-shadow-offset-y: 8px;
+                border-width: 1px;
+                border-color: #ead7c8;
 
                 VerticalLayout {
-                    padding: 18px;
-                    spacing: 10px;
+                    padding: 24px;
+                    spacing: 0px;
                     alignment: center;
 
-                    Image {
-                        source: @image-url("../../../assets/smiling_cat_with_heart-eyes_3d.png");
-                        width: 56px;
-                        height: 56px;
+                    // 猫猫动图居中
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Image {
+                            source: root.success-animation-image;
+                            width: 80px;
+                            height: 80px;
+                        }
                     }
+
+                    Rectangle { height: 14px; }
 
                     Text {
                         text: root.success-title;
@@ -570,25 +688,112 @@ export component AppWindow inherits Window {
                         horizontal-alignment: center;
                     }
 
+                    Rectangle { height: 6px; }
+
                     Text {
                         text: root.success-text;
-                        color: #735c4d;
+                        color: #9a7e6e;
                         font-size: 11px;
                         wrap: word-wrap;
                         horizontal-alignment: center;
                     }
 
-                    Rectangle {
-                        height: 1px;
-                        background: #ead7c8;
-                    }
+                    Rectangle { height: 10px; }
 
-                    BigButton {
+                    ActionButton {
                         width: 100%;
+                        height: 42px;
                         label: "太好了";
                         accent: #2f8f5b;
                         clicked => { root.request-dismiss-success(); }
                     }
+
+                    Rectangle { height: 12px; }
+                }
+            }
+        }
+
+        // ── ERROR OVERLAY ────────────────────────────────────────────────
+        if root.show-error: Rectangle {
+            width: 100%;
+            height: 100%;
+            background: #2a1711b8;
+
+            Rectangle {
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                width: 300px;
+                height: 300px;
+                border-radius: 28px;
+                background: #fff6f1;
+                border-width: 1px;
+                border-color: #ead3ca;
+
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 0px;
+                    alignment: center;
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Image {
+                            source: @image-url("../../../assets/crying_cat_3d.png");
+                            width: 80px;
+                            height: 80px;
+                        }
+                    }
+
+                    Rectangle { height: 14px; }
+
+                    Text {
+                        text: root.error-title;
+                        color: #37231d;
+                        font-size: 20px;
+                        font-weight: 900;
+                        horizontal-alignment: center;
+                    }
+
+                    Rectangle { height: 6px; }
+
+                    Rectangle {
+                        height: 48px;
+                        background: transparent;
+
+                        Text {
+                            text: root.error-text;
+                            color: #8a6d62;
+                            font-size: 11px;
+                            wrap: word-wrap;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle { height: 10px; }
+
+                    HorizontalLayout {
+                        spacing: 10px;
+
+                        MiniButton {
+                            horizontal-stretch: 1;
+                            height: 40px;
+                            label: "复制错误信息";
+                            accent: #f4e7dd;
+                            text-color: #6f4d40;
+                            clicked => { root.request-copy-log(); }
+                        }
+
+                        ActionButton {
+                            horizontal-stretch: 1;
+                            height: 40px;
+                            label: "关闭";
+                            accent: #8d6555;
+                            clicked => { root.request-dismiss-error(); }
+                        }
+                    }
+
+                    Rectangle { height: 12px; }
                 }
             }
         }

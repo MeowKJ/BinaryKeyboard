@@ -118,6 +118,19 @@ fn debug_line(message: impl AsRef<str>) {
     eprintln!("[meowisp] {}", message.as_ref());
 }
 
+fn stage_progress(done: usize, total: usize, start: i32, end: i32) -> i32 {
+    if total == 0 {
+        return end;
+    }
+    let ratio = done as f64 / total as f64;
+    let span = (end - start) as f64;
+    (start as f64 + span * ratio).round() as i32
+}
+
+fn byte_progress_label(prefix: &str, done: usize, total: usize) -> String {
+    format!("{prefix} {done}/{total}")
+}
+
 fn format_error_chain(err: &Error) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "error: {err}");
@@ -205,18 +218,26 @@ where
         .map_err(|e| map_wchisp_error("flash/erase_code", "擦除失败", e))?;
     sleep(Duration::from_secs(1));
     debug_line("flash: program");
-    progress("写入固件", 60);
+    let program_label = byte_progress_label("写入固件", 0, data.len());
+    progress(&program_label, 32);
     flashing
-        .flash(&data)
+        .flash_with_callback(&data, |done, total| {
+            let label = byte_progress_label("写入固件", done, total);
+            progress(&label, stage_progress(done, total, 32, 78));
+        })
         .map_err(|e| map_wchisp_error("flash/program", "刷写失败", e))?;
     sleep(Duration::from_millis(500));
     debug_line("flash: verify");
-    progress("校验固件", 86);
+    let verify_label = byte_progress_label("校验固件", 0, data.len());
+    progress(&verify_label, 80);
     flashing
-        .verify(&data)
+        .verify_with_callback(&data, |done, total| {
+            let label = byte_progress_label("校验固件", done, total);
+            progress(&label, stage_progress(done, total, 80, 96));
+        })
         .map_err(|e| map_wchisp_error("flash/verify", "校验失败", e))?;
     debug_line("flash: reset");
-    progress("重启设备", 96);
+    progress("重启设备", 98);
     let _ = flashing.reset();
     progress("刷写完成", 100);
 
@@ -224,7 +245,7 @@ where
         result: OpResult {
             summary: format!("已刷写 {}", firmware_path.display()),
             detail: format!(
-                "芯片: {}\n固件大小: {} 字节\n已擦除 {} 扇区\n刷写并校验完成",
+                "芯片: {}\n固件大小: {} 字节\n已擦除 {} 扇区",
                 chip_info.name,
                 data.len(),
                 sectors
@@ -258,9 +279,13 @@ where
     log_chip_context("verify", &flashing);
     let chip_info = chip_info_from_chip(&flashing.chip);
     debug_line("verify: compare");
-    progress("校验中", 72);
+    let verify_label = byte_progress_label("校验中", 0, data.len());
+    progress(&verify_label, 30);
     flashing
-        .verify(&data)
+        .verify_with_callback(&data, |done, total| {
+            let label = byte_progress_label("校验中", done, total);
+            progress(&label, stage_progress(done, total, 30, 100));
+        })
         .map_err(|e| map_wchisp_error("verify/compare", "校验失败", e))?;
     progress("校验完成", 100);
 

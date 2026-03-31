@@ -8,4 +8,6 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
-wchisp = "0.3"
+serde = { version = "1", features = ["derive"] }
+ureq = { version = "2.10", features = ["json"] }
+wchisp = { path = "../../vendor-wchisp" }
