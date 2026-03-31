@@ -1,0 +1,15 @@
+[package]
+name = "meowisp"
+version = "0.1.0"
+edition = "2021"
+default-run = "meowisp"
+build = "build.rs"
+
+[dependencies]
+arboard = "3.6"
+meowisp-core = { path = "../meowisp-core" }
+rfd = "0.15"
+slint = { version = "1.8", default-features = true }
+
+[build-dependencies]
+slint-build = "1.8"
