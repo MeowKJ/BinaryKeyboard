@@ -339,7 +339,7 @@ export component AppWindow inherits Window {
                         }
 
                         Text {
-                            text: root.chip-category == "等待检测" ? "设备接入后会自动识别一次，也可手动重试" : root.chip-category + " · " + root.chip-family;
+                            text: root.chip-category == "等待检测" ? "设备接入后可手动识别，也可直接刷写" : root.chip-category + " · " + root.chip-family;
                             color: #7a675d;
                             font-size: 10px;
                             overflow: elide;
@@ -348,9 +348,9 @@ export component AppWindow inherits Window {
 
                     SmallButton {
                         width: 82px;
-                        label: root.chip-category == "等待检测" || root.chip-category == "正在识别芯片" ? "识别中" : "重新识别";
+                        label: root.chip-category == "等待检测" ? "识别芯片" : "重新识别";
                         accent: #3d2b1f;
-                        enabled: !root.busy && root.chip-category != "正在识别芯片";
+                        enabled: !root.busy;
                         clicked => { root.request-detect-chip(); }
                     }
                 }
