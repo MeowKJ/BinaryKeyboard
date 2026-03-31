@@ -21,9 +21,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  compute-versions:
+    name: Compute release versions
+    runs-on: ubuntu-latest
+    outputs:
+      ch592_version: ${{ steps.ver.outputs.ch592_version }}
+      ch592_patch: ${{ steps.ver.outputs.ch592_patch }}
+      ch552_version: ${{ steps.ver.outputs.ch552_version }}
+      ch552_patch: ${{ steps.ver.outputs.ch552_patch }}
+      studio_version: ${{ steps.ver.outputs.studio_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Compute
+        id: ver
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PY="import sys; sys.path.insert(0,'tools/scripts')"
+          CH592=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH592F'))")
+          CH552=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH552G'))")
+          STUDIO=$(python3 -c "$PY; from versioning import studio_version; print(studio_version())")
+          echo "ch592_version=$CH592" >> "$GITHUB_OUTPUT"
+          echo "ch592_patch=${CH592##*.}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=$CH552" >> "$GITHUB_OUTPUT"
+          echo "ch552_patch=${CH552##*.}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=$STUDIO" >> "$GITHUB_OUTPUT"
+
   build-ch592f:
     name: Package CH592F (${{ matrix.keyboard }})
     runs-on: ubuntu-latest
+    needs: [compute-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +82,9 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build (bootloader + app + merge)
-        run: python3 tools/scripts/ch592f.py build-full --keyboard ${{ matrix.keyboard }} --profile release
+        env:
+          BK_BUILD_NUMBER: ${{ needs.compute-versions.outputs.ch592_patch }}
+        run: python3 tools/scripts/ch592f.py build-full --keyboard ${{ matrix.keyboard }} --profile release --build-number "$BK_BUILD_NUMBER"
 
       - name: Resolve artifacts
         id: artifacts
@@ -81,6 +113,7 @@ jobs:
   build-ch552g:
     name: Package CH552G (${{ matrix.keyboard }})
     runs-on: ubuntu-latest
+    needs: [compute-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -106,13 +139,14 @@ jobs:
           sudo apt-get install -y ninja-build
 
       - name: Build
-        run: python3 tools/scripts/ch552g.py build --keyboard ${{ matrix.keyboard }}
+        env:
+          BK_BUILD_NUMBER: ${{ needs.compute-versions.outputs.ch552_patch }}
+        run: python3 tools/scripts/ch552g.py build --keyboard ${{ matrix.keyboard }} --build-number "$BK_BUILD_NUMBER"
 
       - name: Resolve artifacts
         id: artifacts
         run: |
           echo "hex=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type hex)" >> "$GITHUB_OUTPUT"
-          echo "bin=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type bin)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -120,7 +154,6 @@ jobs:
           name: release-ch552g-${{ matrix.keyboard }}-${{ github.sha }}
           path: |
             ${{ steps.artifacts.outputs.hex }}
-            ${{ steps.artifacts.outputs.bin }}
           retention-days: 7
 
       - name: Emit size report
@@ -165,6 +198,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs:
+      - compute-versions
       - build-ch592f
       - build-ch552g
       - build-studio
@@ -194,6 +228,8 @@ jobs:
 
       - name: Generate version tag
         id: version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
@@ -204,17 +240,14 @@ jobs:
             | grep -Fvx "$TAG" \
             | grep -Ev "^${TAG}-[0-9a-f]+$" \
             | head -n 1 || true)
-          STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
-          CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
-          CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
-          echo "studio_version=${STUDIO_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ch592_version=${CH592_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ch552_version=${CH552_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=${{ needs.compute-versions.outputs.studio_version }}" >> "$GITHUB_OUTPUT"
+          echo "ch592_version=${{ needs.compute-versions.outputs.ch592_version }}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=${{ needs.compute-versions.outputs.ch552_version }}" >> "$GITHUB_OUTPUT"
 
       - name: Clean same-day releases and tags
         env:
@@ -289,17 +322,6 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 🖥️ Studio 桌面版"
-            echo
-            echo "| 平台 | 架构 | 格式 |"
-            echo "|:-----|:-----|:-----|"
-            echo "| macOS | Apple Silicon (arm64) | DMG |"
-            echo "| macOS | Intel (x64) | DMG |"
-            echo "| Windows | AMD64 / x64 | 便携式 EXE |"
-            echo "| Windows | ARM64 | 便携式 EXE |"
-            echo
-            echo "---"
-            echo
             echo "### 📦 固件文件"
             echo
             echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
@@ -348,19 +370,12 @@ jobs:
               kb_label = kb_labels.get(keyboard, keyboard)
 
               if chip == "CH592F":
-                  # .bin for OTA update
-                  bin_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.bin"))
-                  if bin_files:
-                      fname = bin_files[0].name
-                      desc = f"{chip_labels.get(chip, chip)} · {kb_label} · Studio 在线更新"
-                      order = (1, keyboard, 0)
-                      rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
-                  # -full.hex for ISP
+                  # -full.hex for ISP (app.bin is on Pages only, not in Release)
                   full_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*-full.hex"))
                   if full_files:
                       fname = full_files[0].name
                       desc = f"{chip_labels.get(chip, chip)} · {kb_label} · ⚡ 首次烧录 / 手动 ISP"
-                      order = (1, keyboard, 1)
+                      order = (1, keyboard, 0)
                       rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
               else:
                   # CH552G: .hex only
@@ -378,7 +393,7 @@ jobs:
           print()
           print("> [!TIP]")
           print("> **CH592F 无线版固件更新方式：**")
-          print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，自动下载 `.bin` 并通过 HID 刷写，无需任何工具")
+          print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，Studio 自动从更新站下载并刷写，无需任何文件")
           print("> - ⚡ **首次烧录 / 手动恢复**：下载 `-full.hex`（含 Bootloader），使用 ISP 工具烧入")
           PYEOF
 
@@ -486,7 +501,7 @@ jobs:
             echo "<details><summary>SHA-256 校验值</summary>"
             echo
             echo '```'
-            for f in dist/*.hex dist/*.bin; do
+            for f in dist/*.hex; do
               [ -f "$f" ] || continue
               sha256sum "$f" | sed 's|dist/||'
             done
@@ -575,6 +590,30 @@ jobs:
           Path("release-notes.md").write_text("\n\n".join(part for part in parts if part) + "\n")
           PYEOF
 
+      - name: Generate release manifest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/api
+          python3 tools/scripts/versioning.py emit-release-manifest \
+            --out dist/api/release-manifest.json
+
+      - name: Organize firmware for Pages
+        run: |
+          mkdir -p dist/firmware/ch592f dist/firmware/ch552g
+          cp dist/CH592F-*-app.bin dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH592F-*-full.hex dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH552G-*.hex dist/firmware/ch552g/ 2>/dev/null || true
+
+      - name: Upload pages-firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-firmware
+          retention-days: 90
+          path: |
+            dist/firmware/
+            dist/api/release-manifest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -583,7 +622,5 @@ jobs:
           body_path: release-notes.md
           prerelease: false
           files: |
-            dist/*.hex
-            dist/*.bin
-            dist/*.dmg
-            dist/*.exe
+            dist/CH592F-*-full.hex
+            dist/CH552G-*.hex

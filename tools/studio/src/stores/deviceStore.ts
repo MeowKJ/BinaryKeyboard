@@ -162,10 +162,25 @@ export const useDeviceStore = defineStore("device", () => {
     return deviceInfo.value.actualKeyCount;
   });
 
-  /** 固件版本字符串 */
+  /** 固件是否为本地 dev 构建 */
+  const isDevFirmware = computed(() => {
+    if (!deviceInfo.value) return false;
+    const { versionMajor: maj, versionMinor: min, versionPatch: pat } = deviceInfo.value;
+    return maj === 0 && min === 0 && pat === 0;
+  });
+
+  /** 固件版本字符串 (内部比较用: dev 或 x.y.z) */
   const firmwareVersion = computed(() => {
     if (!deviceInfo.value) return "0.0.0";
-    return `${deviceInfo.value.versionMajor}.${deviceInfo.value.versionMinor}.${deviceInfo.value.versionPatch}`;
+    if (isDevFirmware.value) return "dev";
+    const { versionMajor: maj, versionMinor: min, versionPatch: pat } = deviceInfo.value;
+    return `${maj}.${min}.${pat}`;
+  });
+
+  /** 固件版本显示文案 */
+  const firmwareVersionLabel = computed(() => {
+    if (!deviceInfo.value) return "v0.0.0";
+    return isDevFirmware.value ? "dev" : `v${firmwareVersion.value}`;
   });
 
   /** 当前层的按键列表 */
@@ -192,7 +207,7 @@ export const useDeviceStore = defineStore("device", () => {
       { key: "芯片家族", value: deviceInfo.value.chipFamily },
       { key: "型号名称", value: keyboardTypeName.value },
       { key: "按键数量", value: `${actualKeyCount.value} 键` },
-      { key: "固件版本", value: `v${firmwareVersion.value}` },
+      { key: "固件版本", value: firmwareVersionLabel.value },
     ];
   });
 
@@ -597,7 +612,9 @@ export const useDeviceStore = defineStore("device", () => {
     supportsWireless,
     keyboardTypeName,
     actualKeyCount,
+    isDevFirmware,
     firmwareVersion,
+    firmwareVersionLabel,
     currentLayerKeys,
     hasChanges,
     deviceInfoList,

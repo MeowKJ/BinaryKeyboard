@@ -13,12 +13,12 @@
         <div class="iap-versions">
           <div class="iap-ver-row">
             <span class="iap-ver-label">当前版本</span>
-            <span class="iap-ver-value">v{{ currentVersion }}</span>
+            <span class="iap-ver-value">{{ currentVersion }}</span>
           </div>
           <div class="iap-ver-arrow">→</div>
           <div class="iap-ver-row">
             <span class="iap-ver-label">{{ targetLabel }}</span>
-            <span class="iap-ver-value iap-ver-new">v{{ targetVersion }}</span>
+            <span class="iap-ver-value iap-ver-new">{{ targetVersionLabel }}</span>
           </div>
         </div>
         <p class="iap-warning">
@@ -103,9 +103,12 @@ const visible = defineModel<boolean>('visible', { default: false });
 
 const deviceStore = useDeviceStore();
 
-const currentVersion = computed(() => deviceStore.firmwareVersion);
+const currentVersion = computed(() => deviceStore.firmwareVersionLabel);
+const targetVersionLabel = computed(() =>
+  props.targetVersion === 'dev' ? 'dev' : `v${props.targetVersion}`
+);
 const targetLabel = computed(() =>
-  props.targetVersion && props.targetVersion !== currentVersion.value ? '最新版本' : '目标版本'
+  props.targetVersion && targetVersionLabel.value !== currentVersion.value ? '最新版本' : '目标版本'
 );
 
 const progress = ref<IapProgress>({

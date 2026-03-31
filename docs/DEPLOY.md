@@ -59,8 +59,11 @@ https://meowkj.github.io/BinaryKeyboard/
 如果需要手动部署：
 
 ```bash
-python tools/scripts/sync_pages_firmware.py docs/public/firmware
-python tools/scripts/versioning.py emit-release-manifest --out docs/public/api/release-manifest.json
+# Firmware + manifest are now provided via the pages-firmware workflow artifact
+# from the latest successful Release Firmware run. Place them manually:
+#   docs/public/firmware/ch592f/  — full.hex + app.bin
+#   docs/public/firmware/ch552g/  — hex
+#   docs/public/api/release-manifest.json
 
 cd docs
 pnpm install

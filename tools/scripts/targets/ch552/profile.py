@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ch552g import DEFAULT_KEYBOARD, VALID_KEYBOARDS, build_dir_for
 from common import display_path as _display_path, find_sdcc
-from firmware_naming import ch552_filename_for_keyboard
+from versioning import ch552_filename_for_keyboard
 from i18n import t
 from targets.common import FLASH_SCRIPT, PROJECT_ROOT, SCRIPT_DIR, TargetActionSpec, TargetProfile
 

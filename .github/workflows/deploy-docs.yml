@@ -12,16 +12,13 @@ on:
     workflows: ["Release Firmware"]
     types: [completed]
     branches: [main]
-  release:
-    types: [published, edited, deleted]
-  schedule:
-    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -45,22 +42,71 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve firmware artifact run ID
+        id: fw
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+          else
+            RUN_ID=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/release.yml/runs?status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+            if [ -z "$RUN_ID" ]; then
+              echo "No successful release run found; skipping firmware sync." >&2
+              echo "run_id=" >> "$GITHUB_OUTPUT"
+            else
+              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Download pages-firmware artifact
+        id: download
+        if: steps.fw.outputs.run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.fw.outputs.run_id }}
+          name: pages-firmware
+          path: pages-firmware-incoming
+
+      - name: Place firmware + manifest into docs/public
+        if: steps.download.outcome == 'success'
+        run: |
+          mkdir -p docs/public/firmware docs/public/api
+          cp -r pages-firmware-incoming/firmware/. docs/public/firmware/
+          cp pages-firmware-incoming/api/release-manifest.json docs/public/api/
+
+      - name: Fallback — sync from GitHub Release
+        if: steps.download.outcome != 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p docs/public/firmware/ch592f docs/public/firmware/ch552g docs/public/api
+          gh api "repos/${{ github.repository }}/releases/latest" | python3 -c "
+          import json, sys, urllib.request, re
+          from pathlib import Path
+          release = json.load(sys.stdin)
+          pat = re.compile(r'^(?P<chip>CH592F|CH552G)-(?P<model>BASIC|KNOB|5KEY)-[\d.]+-?(?:app|full)?\.(?:bin|hex)$')
+          for asset in release.get('assets', []):
+              name = asset['name']
+              if not pat.match(name): continue
+              chip_dir = 'ch592f' if name.startswith('CH592F') else 'ch552g'
+              dst = Path(f'docs/public/firmware/{chip_dir}/{name}')
+              urllib.request.urlretrieve(asset['browser_download_url'], str(dst))
+              print(f'[fallback] {name}')
+          "
+          python3 tools/scripts/versioning.py emit-release-manifest \
+            --out docs/public/api/release-manifest.json
+
       - name: Generate changelog from GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
           python3 .github/scripts/releases_to_md.py --out docs/changelog.md
-
-      - name: Sync latest firmware assets for Pages
-        run: |
-          mkdir -p docs/public/firmware
-          python3 tools/scripts/sync_pages_firmware.py docs/public/firmware
-
-      - name: Generate release manifest
-        run: |
-          mkdir -p docs/public/api
-          python3 tools/scripts/versioning.py emit-release-manifest --out docs/public/api/release-manifest.json
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
