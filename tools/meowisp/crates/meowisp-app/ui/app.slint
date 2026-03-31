@@ -111,7 +111,7 @@ component IconButton inherits Rectangle {
 export component AppWindow inherits Window {
     in-out property <int> cat-mood: 0;
     in-out property <string> chip-name: "未识别";
-    in-out property <string> chip-category: "等待检测";
+    in-out property <string> chip-category: "等待连接";
     in-out property <string> chip-family: "";
     in-out property <string> firmware-name: "未选择";
     in-out property <string> firmware-path: "";
@@ -129,7 +129,6 @@ export component AppWindow inherits Window {
     in-out property <string> success-title: "刷写完成";
     in-out property <string> success-text: "";
 
-    callback request-detect-chip();
     callback request-pick-bin();
     callback request-flash-bin();
     callback request-verify-bin();
@@ -331,7 +330,7 @@ export component AppWindow inherits Window {
                         horizontal-stretch: 1;
 
                         Text {
-                            text: root.chip-name == "未识别" ? "等待识别芯片" : root.chip-name;
+                            text: root.chip-name == "未识别" ? "等待设备或选择固件" : root.chip-name;
                             color: #2e211d;
                             font-size: 13px;
                             font-weight: 800;
@@ -339,19 +338,13 @@ export component AppWindow inherits Window {
                         }
 
                         Text {
-                            text: root.chip-category == "等待检测" ? "设备接入后可手动识别，也可直接刷写" : root.chip-category + " · " + root.chip-family;
+                            text: root.chip-category == "等待连接"
+                                ? "选择固件后可先显示目标芯片；刷写时会读取真实芯片信息"
+                                : root.chip-category + " · " + root.chip-family;
                             color: #7a675d;
                             font-size: 10px;
                             overflow: elide;
                         }
-                    }
-
-                    SmallButton {
-                        width: 82px;
-                        label: root.chip-category == "等待检测" ? "识别芯片" : "重新识别";
-                        accent: #3d2b1f;
-                        enabled: !root.busy;
-                        clicked => { root.request-detect-chip(); }
                     }
                 }
             }

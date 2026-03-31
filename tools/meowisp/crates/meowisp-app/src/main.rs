@@ -61,104 +61,16 @@ fn update_permission_state(app: &AppWindow) {
     }
 }
 
-fn run_op<F>(
-    weak: Weak<AppWindow>,
-    op_busy: Arc<AtomicBool>,
-    busy_label: &'static str,
-    action: F,
-)
-where
-    F: FnOnce() -> Result<(String, String, Option<isp::ChipInfo>), String> + Send + 'static,
-{
-    op_busy.store(true, Ordering::Relaxed);
-    if let Some(app) = weak.upgrade() {
-        app.set_busy(true);
-        app.set_cat_mood(1);
-        app.set_status_text("Working...".into());
-        set_log(&app, busy_label, "请稍候...");
-    }
-
-    thread::spawn(move || {
-        let result = action();
-        let op_busy = op_busy.clone();
-        let _ = slint::invoke_from_event_loop(move || {
-            op_busy.store(false, Ordering::Relaxed);
-            if let Some(app) = weak.upgrade() {
-                app.set_busy(false);
-                match result {
-                    Ok((title, detail, chip_info)) => {
-                        app.set_cat_mood(2);
-                        app.set_status_text("Ready".into());
-                        update_permission_state(&app);
-                        if let Some(info) = chip_info {
-                            set_chip(&app, &info);
-                        }
-                        set_log(&app, &title, &detail);
-                    }
-                    Err(ref err) if permission::is_permission_error(err) => {
-                        app.set_cat_mood(3);
-                        app.set_status_text("Error".into());
-                        if cfg!(target_os = "linux") && !permission::udev_rules_installed() {
-                            app.set_show_permission_bar(true);
-                            set_log(
-                                &app,
-                                "USB 权限不足",
-                                &format!(
-                                    "{err}\n\n点击上方「自动配置」安装 udev 规则\n安装后请重新插拔设备"
-                                ),
-                            );
-                        } else {
-                            app.set_show_permission_bar(false);
-                            set_log(
-                                &app,
-                                "USB 访问失败",
-                                &format!(
-                                    "{err}\n\nudev 规则看起来已经安装。\n请重新插拔设备，确认设备处于 ISP 模式，并关闭其他占用 USB 的工具。"
-                                ),
-                            );
-                        }
-                    }
-                    Err(ref err) if permission::is_timeout_error(err) => {
-                        app.set_cat_mood(3);
-                        app.set_status_text("Error".into());
-                        app.set_show_permission_bar(false);
-                        set_log(
-                            &app,
-                            "设备连接超时",
-                            &format!(
-                                "{err}\n\n这通常不是权限问题。\n请重新插拔设备，重新进入 ISP 模式，再重试一次。"
-                            ),
-                        );
-                    }
-                    Err(err) => {
-                        app.set_cat_mood(3);
-                        app.set_status_text("Error".into());
-                        set_log(&app, "操作失败", &err);
-                    }
-                }
-            }
-        });
-    });
-}
-
-fn start_chip_detect(weak: Weak<AppWindow>, op_busy: Arc<AtomicBool>, busy_label: &'static str) {
-    run_op(weak, op_busy, busy_label, || {
-        let info = isp::probe()?;
-        let title = format!("识别到 {}", info.name);
-        let detail = info.detail.clone();
-        Ok((title, detail, Some(info)))
-    });
-}
-
 fn run_progress_op<F>(
     weak: Weak<AppWindow>,
     op_busy: Arc<AtomicBool>,
     busy_label: &'static str,
     celebrate: bool,
     action: F,
-)
-where
-    F: FnOnce(Box<dyn Fn(&str, i32) + Send>) -> Result<(String, String, Option<isp::ChipInfo>), String>
+) where
+    F: FnOnce(
+            Box<dyn Fn(&str, i32) + Send>,
+        ) -> Result<(String, String, Option<isp::ChipInfo>), String>
         + Send
         + 'static,
 {
@@ -264,8 +176,7 @@ fn get_firmware(app: &AppWindow) -> Option<PathBuf> {
 
 fn copy_log_output(app: &AppWindow) -> Result<(), String> {
     let payload = format!("{}\n\n{}", app.get_log_title(), app.get_log_text());
-    let mut clipboard = arboard::Clipboard::new()
-        .map_err(|e| format!("无法访问剪贴板: {e}"))?;
+    let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("无法访问剪贴板: {e}"))?;
     clipboard
         .set_text(payload)
         .map_err(|e| format!("复制失败: {e}"))?;
@@ -298,22 +209,21 @@ fn start_usb_watch(weak: Weak<AppWindow>, stop: Arc<AtomicBool>, op_busy: Arc<At
                     match result {
                         Ok(count) if count > 0 => {
                             if !previous_device_state {
-                                app.set_chip_name("ISP 已连接".into());
-                                app.set_chip_category("点击识别芯片".into());
-                                app.set_chip_family("".into());
                                 app.set_cat_mood(2);
                                 set_log(
                                     &app,
                                     "检测到 WCH ISP 设备",
-                                    "设备已连接。\n点击“识别芯片”获取芯片类型，或直接尝试刷写。",
+                                    "设备已连接。\n直接刷写或校验时，会在同一次 USB 会话里读取真实芯片信息。",
                                 );
                             }
                         }
                         Ok(_) | Err(_) => {
                             if previous_device_state {
-                                app.set_chip_name("未识别".into());
-                                app.set_chip_category("等待检测".into());
-                                app.set_chip_family("".into());
+                                if !app.get_has_firmware() {
+                                    app.set_chip_name("未识别".into());
+                                    app.set_chip_category("等待连接".into());
+                                    app.set_chip_family("".into());
+                                }
                                 app.set_cat_mood(0);
                                 set_log(&app, "设备已断开", "等待 ISP 设备连接...");
                             }
@@ -441,9 +351,19 @@ fn main() -> Result<(), slint::PlatformError> {
         {
             if let Some(app) = weak.upgrade() {
                 set_firmware(&app, &path);
+                if let Some(info) = isp::guess_chip_from_firmware_path(&path) {
+                    set_chip(&app, &info);
+                }
                 app.set_cat_mood(0);
                 hide_success(&app);
-                set_log(&app, "已选择固件", &path.display().to_string());
+                set_log(
+                    &app,
+                    "已选择固件",
+                    &format!(
+                        "{}\n\n开始刷写或校验时，会在同一次 USB 会话里读取真实芯片信息。",
+                        path.display()
+                    ),
+                );
             }
         }
     });
@@ -472,13 +392,6 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    // Manual detect
-    let weak = app.as_weak();
-    let op_busy_detect = op_busy.clone();
-    app.on_request_detect_chip(move || {
-        start_chip_detect(weak.clone(), op_busy_detect.clone(), "正在重新识别...");
-    });
-
     // Flash
     let weak = app.as_weak();
     let op_busy_flash = op_busy.clone();
@@ -489,10 +402,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             drop(app);
-            run_progress_op(weak.clone(), op_busy_flash.clone(), "准备刷写", true, move |progress| {
-                let r = isp::flash_with_progress(&path, |label, value| progress(label, value))?;
-                Ok((r.summary, r.detail, None))
-            });
+            run_progress_op(
+                weak.clone(),
+                op_busy_flash.clone(),
+                "准备刷写",
+                true,
+                move |progress| {
+                    let r = isp::flash_with_progress(&path, |label, value| progress(label, value))?;
+                    Ok((r.result.summary, r.result.detail, Some(r.chip)))
+                },
+            );
         }
     });
 
@@ -506,10 +425,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 return;
             };
             drop(app);
-            run_progress_op(weak.clone(), op_busy_verify.clone(), "准备校验", false, move |progress| {
-                let r = isp::verify_with_progress(&path, |label, value| progress(label, value))?;
-                Ok((r.summary, r.detail, None))
-            });
+            run_progress_op(
+                weak.clone(),
+                op_busy_verify.clone(),
+                "准备校验",
+                false,
+                move |progress| {
+                    let r =
+                        isp::verify_with_progress(&path, |label, value| progress(label, value))?;
+                    Ok((r.result.summary, r.result.detail, Some(r.chip)))
+                },
+            );
         }
     });
 
@@ -523,9 +449,10 @@ fn main() -> Result<(), slint::PlatformError> {
             "准备清除 Codeflash",
             false,
             |progress| {
-            let r = isp::erase_code_with_progress(|label, value| progress(label, value))?;
-            Ok((r.summary, r.detail, None))
-        });
+                let r = isp::erase_code_with_progress(|label, value| progress(label, value))?;
+                Ok((r.result.summary, r.result.detail, Some(r.chip)))
+            },
+        );
     });
 
     // Erase data
@@ -538,9 +465,10 @@ fn main() -> Result<(), slint::PlatformError> {
             "准备清除 Dataflash",
             false,
             |progress| {
-            let r = isp::erase_data_with_progress(|label, value| progress(label, value))?;
-            Ok((r.summary, r.detail, None))
-        });
+                let r = isp::erase_data_with_progress(|label, value| progress(label, value))?;
+                Ok((r.result.summary, r.result.detail, Some(r.chip)))
+            },
+        );
     });
 
     let result = app.run();
