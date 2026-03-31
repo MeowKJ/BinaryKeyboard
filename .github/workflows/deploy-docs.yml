@@ -9,7 +9,7 @@ on:
       - ".github/scripts/**"
       - ".github/workflows/deploy-docs.yml"
   workflow_run:
-    workflows: ["Release Firmware"]
+    workflows: ["Release Firmware and MeowISP"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
