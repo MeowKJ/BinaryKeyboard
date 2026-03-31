@@ -38,10 +38,10 @@ Click the newest runs at [Github Actions Page](https://github.com/ch32-rs/wchisp
 
 ### Note for Windows
 
-If you are using Windows, you need to install the WinUSB driver for your device.
-See [Zadig](https://zadig.akeo.ie/).
-
-NOTE: This is not compatible with the Official WCH driver you installed with IDE.
+If you are using Windows, the backend can either load `CH375DLL64.dll` from the executable
+directory / DLL search path, or from an embedded copy extracted by the application at runtime.
+The Windows backend uses the official WCH USB driver through this DLL, so you do not need to
+replace the device driver with WinUSB/Zadig.
 
 ### Note for Linux
 

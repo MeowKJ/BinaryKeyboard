@@ -1,3 +1,5 @@
+#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+
 use std::cell::{Cell, RefCell};
 use std::io::Cursor;
 use std::path::PathBuf;
