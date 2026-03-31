@@ -1,0 +1,144 @@
+---
+name: CH56x Series
+mcu_type: 0
+device_type: 0x10
+support_serial: true
+description: CH56x Series, RISC-V3A (CH569/CH565), ARM9 like (CH563/CH561), RISC (CH566/CH567/CH568) NDS32? (CH568)
+# Section 2.2.1 On-chip non-volatile memory map
+config_registers_ch569: &config_registers_ch_565_ch569
+  - offset: 0x00
+    name: UNKNOWN0
+    description: Reserved 32-bit word
+    reset: 0xFFFFFFFF
+    type: u32
+  - offset: 0x04
+    name: UNKNOWN1
+    description: Reserved 32-bit word
+    reset: 0xFFFFFFFF
+    type: u32
+  - offset: 0x08
+    name: NV_INFO
+    description: Non-volatile information
+    reset: 0x8FFFF2E5
+    type: u32
+    fields:
+      - bit_range: [31,30]
+        name: USER_MEM
+        description: System RAMX/ROM capacity redefine configuration.
+        explaination:
+          0b00: RAMX 32KB + ROM 96KB
+          0b01: RAMX 64KB + ROM 64KB
+          _: RAMX 96KB + ROM 32KB
+      - bit_range: [29,29]
+        name: LOCKUP_RST_EN
+        description: Core LOCKUP reset system enable
+        explaination:
+          1: Reset
+          0: NotReset
+      - bit_range: [28,28]
+        name: RESERVED1
+        explaination:
+          0: Reserved
+          _: Error
+      - bit_range: [27,12]
+        name: RESERVED2
+        explaination:
+          0xffff: Reserved
+          _: Error
+      - bit_range: [11,10]
+        name: RESERVED3
+        explaination:
+          0b00: Reserved
+          _: Error
+      - bit_range: [9,8]
+        name: RESERVED4
+        explaination:
+          0b10: Reserved
+          _: Error
+      - bit_range: [7,7]
+        name: CODE_READ_EN
+        description: External programmer read FLASH enable
+        explaination:
+          1: Enable
+          0: Disable
+      - bit_range: [6,6]
+        name: BOOT_EN
+        description: Bootloader function enable
+        explaination:
+          1: Enable
+          0: Disable
+      - bit_range: [5,5]
+        name: DEBUG_EN
+        description: Debug interface enable
+        explaination:
+          1: Enable
+          0: Disable
+      - bit_range: [4,4]
+        name: RESET_EN
+        description: External reset enable
+        explaination:
+          1: Enable via PB15
+          0: Disable, PB15 is used as GPIO
+      - bit_range: [3,0]
+        name: RESERVED5
+        explaination:
+          0b0101: Reserved
+          _: Error
+variants:
+  # use 0x46 to probe
+  - name: CH561
+    chip_id: 0x61
+    alt_chip_ids: [0x46]
+    flash_size: 64K
+    eeprom_size: 28K
+    support_usb: false
+    support_net: true
+
+  # use 0x42 to probe
+  - name: CH563
+    chip_id: 0x63
+    # 0x45 for CH563_E?
+    alt_chip_ids: [0x42, 0x43, 0x44, 0x45]
+    flash_size: 224K
+    eeprom_size: 28K
+    support_usb: true
+    support_net: true
+
+  - name: CH565
+    chip_id: 0x65
+    flash_size: 448K
+    eeprom_size: 32K
+    support_usb: true
+    support_net: false
+    eeprom_start_addr: 0
+    config_registers: *config_registers_ch_565_ch569
+
+  - name: CH566
+    chip_id: 0x66
+    flash_size: 64K
+    eeprom_size: 32K
+    support_usb: true
+    support_net: false
+    eeprom_start_addr: 0
+
+  - name: CH567
+    chip_id: 0x67
+    flash_size: 192K
+    eeprom_size: 32K
+    support_usb: true
+    support_net: false
+
+  - name: CH568
+    chip_id: 0x68
+    flash_size: 192K
+    eeprom_size: 32K
+    support_usb: true
+    support_net: false
+
+  - name: CH569
+    chip_id: 0x69
+    flash_size: 448K
+    eeprom_size: 32K
+    support_usb: true
+    support_net: false
+    config_registers: *config_registers_ch_565_ch569

@@ -33,7 +33,7 @@ from common import (
     use_color,
     warn,
 )
-from firmware_naming import ch552_filename_for_keyboard, normalize_keyboard_name
+from versioning import ch552_filename_for_keyboard, normalize_keyboard_name
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH552G"
@@ -261,7 +261,9 @@ def configure(keyboard: str) -> Path:
     return build_dir
 
 
-def build(keyboard: str) -> Path:
+def build(keyboard: str, build_number: int | None = None) -> Path:
+    if build_number is not None:
+        os.environ["BK_BUILD_NUMBER"] = str(build_number)
     build_dir = build_dir_for(keyboard)
     cache_file = build_dir / "CMakeCache.txt"
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
@@ -384,9 +386,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    for name in ("status", "configure", "build", "rebuild", "clean"):
+    for name in ("status", "configure", "rebuild", "clean"):
         p = sub.add_parser(name, help=f"{name.capitalize()} CH552G firmware")
         p.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
+
+    p_build = sub.add_parser("build", help="Build CH552G firmware")
+    p_build.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
+    p_build.add_argument("--build-number", type=int, default=None, metavar="PATCH",
+                         help="Pin the firmware patch version (CI use; skips GitHub API lookup)")
 
     p_artifact = sub.add_parser("artifact", help="Print artifact path")
     p_artifact.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="BASIC / KNOB / 5KEY")
@@ -419,7 +426,7 @@ def main() -> int:
             configure(keyboard)
             return 0
         if args.command == "build":
-            build(keyboard)
+            build(keyboard, getattr(args, "build_number", None))
             return 0
         if args.command == "rebuild":
             rebuild(keyboard)

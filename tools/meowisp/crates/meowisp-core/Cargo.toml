@@ -1,0 +1,13 @@
+[package]
+name = "meowisp-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+ureq = { version = "2.10", features = ["json"] }
+wchisp = { path = "../../vendor-wchisp" }

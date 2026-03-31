@@ -39,16 +39,15 @@ from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 STUDIO_DIR = PROJECT_ROOT / "tools" / "studio"
+MEOWISP_DIR = PROJECT_ROOT / "tools" / "meowisp"
 DOCS_DIR = PROJECT_ROOT / "docs"
 FLASH_SCRIPT = SCRIPT_DIR / "flash.py"
-SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
 VSCODE_DIR = PROJECT_ROOT / ".vscode"
 ROOT_COMPILE_COMMANDS = PROJECT_ROOT / "compile_commands.json"
 
 DOC_URLS = {
     "MRS download": "http://www.mounriver.com/download",
-    "wchisp release": "https://github.com/ch32-rs/wchisp/releases",
     "WCH homepage": "https://www.wch-ic.com/",
     "Project repo": "https://github.com/MeowKJ/BinaryKeyboard",
 }
@@ -331,6 +330,8 @@ def _dev_lines(state: dict) -> list[str]:
 
     studio_deps = (STUDIO_DIR / "node_modules").is_dir()
     studio_dist = STUDIO_DIR / "dist"
+    meowisp_build = MEOWISP_DIR / "target" / "debug"
+    meowisp_binary = meowisp_build / ("meowisp.exe" if os.name == "nt" else "meowisp")
     docs_deps = (DOCS_DIR / "node_modules").is_dir()
     docs_dist = DOCS_DIR / ".vitepress" / "dist"
 
@@ -347,6 +348,13 @@ def _dev_lines(state: dict) -> list[str]:
         f"{t('ready') if studio_deps else t('dev.not_installed')}",
         f"[{'OK' if studio_dist.is_dir() else 'WARN'}] {t('dev.build_output')}: "
         f"{display_path(studio_dist) if studio_dist.is_dir() else t('not_built')}",
+        "",
+        f"{t('tab.meowisp')}:",
+        f"{t('path')}: {display_path(MEOWISP_DIR)}",
+        t("meowisp.stack"),
+        t("meowisp.targets"),
+        f"[{'OK' if meowisp_binary.is_file() else 'WARN'}] {t('dev.build_output')}: "
+        f"{display_path(meowisp_binary) if meowisp_binary.is_file() else t('not_built')}",
         "",
         f"{t('tab.docs')}:",
         f"{t('path')}: {display_path(DOCS_DIR)}",
@@ -388,7 +396,6 @@ def _isp_actions() -> list[dict]:
         {"id": "eeprom_menu", "label": t("action.eeprom_commands"), "hint": t("hint.eeprom_commands")},
         {"id": "clear_dataflash", "label": t("action.clear_dataflash"), "hint": t("hint.clear_dataflash")},
         {"id": "config_menu", "label": t("action.config_commands"), "hint": t("hint.config_commands")},
-        {"id": "install_wchisp", "label": t("action.install_wchisp"), "hint": t("hint.install_wchisp")},
         {"id": "reset_toolchain", "label": t("action.reset_toolchain"), "hint": t("hint.reset_toolchain")},
     ]
 
@@ -398,6 +405,8 @@ def _dev_actions() -> list[dict]:
         {"id": "studio_install", "label": t("action.studio_install"), "hint": t("hint.install_studio")},
         {"id": "studio_dev", "label": t("action.studio_dev"), "hint": t("hint.dev_studio")},
         {"id": "studio_build", "label": t("action.build_studio"), "hint": t("hint.build_studio")},
+        {"id": "meowisp_build", "label": t("action.build_meowisp"), "hint": t("hint.build_meowisp")},
+        {"id": "meowisp_run", "label": t("action.run_meowisp"), "hint": t("hint.run_meowisp")},
         {"id": "docs_install", "label": t("action.docs_install"), "hint": t("hint.install_docs")},
         {"id": "docs_dev", "label": t("action.docs_dev"), "hint": t("hint.dev_docs")},
         {"id": "docs_build", "label": t("action.build_docs"), "hint": t("hint.build_docs")},
@@ -409,7 +418,6 @@ def _info_actions() -> list[dict]:
     return [
         {"id": "toggle_lang", "label": t("action.toggle_lang", lang=lang_name), "hint": t("hint.toggle_lang")},
         {"id": "open_mrs", "label": t("link.mrs_download"), "hint": t("link.mrs_hint")},
-        {"id": "open_wchisp", "label": t("link.wchisp_releases"), "hint": t("link.wchisp_hint")},
         {"id": "open_wch", "label": t("link.wch_homepage"), "hint": t("link.wch_hint")},
         {"id": "open_repo", "label": t("link.project_repo"), "hint": t("link.repo_hint")},
     ]
@@ -1179,10 +1187,6 @@ def _act_generate_ide(app: BKConsoleApp) -> None:
     app._suspend_and_show("IDE Config", lines)
 
 
-def _act_install_wchisp(app: BKConsoleApp) -> None:
-    app._suspend_and_run([sys.executable, str(SETUP_SCRIPT)])
-
-
 def _act_probe(app: BKConsoleApp) -> None:
     app._suspend_and_run([sys.executable, str(FLASH_SCRIPT), "probe"])
 
@@ -1271,6 +1275,22 @@ def _act_studio_build(app: BKConsoleApp) -> None:
     app._suspend_and_run(["pnpm", "run", "build"], cwd=STUDIO_DIR)
 
 
+def _act_meowisp_build(app: BKConsoleApp) -> None:
+    app._suspend_and_run([
+        "cargo",
+        "build",
+        "--manifest-path",
+        str(MEOWISP_DIR / "Cargo.toml"),
+        "--bin",
+        "meowisp",
+    ], cwd=PROJECT_ROOT)
+
+
+def _act_meowisp_run(app: BKConsoleApp) -> None:
+    meowisp_bin = MEOWISP_DIR / "target" / "debug" / ("meowisp.exe" if os.name == "nt" else "meowisp")
+    app._suspend_and_run([str(meowisp_bin)], cwd=PROJECT_ROOT)
+
+
 def _act_docs_install(app: BKConsoleApp) -> None:
     app._suspend_and_run(["pnpm", "install"], cwd=DOCS_DIR)
 
@@ -1310,7 +1330,6 @@ ACTION_DISPATCH: dict[str, callable] = {
     "flash": _act_flash,
     "show_commands": _act_show_commands,
     "generate_ide_config": _act_generate_ide,
-    "install_wchisp": _act_install_wchisp,
     "probe": _act_probe,
     "show_isp_sheet": _act_show_isp_sheet,
     "chip_menu": _act_chip_menu,
@@ -1320,12 +1339,13 @@ ACTION_DISPATCH: dict[str, callable] = {
     "studio_install": _act_studio_install,
     "studio_dev": _act_studio_dev,
     "studio_build": _act_studio_build,
+    "meowisp_build": _act_meowisp_build,
+    "meowisp_run": _act_meowisp_run,
     "docs_install": _act_docs_install,
     "docs_dev": _act_docs_dev,
     "docs_build": _act_docs_build,
     "toggle_lang": _act_toggle_lang,
     "open_mrs": lambda app: _open_url("MRS download", DOC_URLS["MRS download"], app),
-    "open_wchisp": lambda app: _open_url("wchisp release", DOC_URLS["wchisp release"], app),
     "open_wch": lambda app: _open_url("WCH homepage", DOC_URLS["WCH homepage"], app),
     "open_repo": lambda app: _open_url("Project repo", DOC_URLS["Project repo"], app),
 }

@@ -48,8 +48,9 @@ export interface IapTransport {
 }
 
 interface ReleaseFirmwareAsset {
+  channel?: string;
   version?: string;
-  binUrl?: string;
+  appBinUrl?: string;
   fullHexUrl?: string;
   hexUrl?: string;
 }
@@ -195,21 +196,21 @@ async function resolveFirmwareUrl(
   const localManifest = LOCAL_RELEASE_MANIFEST as ReleaseManifest;
 
   let asset = getCh592Asset(remoteManifest, model);
-  if (!asset?.binUrl) {
+  if (!asset?.appBinUrl) {
     asset = getCh592Asset(localManifest, model);
   }
 
-  if (!asset?.binUrl) {
-    throw new Error(`发布清单里缺少 CH592F-${model} 的 bin 下载地址`);
+  if (!asset?.appBinUrl) {
+    throw new Error(`发布清单里缺少 CH592F-${model} 的 OTA bin 下载地址`);
   }
   if (asset.version && asset.version !== version) {
     const localAsset = getCh592Asset(localManifest, model);
-    if (localAsset?.binUrl && localAsset.version === version) {
-      return localAsset.binUrl;
+    if (localAsset?.appBinUrl && localAsset.version === version) {
+      return localAsset.appBinUrl;
     }
     throw new Error(`发布清单版本不匹配: 需要 ${version}，当前为 ${asset.version}`);
   }
-  return asset.binUrl;
+  return asset.appBinUrl;
 }
 
 /**

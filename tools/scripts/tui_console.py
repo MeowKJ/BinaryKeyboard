@@ -148,9 +148,9 @@ def _cached(key: str, fn, ttl: float = 5.0) -> list[str]:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 STUDIO_DIR = PROJECT_ROOT / "tools" / "studio"
+MEOWISP_DIR = PROJECT_ROOT / "tools" / "meowisp"
 DOCS_DIR = PROJECT_ROOT / "docs"
 FLASH_SCRIPT = SCRIPT_DIR / "flash.py"
-SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 STATE_FILE = SCRIPT_DIR / ".binarykeyboard_console_state.json"
 LEGACY_STATE_FILE = SCRIPT_DIR / ".ch592f_console_state.json"
 VSCODE_DIR = PROJECT_ROOT / ".vscode"
@@ -161,7 +161,6 @@ ROOT_COMPILE_COMMANDS = PROJECT_ROOT / "compile_commands.json"
 
 DOC_URLS = {
     "MRS download": "http://www.mounriver.com/download",
-    "wchisp release": "https://github.com/ch32-rs/wchisp/releases",
     "WCH homepage": "https://www.wch-ic.com/",
     "Project repo": "https://github.com/MeowKJ/BinaryKeyboard",
 }
@@ -922,11 +921,6 @@ def _mark_cache_dirty():
     _invalidate_cache_after_action = True
 
 
-def action_install_wchisp(state: dict, stdscr) -> None:
-    run_command(stdscr, [sys.executable, str(SETUP_SCRIPT)])
-    _mark_cache_dirty()
-
-
 def action_toggle_target(state: dict, stdscr) -> None:
     current = state["target"]
     if current not in TARGET_ORDER:
@@ -1204,6 +1198,20 @@ def action_studio_build(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "run", "build"], cwd=STUDIO_DIR)
 
 
+def action_meowisp_build(state: dict, stdscr) -> None:
+    run_command(
+        stdscr,
+        ["cargo", "build", "--manifest-path", str(MEOWISP_DIR / "Cargo.toml"), "--bin", "meowisp"],
+        cwd=PROJECT_ROOT,
+    )
+
+
+def action_meowisp_run(state: dict, stdscr) -> None:
+    del state
+    meowisp_bin = MEOWISP_DIR / "target" / "debug" / ("meowisp.exe" if os.name == "nt" else "meowisp")
+    run_command(stdscr, [str(meowisp_bin)], cwd=PROJECT_ROOT)
+
+
 def action_docs_install(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "install"], cwd=DOCS_DIR)
 
@@ -1228,8 +1236,9 @@ ACTION_HANDLERS = {
     "flash": action_flash,
     "show_commands": action_show_commands,
     "generate_ide_config": action_generate_ide_config,
-    "install_wchisp": action_install_wchisp,
     "probe": action_probe,
+    "meowisp_build": action_meowisp_build,
+    "meowisp_run": action_meowisp_run,
 }
 
 
@@ -1281,6 +1290,10 @@ def build_tabs(state: dict) -> list[dict]:
                 t("studio.stack"),
                 t("studio.targets"),
                 "",
+                f"{t('path')}: {MEOWISP_DIR}",
+                t("meowisp.stack"),
+                t("meowisp.targets"),
+                "",
                 f"{t('path')}: {DOCS_DIR}",
                 t("docs.stack"),
             ],
@@ -1288,6 +1301,8 @@ def build_tabs(state: dict) -> list[dict]:
                 {"label": t("action.studio_install"), "hint": t("hint.install_studio"), "fn": action_studio_install},
                 {"label": t("action.studio_dev"), "hint": t("hint.dev_studio"), "fn": action_studio_dev},
                 {"label": t("action.build_studio"), "hint": t("hint.build_studio"), "fn": action_studio_build},
+                {"label": t("action.build_meowisp"), "hint": t("hint.build_meowisp"), "fn": action_meowisp_build},
+                {"label": t("action.run_meowisp"), "hint": t("hint.run_meowisp"), "fn": action_meowisp_run},
                 {"label": t("action.docs_install"), "hint": t("hint.install_docs"), "fn": action_docs_install},
                 {"label": t("action.docs_dev"), "hint": t("hint.dev_docs"), "fn": action_docs_dev},
                 {"label": t("action.build_docs"), "hint": t("hint.build_docs"), "fn": action_docs_build},
@@ -1298,7 +1313,6 @@ def build_tabs(state: dict) -> list[dict]:
             "lines": _cached(f"info:{state['target']}", lambda: doctor_lines(state) + [""] + [f"{name}: {url}" for name, url in DOC_URLS.items()]),
             "actions": [
                 {"label": t("link.mrs_download"), "hint": t("link.mrs_hint"), "fn": lambda s, w: action_open_url("MRS download", DOC_URLS["MRS download"], s, w)},
-                {"label": t("link.wchisp_releases"), "hint": t("link.wchisp_hint"), "fn": lambda s, w: action_open_url("wchisp release", DOC_URLS["wchisp release"], s, w)},
                 {"label": t("link.wch_homepage"), "hint": t("link.wch_hint"), "fn": lambda s, w: action_open_url("WCH homepage", DOC_URLS["WCH homepage"], s, w)},
                 {"label": t("link.project_repo"), "hint": t("link.repo_hint"), "fn": lambda s, w: action_open_url("Project repo", DOC_URLS["Project repo"], s, w)},
             ],

@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from common import colorize as _c, die, find_wchisp, info, ok, sep, warn
-from firmware_naming import ch552_filename_for_keyboard, ch592_filename_for_keyboard
+from versioning import ch552_filename_for_keyboard, ch592_filename_for_keyboard
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:

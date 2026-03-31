@@ -32,7 +32,12 @@ from common import (
     use_color,
     warn,
 )
-from firmware_naming import ch592_filename_for_keyboard, normalize_keyboard_name
+from versioning import (
+    ch592_base_stem_for_keyboard,
+    ch592_filename_for_keyboard,
+    ch592_iap_filename_for_keyboard,
+    normalize_keyboard_name,
+)
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
@@ -192,9 +197,9 @@ def raw_artifact_paths(build_dir: Path) -> dict[str, Path]:
 
 def artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path]:
     """All possible artifact paths (app + full + iap)."""
-    base = ch592_filename_for_keyboard(keyboard, "x").rsplit(".", 1)[0]  # "CH592F-5KEY-1.0.0"
-    iap_hex = build_dir / f"{base}-iap.hex"
-    iap_bin = build_dir / f"{base}-iap.bin"
+    base = ch592_base_stem_for_keyboard(keyboard)
+    iap_hex = build_dir / ch592_iap_filename_for_keyboard(keyboard, "hex")
+    iap_bin = build_dir / ch592_iap_filename_for_keyboard(keyboard, "bin")
     return {
         "elf": build_dir / ch592_filename_for_keyboard(keyboard, "elf"),
         "bin": build_dir / ch592_filename_for_keyboard(keyboard, "bin"),
@@ -647,12 +652,31 @@ def _parse_ihex(path: Path) -> dict[int, int]:
     return memory
 
 
-def _write_ihex(memory: dict[int, int], path: Path, bytes_per_line: int = 16) -> None:
-    """Write a flat memory dict to an Intel HEX file."""
+def _write_ihex(
+    memory: dict[int, int],
+    path: Path,
+    bytes_per_line: int = 16,
+    fill_gaps_with: int | None = None,
+) -> None:
+    """Write a flat memory dict to an Intel HEX file.
+
+    When ``fill_gaps_with`` is set, unwritten holes between the first and last
+    address are emitted as explicit bytes. WCHISP's HEX→BIN conversion is more
+    reliable with a dense ISP image than with a sparse multi-segment HEX.
+    """
     if not memory:
         die("Cannot write empty Intel HEX file.")
 
-    addresses = sorted(memory.keys())
+    if fill_gaps_with is not None:
+        start = min(memory)
+        end = max(memory)
+        fill = fill_gaps_with & 0xFF
+        addresses = list(range(start, end + 1))
+        read_byte = lambda addr: memory.get(addr, fill)
+    else:
+        addresses = sorted(memory.keys())
+        read_byte = lambda addr: memory[addr]
+
     lines: list[str] = []
     current_ela = -1  # current Extended Linear Address (upper 16 bits)
 
@@ -677,7 +701,7 @@ def _write_ihex(memory: dict[int, int], path: Path, bytes_per_line: int = 16) ->
             and len(run_data) < bytes_per_line
             and (addresses[i] >> 16) == current_ela
         ):
-            run_data.append(memory[addresses[i]])
+            run_data.append(read_byte(addresses[i]))
             i += 1
 
         # Emit Data record
@@ -695,7 +719,13 @@ def _write_ihex(memory: dict[int, int], path: Path, bytes_per_line: int = 16) ->
     path.write_text("\n".join(lines) + "\n")
 
 
-def merge_hex(bootloader_hex: Path, app_hex: Path, output_hex: Path) -> Path:
+def merge_hex(
+    bootloader_hex: Path,
+    app_hex: Path,
+    output_hex: Path,
+    *,
+    fill_gaps_with: int | None = None,
+) -> Path:
     """Merge bootloader and application Intel HEX files into a single HEX."""
     if not bootloader_hex.is_file():
         die(f"Bootloader HEX not found: {bootloader_hex}")
@@ -716,7 +746,7 @@ def merge_hex(bootloader_hex: Path, app_hex: Path, output_hex: Path) -> Path:
     merged = {**boot_mem, **app_mem}
 
     output_hex.parent.mkdir(parents=True, exist_ok=True)
-    _write_ihex(merged, output_hex)
+    _write_ihex(merged, output_hex, fill_gaps_with=fill_gaps_with)
 
     boot_range = (min(boot_mem), max(boot_mem)) if boot_mem else (0, 0)
     app_range = (min(app_mem), max(app_mem)) if app_mem else (0, 0)
@@ -743,10 +773,12 @@ def _hex_to_bin(hex_path: Path, bin_path: Path) -> None:
     bin_path.write_bytes(data)
 
 
-def build_full(keyboard: str, profile: str) -> Path:
+def build_full(keyboard: str, profile: str, build_number: int | None = None) -> Path:
     """Build JumpIAP + app + IAP app, then merge into a single -full.hex for ISP."""
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
+    if build_number is not None:
+        os.environ["BK_BUILD_NUMBER"] = str(build_number)
 
     # 1. Build JumpIAP stub + high-flash IAP app
     jumpiap_build()
@@ -765,7 +797,7 @@ def build_full(keyboard: str, profile: str) -> Path:
     sep()
     info("Merging JumpIAP + app + IAP → full HEX")
     merge_hex(jump_hex, app_hex, stage_hex)
-    merge_hex(stage_hex, iap_hex, arts["full_hex"])
+    merge_hex(stage_hex, iap_hex, arts["full_hex"], fill_gaps_with=0xFF)
     if stage_hex.is_file():
         stage_hex.unlink()
 
@@ -836,6 +868,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_full = sub.add_parser("build-full", help="Build JumpIAP + app + IAP and merge into full HEX for ISP")
     p_full.add_argument("-k", "--keyboard", default=DEFAULT_KEYBOARD, help="5KEY / KNOB")
     p_full.add_argument("--profile", default=DEFAULT_PROFILE, help="release / debug")
+    p_full.add_argument("--build-number", type=int, default=None, metavar="PATCH",
+                        help="Pin the firmware patch version (CI use; skips GitHub API lookup)")
 
     return parser
 
@@ -879,7 +913,7 @@ def main() -> int:
             jumpiap_clean()
             return 0
         if args.command == "build-full":
-            build_full(keyboard, profile)
+            build_full(keyboard, profile, getattr(args, "build_number", None))
             return 0
         parser.error(f"Unsupported command: {args.command}")
     except subprocess.CalledProcessError as exc:

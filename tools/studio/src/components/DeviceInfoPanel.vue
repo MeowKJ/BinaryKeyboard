@@ -74,6 +74,19 @@ const studioHue = computed(() => versionToHue(releaseStore.latestStudioVersion))
 const ch552Hue = computed(() => versionToHue(releaseStore.latestVersions.ch552));
 const ch592Hue = computed(() => versionToHue(releaseStore.latestVersions.ch592));
 const deviceHue = computed(() => versionToHue(deviceStore.firmwareVersion));
+
+function compareVersions(a: string, b: string): number {
+  const left = a.split('.').map(Number);
+  const right = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const delta = (left[i] ?? 0) - (right[i] ?? 0);
+    if (delta !== 0) {
+      return delta > 0 ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
 const latestFirmwareVersion = computed(() => {
   const protocol = deviceStore.deviceInfo?.protocol;
   if (protocol === DeviceProtocol.CH552) {
@@ -84,6 +97,7 @@ const latestFirmwareVersion = computed(() => {
   }
   return '';
 });
+
 const targetFirmwareVersion = computed(() => latestFirmwareVersion.value || deviceStore.firmwareVersion);
 const firmwareChipLabel = computed(() => {
   const protocol = deviceStore.deviceInfo?.protocol;
@@ -95,20 +109,38 @@ const firmwareChipLabel = computed(() => {
   }
   return '固件';
 });
+const firmwareUpdateAvailable = computed(() => {
+  if (!deviceStore.deviceInfo || !latestFirmwareVersion.value) {
+    return false;
+  }
+  if (deviceStore.isDevFirmware) {
+    return true;
+  }
+  return compareVersions(latestFirmwareVersion.value, deviceStore.firmwareVersion) > 0;
+});
+
 const showFirmwareUpdateLink = computed(() => {
   if (!deviceStore.deviceInfo || !latestFirmwareVersion.value) {
     return false;
   }
-  return deviceStore.firmwareVersion !== latestFirmwareVersion.value;
+  return firmwareUpdateAvailable.value;
 });
+
 const showIapUpdate = computed(() => {
   return Boolean(deviceStore.deviceInfo && targetFirmwareVersion.value && deviceStore.capabilities.iap);
 });
+
 const iapButtonLabel = computed(() => {
   if (!deviceStore.deviceInfo) {
     return '一键更新固件';
   }
-  if (!latestFirmwareVersion.value || latestFirmwareVersion.value === deviceStore.firmwareVersion) {
+  if (!latestFirmwareVersion.value) {
+    return `重刷当前版本 ${deviceStore.firmwareVersionLabel}`;
+  }
+  if (deviceStore.isDevFirmware) {
+    return `刷写正式版 v${targetFirmwareVersion.value}`;
+  }
+  if (!firmwareUpdateAvailable.value) {
     return `重刷当前版本 v${targetFirmwareVersion.value}`;
   }
   return `一键更新到 v${targetFirmwareVersion.value}`;

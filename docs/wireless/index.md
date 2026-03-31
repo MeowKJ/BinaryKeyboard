@@ -18,7 +18,7 @@
 
 1. **固件** - 从 [GitHub Releases](https://github.com/MeowKJ/BinaryKeyboard/releases) 下载
    - 首次烧录使用 `CH592F-<MODEL>-<version>-full.hex`
-   - 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>.bin`
+   - 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>-app.bin`
 
 2. **外壳 STL** - 从 Releases 或 OSHWHub 下载（无线版专用，带电池仓）
 

@@ -3,13 +3,13 @@
 ## 固件类型
 
 - **首次烧录 / 救砖恢复**：刷 `CH592F-<MODEL>-<version>-full.hex`
-- **Studio 在线更新**：用 `CH592F-<MODEL>-<version>.bin`
+- **Studio 在线更新**：用 `CH592F-<MODEL>-<version>-app.bin`
 - OTA `bin` 不用于第一次 ISP 首刷
 
 ## 准备
 
 - 首次烧录使用 `CH592F-<MODEL>-<version>-full.hex`
-- 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>.bin`
+- 后续通过 Studio 热更新使用 `CH592F-<MODEL>-<version>-app.bin`
 - Windows 推荐使用 `WCHISPStudio`
 - macOS / Linux 推荐使用喵喵的终端工具：`python tools/scripts/console.py`
 

@@ -1,4 +1,4 @@
-name: Release Firmware
+name: Release Firmware and MeowISP
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - "firmware/**"
       - "config/**"
+      - "tools/meowisp/**"
       - "tools/studio/**"
       - "tools/scripts/**"
       - ".github/workflows/release.yml"
@@ -17,13 +18,43 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
-  group: firmware-release-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  compute-versions:
+    name: Compute release versions
+    runs-on: ubuntu-latest
+    outputs:
+      ch592_version: ${{ steps.ver.outputs.ch592_version }}
+      ch592_patch: ${{ steps.ver.outputs.ch592_patch }}
+      ch552_version: ${{ steps.ver.outputs.ch552_version }}
+      ch552_patch: ${{ steps.ver.outputs.ch552_patch }}
+      studio_version: ${{ steps.ver.outputs.studio_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Compute
+        id: ver
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          PY="import sys; sys.path.insert(0,'tools/scripts')"
+          CH592=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH592F'))")
+          CH552=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH552G'))")
+          STUDIO=$(python3 -c "$PY; from versioning import studio_version; print(studio_version())")
+          echo "ch592_version=$CH592" >> "$GITHUB_OUTPUT"
+          echo "ch592_patch=${CH592##*.}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=$CH552" >> "$GITHUB_OUTPUT"
+          echo "ch552_patch=${CH552##*.}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=$STUDIO" >> "$GITHUB_OUTPUT"
+
   build-ch592f:
     name: Package CH592F (${{ matrix.keyboard }})
     runs-on: ubuntu-latest
+    needs: [compute-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -52,13 +83,15 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build (bootloader + app + merge)
-        run: python3 tools/scripts/ch592f.py build-full --keyboard ${{ matrix.keyboard }} --profile release
+        env:
+          BK_BUILD_NUMBER: ${{ needs.compute-versions.outputs.ch592_patch }}
+        run: python3 tools/scripts/ch592f.py build-full --keyboard ${{ matrix.keyboard }} --profile release --build-number "$BK_BUILD_NUMBER"
 
       - name: Resolve artifacts
         id: artifacts
         run: |
           echo "bin=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type bin)" >> "$GITHUB_OUTPUT"
-          echo "full_hex=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type full_hex)" >> "$GITHUB_OUTPUT"
+          echo "full_bin=$(python3 tools/scripts/ch592f.py artifact --keyboard ${{ matrix.keyboard }} --profile release --type full_bin)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -66,7 +99,7 @@ jobs:
           name: release-ch592f-${{ matrix.keyboard }}-${{ github.sha }}
           path: |
             ${{ steps.artifacts.outputs.bin }}
-            ${{ steps.artifacts.outputs.full_hex }}
+            ${{ steps.artifacts.outputs.full_bin }}
           retention-days: 7
 
       - name: Emit size report
@@ -81,6 +114,7 @@ jobs:
   build-ch552g:
     name: Package CH552G (${{ matrix.keyboard }})
     runs-on: ubuntu-latest
+    needs: [compute-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -106,12 +140,13 @@ jobs:
           sudo apt-get install -y ninja-build
 
       - name: Build
-        run: python3 tools/scripts/ch552g.py build --keyboard ${{ matrix.keyboard }}
+        env:
+          BK_BUILD_NUMBER: ${{ needs.compute-versions.outputs.ch552_patch }}
+        run: python3 tools/scripts/ch552g.py build --keyboard ${{ matrix.keyboard }} --build-number "$BK_BUILD_NUMBER"
 
       - name: Resolve artifacts
         id: artifacts
         run: |
-          echo "hex=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type hex)" >> "$GITHUB_OUTPUT"
           echo "bin=$(python3 tools/scripts/ch552g.py artifact --keyboard ${{ matrix.keyboard }} --type bin)" >> "$GITHUB_OUTPUT"
 
       - name: Upload release artifacts
@@ -119,7 +154,6 @@ jobs:
         with:
           name: release-ch552g-${{ matrix.keyboard }}-${{ github.sha }}
           path: |
-            ${{ steps.artifacts.outputs.hex }}
             ${{ steps.artifacts.outputs.bin }}
           retention-days: 7
 
@@ -161,13 +195,120 @@ jobs:
       - name: Build
         run: pnpm --dir tools/studio run build
 
+  build-meowisp:
+    name: Package MeowISP (${{ matrix.label }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            label: Linux amd64
+            platform: linux
+            arch: amd64
+            artifact_name: MeowISP-linux-amd64-portable.tar.gz
+          - runner: ubuntu-24.04-arm
+            label: Linux arm64
+            platform: linux
+            arch: arm64
+            artifact_name: MeowISP-linux-arm64-portable.tar.gz
+          - runner: macos-14
+            label: macOS Apple Silicon
+            platform: macos
+            arch: apple-silicon
+            artifact_name: MeowISP-macos-apple-silicon-portable.zip
+          - runner: macos-15-intel
+            label: macOS Intel
+            platform: macos
+            arch: intel
+            artifact_name: MeowISP-macos-intel-portable.zip
+          - runner: windows-latest
+            label: Windows amd64
+            platform: windows
+            arch: amd64
+            artifact_name: MeowISP-windows-amd64-portable.zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y \
+            pkg-config \
+            libx11-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libasound2-dev \
+            libudev-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev
+
+      - name: Build MeowISP
+        run: cargo build --release --manifest-path tools/meowisp/Cargo.toml --bin meowisp
+
+      - name: Package MeowISP (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          python3 tools/meowisp/scripts/package_portable.py \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --binary "tools/meowisp/target/release/meowisp" \
+            --out-dir dist
+
+      - name: Download CH375 DLL
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path tools/meowisp/.cache/windows-assets | Out-Null
+          gh release download toolchain-linux `
+            --repo "${{ github.repository }}" `
+            --pattern CH375DLL64.dll `
+            --dir tools/meowisp/.cache/windows-assets
+
+      - name: Package MeowISP (Windows)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          python tools/meowisp/scripts/package_portable.py `
+            --platform "${{ matrix.platform }}" `
+            --arch "${{ matrix.arch }}" `
+            --binary "tools/meowisp/target/release/meowisp.exe" `
+            --out-dir dist `
+            --windows-dll "tools/meowisp/.cache/windows-assets/CH375DLL64.dll"
+
+      - name: Upload MeowISP package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-meowisp-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
+          path: dist/${{ matrix.artifact_name }}
+          retention-days: 7
+
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs:
+      - compute-versions
       - build-ch592f
       - build-ch552g
       - build-studio
+      - build-meowisp
     permissions:
       contents: write
 
@@ -194,6 +335,8 @@ jobs:
 
       - name: Generate version tag
         id: version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           DATE=$(date +%Y%m%d)
           DATE_DISPLAY=$(date +%F)
@@ -204,17 +347,14 @@ jobs:
             | grep -Fvx "$TAG" \
             | grep -Ev "^${TAG}-[0-9a-f]+$" \
             | head -n 1 || true)
-          STUDIO_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from versioning import studio_version; print(studio_version())")
-          CH592_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch592_version; print(ch592_version())")
-          CH552_VERSION=$(python3 -c "import sys; sys.path.insert(0, 'tools/scripts'); from firmware_naming import ch552_version; print(ch552_version())")
           echo "date=${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=Release ${DATE_DISPLAY}" >> "$GITHUB_OUTPUT"
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
-          echo "studio_version=${STUDIO_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ch592_version=${CH592_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "ch552_version=${CH552_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "studio_version=${{ needs.compute-versions.outputs.studio_version }}" >> "$GITHUB_OUTPUT"
+          echo "ch592_version=${{ needs.compute-versions.outputs.ch592_version }}" >> "$GITHUB_OUTPUT"
+          echo "ch552_version=${{ needs.compute-versions.outputs.ch552_version }}" >> "$GITHUB_OUTPUT"
 
       - name: Clean same-day releases and tags
         env:
@@ -273,7 +413,7 @@ jobs:
                   api(f"/repos/{repo}/git/{ref_name}", method="DELETE")
           PYEOF
 
-          # Build release notes from size reports + hex files
+          # Build release notes from size reports + bin files
           {
             echo "## 🐱 BinaryKeyboard 自动发布 🐱"
             echo
@@ -286,17 +426,6 @@ jobs:
             echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
             echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
             echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
-            echo
-            echo "---"
-            echo
-            echo "### 🖥️ Studio 桌面版"
-            echo
-            echo "| 平台 | 架构 | 格式 |"
-            echo "|:-----|:-----|:-----|"
-            echo "| macOS | Apple Silicon (arm64) | DMG |"
-            echo "| macOS | Intel (x64) | DMG |"
-            echo "| Windows | AMD64 / x64 | 便携式 EXE |"
-            echo "| Windows | ARM64 | 便携式 EXE |"
             echo
             echo "---"
             echo
@@ -348,25 +477,18 @@ jobs:
               kb_label = kb_labels.get(keyboard, keyboard)
 
               if chip == "CH592F":
-                  # .bin for OTA update
-                  bin_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.bin"))
-                  if bin_files:
-                      fname = bin_files[0].name
-                      desc = f"{chip_labels.get(chip, chip)} · {kb_label} · Studio 在线更新"
-                      order = (1, keyboard, 0)
-                      rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
-                  # -full.hex for ISP
-                  full_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*-full.hex"))
+                  # -full.bin for ISP
+                  full_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*-full.bin"))
                   if full_files:
                       fname = full_files[0].name
                       desc = f"{chip_labels.get(chip, chip)} · {kb_label} · ⚡ 首次烧录 / 手动 ISP"
-                      order = (1, keyboard, 1)
+                      order = (1, keyboard, 0)
                       rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
               else:
-                  # CH552G: .hex only
-                  hex_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.hex"))
-                  if hex_files:
-                      fname = hex_files[0].name
+                  # CH552G: .bin only
+                  bin_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*.bin"))
+                  if bin_files:
+                      fname = bin_files[0].name
                       desc = f"{chip_labels.get(chip, chip)} · {kb_label}"
                       order = (0, keyboard, 0)
                       rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
@@ -378,9 +500,27 @@ jobs:
           print()
           print("> [!TIP]")
           print("> **CH592F 无线版固件更新方式：**")
-          print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，自动下载 `.bin` 并通过 HID 刷写，无需任何工具")
-          print("> - ⚡ **首次烧录 / 手动恢复**：下载 `-full.hex`（含 Bootloader），使用 ISP 工具烧入")
+          print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，Studio 自动从更新站下载并刷写，无需任何文件")
+          print("> - ⚡ **首次烧录 / 手动恢复**：下载 `-full.bin`（含 Bootloader），使用 ISP 工具烧入")
           PYEOF
+
+          {
+            echo
+            echo "---"
+            echo
+            echo "### 🖥️ MeowISP 便携版"
+            echo
+            echo "| 平台 | 文件 | 说明 |"
+            echo "|:-----|:-----|:-----|"
+            [ -f dist/MeowISP-linux-amd64-portable.tar.gz ] && echo '| Linux amd64 | `MeowISP-linux-amd64-portable.tar.gz` | 免安装便携包，附带 `50-wchisp.rules` |'
+            [ -f dist/MeowISP-linux-arm64-portable.tar.gz ] && echo '| Linux arm64 | `MeowISP-linux-arm64-portable.tar.gz` | 免安装便携包，附带 `50-wchisp.rules` |'
+            [ -f dist/MeowISP-macos-apple-silicon-portable.zip ] && echo '| macOS Apple Silicon | `MeowISP-macos-apple-silicon-portable.zip` | `MeowISP.app` 便携包 |'
+            [ -f dist/MeowISP-macos-intel-portable.zip ] && echo '| macOS Intel | `MeowISP-macos-intel-portable.zip` | `MeowISP.app` 便携包 |'
+            [ -f dist/MeowISP-windows-amd64-portable.zip ] && echo '| Windows amd64 | `MeowISP-windows-amd64-portable.zip` | 免安装便携包，内含 `CH375DLL64.dll` |'
+            echo
+            echo "> [!NOTE]"
+            echo '> Windows 包里已经放好了 `CH375DLL64.dll`，默认与 `meowisp.exe` 同目录分发。'
+          } >> release-notes-header.md
 
           REPO="${{ github.repository }}"
           export REPO
@@ -486,8 +626,7 @@ jobs:
             echo "<details><summary>SHA-256 校验值</summary>"
             echo
             echo '```'
-            for f in dist/*.hex dist/*.bin; do
-              [ -f "$f" ] || continue
+            find dist -maxdepth 1 -type f \( -name '*.bin' -o -name '*.zip' -o -name '*.tar.gz' \) | sort | while read -r f; do
               sha256sum "$f" | sed 's|dist/||'
             done
             echo '```'
@@ -575,6 +714,30 @@ jobs:
           Path("release-notes.md").write_text("\n\n".join(part for part in parts if part) + "\n")
           PYEOF
 
+      - name: Generate release manifest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist/api
+          python3 tools/scripts/versioning.py emit-release-manifest \
+            --out dist/api/release-manifest.json
+
+      - name: Organize firmware for Pages
+        run: |
+          mkdir -p dist/firmware/ch592f dist/firmware/ch552g
+          cp dist/CH592F-*-app.bin dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH592F-*-full.hex dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH552G-*.hex dist/firmware/ch552g/ 2>/dev/null || true
+
+      - name: Upload pages-firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pages-firmware
+          retention-days: 90
+          path: |
+            dist/firmware/
+            dist/api/release-manifest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -583,7 +746,10 @@ jobs:
           body_path: release-notes.md
           prerelease: false
           files: |
-            dist/*.hex
-            dist/*.bin
-            dist/*.dmg
-            dist/*.exe
+            dist/CH592F-*-full.bin
+            dist/CH552G-*.bin
+            dist/MeowISP-linux-amd64-portable.tar.gz
+            dist/MeowISP-linux-arm64-portable.tar.gz
+            dist/MeowISP-macos-apple-silicon-portable.zip
+            dist/MeowISP-macos-intel-portable.zip
+            dist/MeowISP-windows-amd64-portable.zip

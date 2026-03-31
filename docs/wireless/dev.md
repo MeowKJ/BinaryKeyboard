@@ -94,8 +94,8 @@ python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH
 | :--- | :--- |
 | `CH592F-<MODEL>-<version>-full.hex` | **首次 ISP 烧录 / 救砖恢复**。包含 `JumpIAP + app + 高地址 IAP` |
 | `CH592F-<MODEL>-<version>-full.bin` | 和上面内容一致，只是二进制格式 |
-| `CH592F-<MODEL>-<version>.bin` | **Studio 在线更新 / OTA** 用的 app 包 |
-| `CH592F-<MODEL>-<version>.hex` | app 的 HEX 版本，调试或手动检查时用 |
+| `CH592F-<MODEL>-<version>-app.bin` | **Studio 在线更新 / OTA** 用的 app 包 |
+| `CH592F-<MODEL>-<version>-app.hex` | app 的 HEX 版本，调试或手动检查时用 |
 | `CH592F-<MODEL>-<version>-iap.hex/.bin` | 高地址 IAP 程序单独产物 |
 
 ::: tip

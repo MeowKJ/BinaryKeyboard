@@ -70,7 +70,7 @@ CH592F 无线版在 Studio 中支持完整配置面：
 这两个 `-full.hex` 用于 ISP 首刷与恢复。
 
 ::: warning
-普通 `CH592F-<MODEL>-<version>.bin` 是 OTA 包，不是首刷包。
+普通 `CH592F-<MODEL>-<version>-app.bin` 是 OTA 包，不是首刷包。
 :::
 
 ::: tip

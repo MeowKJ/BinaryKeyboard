@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "crates/meowisp-core",
+  "crates/meowisp-app",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["BinaryKeyboard"]
+
