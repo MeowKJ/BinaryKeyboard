@@ -5917,6 +5917,7 @@ dependencies = [
  "hxdmp",
  "ihex",
  "indicatif",
+ "libloading",
  "log",
  "object",
  "rand 0.8.5",

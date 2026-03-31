@@ -21,6 +21,15 @@ Planned direction:
 cargo build --manifest-path tools/meowisp/Cargo.toml --bin meowisp
 ```
 
+Windows single-file build with embedded `CH375DLL64.dll`:
+
+```powershell
+python tools/meowisp/scripts/fetch_windows_dll.py
+cargo build --manifest-path tools/meowisp/Cargo.toml --bin meowisp --release
+```
+
+If you want to override the default cache path, set `WCHISP_CH375_DLL` to a specific DLL file.
+
 ## Run
 
 ```bash
@@ -51,7 +60,12 @@ python3 tools/meowisp/scripts/package_portable.py \
   --out-dir tools/meowisp/dist
 ```
 
-Windows portable packages bundle `CH375DLL64.dll` next to `meowisp.exe`.
+Windows builds embed `CH375DLL64.dll` from `tools/meowisp/.cache/windows-assets/CH375DLL64.dll`
+at build time by default. The app extracts it to a temporary directory on first use, then loads it
+and uses the official WCH USB driver path.
+
+Windows packaging now emits a single `.exe`. To make that EXE self-contained, build with
+the DLL present in that cache path, or override it with `WCHISP_CH375_DLL`.
 
 The release workflow downloads this DLL from the existing GitHub Release:
 
