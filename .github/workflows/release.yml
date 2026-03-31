@@ -429,7 +429,7 @@ jobs:
             echo
             echo "---"
             echo
-            echo "### 📦 固件文件"
+            echo "### 固件文件"
             echo
             echo "| 文件 | Flash 占用 | RAM 占用 | 说明 |"
             echo "|:-----|:----------|:---------|:-----|"
@@ -459,9 +459,7 @@ jobs:
               flash_total = flash.get("total")
               if flash_used is not None and flash_total:
                   pct = flash_used * 100 // flash_total
-                  bar_len = max(1, pct // 5)
-                  bar = "█" * bar_len + "░" * (20 - bar_len)
-                  flash_info = f"{bar} {pct}% ({flash_used/1024:.1f}/{flash_total/1024:.0f} KB)"
+                  flash_info = f"{flash_used/1024:.1f} / {flash_total/1024:.0f} KB ({pct}%)"
               else:
                   flash_info = "—"
 
@@ -481,7 +479,7 @@ jobs:
                   full_files = sorted(dist_dir.glob(f"{chip}-{keyboard}-*-full.bin"))
                   if full_files:
                       fname = full_files[0].name
-                      desc = f"{chip_labels.get(chip, chip)} · {kb_label} · ⚡ 首次烧录 / 手动 ISP"
+                      desc = f"{chip_labels.get(chip, chip)} · {kb_label}"
                       order = (1, keyboard, 0)
                       rows.append((order, f"| `{fname}` | {flash_info} | {ram_info} | {desc} |"))
               else:
@@ -501,26 +499,7 @@ jobs:
           print("> [!TIP]")
           print("> **CH592F 无线版固件更新方式：**")
           print("> - 🔄 **在线更新**：连接 Studio 后点击「一键更新」，Studio 自动从更新站下载并刷写，无需任何文件")
-          print("> - ⚡ **首次烧录 / 手动恢复**：下载 `-full.bin`（含 Bootloader），使用 ISP 工具烧入")
           PYEOF
-
-          {
-            echo
-            echo "---"
-            echo
-            echo "### 🖥️ MeowISP 便携版"
-            echo
-            echo "| 平台 | 文件 | 说明 |"
-            echo "|:-----|:-----|:-----|"
-            [ -f dist/MeowISP-linux-amd64-portable.tar.gz ] && echo '| Linux amd64 | `MeowISP-linux-amd64-portable.tar.gz` | 免安装便携包，附带 `50-wchisp.rules` |'
-            [ -f dist/MeowISP-linux-arm64-portable.tar.gz ] && echo '| Linux arm64 | `MeowISP-linux-arm64-portable.tar.gz` | 免安装便携包，附带 `50-wchisp.rules` |'
-            [ -f dist/MeowISP-macos-apple-silicon-portable.zip ] && echo '| macOS Apple Silicon | `MeowISP-macos-apple-silicon-portable.zip` | `MeowISP.app` 便携包 |'
-            [ -f dist/MeowISP-macos-intel-portable.zip ] && echo '| macOS Intel | `MeowISP-macos-intel-portable.zip` | `MeowISP.app` 便携包 |'
-            [ -f dist/MeowISP-windows-amd64-portable.zip ] && echo '| Windows amd64 | `MeowISP-windows-amd64-portable.zip` | 免安装便携包，内含 `CH375DLL64.dll` |'
-            echo
-            echo "> [!NOTE]"
-            echo '> Windows 包里已经放好了 `CH375DLL64.dll`，默认与 `meowisp.exe` 同目录分发。'
-          } >> release-notes-header.md
 
           REPO="${{ github.repository }}"
           export REPO
