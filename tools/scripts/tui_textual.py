@@ -1276,14 +1276,25 @@ def _act_studio_build(app: BKConsoleApp) -> None:
 
 
 def _act_meowisp_build(app: BKConsoleApp) -> None:
-    app._suspend_and_run([
-        "cargo",
-        "build",
-        "--manifest-path",
-        str(MEOWISP_DIR / "Cargo.toml"),
-        "--bin",
-        "meowisp",
-    ], cwd=PROJECT_ROOT)
+    commands: list[tuple[list[str], Path]] = []
+    ch375_dll_cache = MEOWISP_DIR / ".cache" / "windows-assets" / "CH375DLL64.dll"
+    if os.name == "nt" and not ch375_dll_cache.is_file():
+        commands.append((
+            [sys.executable, str(MEOWISP_DIR / "scripts" / "fetch_windows_dll.py")],
+            PROJECT_ROOT,
+        ))
+    commands.append((
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(MEOWISP_DIR / "Cargo.toml"),
+            "--bin",
+            "meowisp",
+        ],
+        PROJECT_ROOT,
+    ))
+    app._suspend_and_run_sequence(commands)
 
 
 def _act_meowisp_run(app: BKConsoleApp) -> None:

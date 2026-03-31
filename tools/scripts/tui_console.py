@@ -1199,11 +1199,18 @@ def action_studio_build(state: dict, stdscr) -> None:
 
 
 def action_meowisp_build(state: dict, stdscr) -> None:
-    run_command(
-        stdscr,
+    commands: list[tuple[list[str], Path]] = []
+    ch375_dll_cache = MEOWISP_DIR / ".cache" / "windows-assets" / "CH375DLL64.dll"
+    if os.name == "nt" and not ch375_dll_cache.is_file():
+        commands.append((
+            [sys.executable, str(MEOWISP_DIR / "scripts" / "fetch_windows_dll.py")],
+            PROJECT_ROOT,
+        ))
+    commands.append((
         ["cargo", "build", "--manifest-path", str(MEOWISP_DIR / "Cargo.toml"), "--bin", "meowisp"],
-        cwd=PROJECT_ROOT,
-    )
+        PROJECT_ROOT,
+    ))
+    run_command_sequence(stdscr, commands)
 
 
 def action_meowisp_run(state: dict, stdscr) -> None:

@@ -232,13 +232,12 @@ mod imp {
             }
         }
 
-        fn open_index(&self, index: usize) -> Result<()> {
+        fn open_index(&self, index: usize) -> Result<Handle> {
             let handle = unsafe { (self.open_device)(index as Ulong) };
             if handle.is_null() || handle == INVALID_HANDLE_VALUE {
                 anyhow::bail!("device index #{index} is not available via CH375DLL64.dll");
             }
-            let _ = unsafe { (self.close_device)(index as Ulong) };
-            Ok(())
+            Ok(handle)
         }
 
         fn configure_device(&self, index: usize, timeout_ms: u64) -> Result<()> {
@@ -331,6 +330,7 @@ mod imp {
             for index in 0..MAX_DEVICES_TO_PROBE {
                 if api.open_index(index).is_ok() {
                     log::debug!("Found WCH ISP USB device #{} via CH375 DLL", index);
+                    let _ = unsafe { (api.close_device)(index as Ulong) };
                     count += 1;
                 } else if count > 0 {
                     break;
@@ -342,7 +342,7 @@ mod imp {
         pub fn open_nth(nth: usize) -> Result<UsbTransport> {
             log::info!("Opening USB device #{} via CH375 DLL", nth);
             let api = Ch375Api::load().context("failed to initialize CH375 DLL backend")?;
-            api.open_index(nth)?;
+            let _handle = api.open_index(nth)?;
             api.configure_device(nth, USB_TIMEOUT_MS)?;
             Ok(UsbTransport {
                 api,
