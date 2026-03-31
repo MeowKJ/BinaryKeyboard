@@ -141,6 +141,15 @@ where
     });
 }
 
+fn start_chip_detect(weak: Weak<AppWindow>, op_busy: Arc<AtomicBool>, busy_label: &'static str) {
+    run_op(weak, op_busy, busy_label, || {
+        let info = isp::probe()?;
+        let title = format!("识别到 {}", info.name);
+        let detail = info.detail.clone();
+        Ok((title, detail, Some(info)))
+    });
+}
+
 fn run_progress_op<F>(
     weak: Weak<AppWindow>,
     op_busy: Arc<AtomicBool>,
@@ -280,6 +289,8 @@ fn start_usb_watch(weak: Weak<AppWindow>, stop: Arc<AtomicBool>, op_busy: Arc<At
             let has_device_now = matches!(result, Ok(count) if count > 0);
             let weak2 = weak.clone();
             let previous_device_state = had_device;
+            let detect_weak = weak.clone();
+            let detect_busy = op_busy.clone();
 
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(app) = weak2.upgrade() {
@@ -290,14 +301,21 @@ fn start_usb_watch(weak: Weak<AppWindow>, stop: Arc<AtomicBool>, op_busy: Arc<At
                         Ok(count) if count > 0 => {
                             if !previous_device_state {
                                 app.set_chip_name("ISP 已连接".into());
-                                app.set_chip_category("点击识别芯片".into());
+                                app.set_chip_category("正在识别芯片".into());
                                 app.set_chip_family("".into());
                                 app.set_cat_mood(2);
                                 set_log(
                                     &app,
                                     "检测到 WCH ISP 设备",
-                                    "设备已连接。\n点击“识别芯片”获取芯片类型，或直接尝试刷写。",
+                                    "设备已连接。\n正在自动识别芯片类型...",
                                 );
+                                if !detect_busy.load(Ordering::Relaxed) {
+                                    start_chip_detect(
+                                        detect_weak.clone(),
+                                        detect_busy.clone(),
+                                        "正在识别芯片...",
+                                    );
+                                }
                             }
                         }
                         Ok(_) | Err(_) => {
@@ -467,12 +485,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
     let op_busy_detect = op_busy.clone();
     app.on_request_detect_chip(move || {
-        run_op(weak.clone(), op_busy_detect.clone(), "正在识别芯片...", || {
-            let info = isp::probe()?;
-            let title = format!("识别到 {}", info.name);
-            let detail = info.detail.clone();
-            Ok((title, detail, Some(info)))
-        });
+        start_chip_detect(weak.clone(), op_busy_detect.clone(), "正在重新识别...");
     });
 
     // Flash
