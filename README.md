@@ -50,7 +50,7 @@
 脚本会自动在仓库根目录创建 `.venv`，检查并安装 `tools/scripts/requirements-console.txt` 里的控制台依赖，然后启动 `console.py`。
 
 <p align="center">
-  <img src="https://picui.ogmua.cn/s1/2026/03/16/69b7b522be225.webp" width="960" alt="BinaryKeyboard console.py TUI">
+  <img src="https://github.com/user-attachments/assets/613f457f-a9cb-4ff9-802f-9bca668542ec" width="960" alt="BinaryKeyboard console.py TUI">
 </p>
 
 # 许可
