@@ -14,7 +14,7 @@ edition = "2021"
 name = "wchisp"
 version = "0.3.0"
 authors = ["Andelf <andelf@gmail.com>"]
-build = false
+build = "build.rs"
 include = [
     "**/*.rs",
     "devices/**/*.yaml",
@@ -76,6 +76,9 @@ version = "0.17"
 
 [dependencies.log]
 version = "0.4"
+
+[dependencies.libloading]
+version = "0.8"
 
 [dependencies.object]
 version = "0.36.0"

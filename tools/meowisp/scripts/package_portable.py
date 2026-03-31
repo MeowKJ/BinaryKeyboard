@@ -55,21 +55,6 @@ macOS note:
 """
 
 
-def windows_readme(arch: str, bundled_dll: bool) -> str:
-    extra = (
-        "- `CH375DLL64.dll` is bundled next to `meowisp.exe` in this package.\n"
-        if bundled_dll
-        else "- `CH375DLL64.dll` is not bundled. Put it next to `meowisp.exe` before use.\n"
-    )
-    return common_readme("Windows", arch) + f"""
-Windows note:
-{extra}- If you still encounter a `CH375DLL64.dll not found` error, download it from:
-  https://www.wch-ic.com/downloads/CH372DRV_ZIP.html
-- Using the official WCH driver with `CH375DLL64.dll` lets you program target chips
-  without changing the driver installed by IDE or WCHISPTOOL.
-"""
-
-
 def create_zip(source_dir: Path, archive_base: Path) -> Path:
     archive_path = archive_base.with_suffix(".zip")
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -98,17 +83,10 @@ def package_linux(binary: Path, out_dir: Path, arch: str) -> Path:
         return create_targz(root, out_dir / package_name)
 
 
-def package_windows(binary: Path, out_dir: Path, arch: str, dll: Path | None) -> Path:
-    package_name = f"MeowISP-windows-{arch}-portable"
-    with tempfile.TemporaryDirectory(prefix="meowisp-windows-") as temp_dir:
-        root = Path(temp_dir) / package_name
-        root.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(binary, root / "meowisp.exe")
-        bundled_dll = dll is not None and dll.is_file()
-        if bundled_dll:
-            shutil.copy2(dll, root / "CH375DLL64.dll")
-        write_text(root / "README.txt", windows_readme(arch, bundled_dll))
-        return create_zip(root, out_dir / package_name)
+def package_windows(binary: Path, out_dir: Path, arch: str) -> Path:
+    target = out_dir / f"MeowISP-windows-{arch}.exe"
+    shutil.copy2(binary, target)
+    return target
 
 
 def package_macos(binary: Path, out_dir: Path, arch: str) -> Path:
@@ -144,7 +122,6 @@ def main() -> int:
     parser.add_argument("--arch", required=True)
     parser.add_argument("--binary", required=True)
     parser.add_argument("--out-dir", required=True)
-    parser.add_argument("--windows-dll")
     args = parser.parse_args()
 
     binary = Path(args.binary).resolve()
@@ -159,8 +136,7 @@ def main() -> int:
     elif args.platform == "macos":
         archive = package_macos(binary, out_dir, args.arch)
     else:
-        dll = Path(args.windows_dll).resolve() if args.windows_dll else None
-        archive = package_windows(binary, out_dir, args.arch, dll)
+        archive = package_windows(binary, out_dir, args.arch)
 
     print(archive)
     return 0

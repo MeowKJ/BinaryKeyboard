@@ -226,7 +226,7 @@ jobs:
             label: Windows amd64
             platform: windows
             arch: amd64
-            artifact_name: MeowISP-windows-amd64-portable.zip
+            artifact_name: MeowISP-windows-amd64.exe
 
     steps:
       - name: Checkout
@@ -258,6 +258,17 @@ jobs:
             libgl1-mesa-dev \
             libglu1-mesa-dev
 
+      - name: Download CH375 DLL
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/meowisp/scripts/fetch_windows_dll.py `
+            --repo "${{ github.repository }}" `
+            --tag toolchain-linux `
+            --asset CH375DLL64.dll
+
       - name: Build MeowISP
         run: cargo build --release --manifest-path tools/meowisp/Cargo.toml --bin meowisp
 
@@ -270,18 +281,6 @@ jobs:
             --binary "tools/meowisp/target/release/meowisp" \
             --out-dir dist
 
-      - name: Download CH375 DLL
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          New-Item -ItemType Directory -Force -Path tools/meowisp/.cache/windows-assets | Out-Null
-          gh release download toolchain-linux `
-            --repo "${{ github.repository }}" `
-            --pattern CH375DLL64.dll `
-            --dir tools/meowisp/.cache/windows-assets
-
       - name: Package MeowISP (Windows)
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -290,8 +289,7 @@ jobs:
             --platform "${{ matrix.platform }}" `
             --arch "${{ matrix.arch }}" `
             --binary "tools/meowisp/target/release/meowisp.exe" `
-            --out-dir dist `
-            --windows-dll "tools/meowisp/.cache/windows-assets/CH375DLL64.dll"
+            --out-dir dist
 
       - name: Upload MeowISP package
         uses: actions/upload-artifact@v4
@@ -605,7 +603,7 @@ jobs:
             echo "<details><summary>SHA-256 校验值</summary>"
             echo
             echo '```'
-            find dist -maxdepth 1 -type f \( -name '*.bin' -o -name '*.zip' -o -name '*.tar.gz' \) | sort | while read -r f; do
+            find dist -maxdepth 1 -type f \( -name '*.bin' -o -name '*.zip' -o -name '*.tar.gz' -o -name '*.exe' \) | sort | while read -r f; do
               sha256sum "$f" | sed 's|dist/||'
             done
             echo '```'
@@ -731,4 +729,4 @@ jobs:
             dist/MeowISP-linux-arm64-portable.tar.gz
             dist/MeowISP-macos-apple-silicon-portable.zip
             dist/MeowISP-macos-intel-portable.zip
-            dist/MeowISP-windows-amd64-portable.zip
+            dist/MeowISP-windows-amd64.exe
