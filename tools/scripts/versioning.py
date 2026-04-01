@@ -194,7 +194,10 @@ def _latest_release_versions() -> tuple[str, dict[str, str]] | None:
 def _latest_release_patch_for_base(versions: dict[str, str], major: int, minor: int) -> int | None:
     patches: list[int] = []
     for version in versions.values():
-        rel_major, rel_minor, rel_patch = _split_version(version)
+        try:
+            rel_major, rel_minor, rel_patch = _split_version(version)
+        except ValueError:
+            continue
         if rel_major == major and rel_minor == minor:
             patches.append(rel_patch)
     if not patches:
