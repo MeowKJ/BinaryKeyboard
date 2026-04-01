@@ -5,10 +5,10 @@
  * 采样电路 (VDD = 2.5V):
  * - PA15 (VBAT_AD_EN): 高电平启动分压电路, 低电平关闭
  * - PA14 (AIN4): VBAT 经两个 100K 电阻分压 (1/2) 后进入 ADC
- * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -6dB (1/2x)
+ * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -12dB (1/4x)
  * - Vref = 内部 1.05V 带隙基准 (与 VDD 无关)
- * - 公式: VBAT_mV = ADC_val * 4200 / 2048
- *   (1/2 分压 × 1/2 PGA = 1/4, Vref ≈ 1.05V, 满量程对应 4.2V)
+ * - 公式: VBAT_mV = ADC_val * 8400 / 2048
+ *   (1/2 分压 × 1/4 PGA = 1/8, Vref ≈ 1.05V, 满量程对应 8.4V)
  * - ADC 输入最大 2.1V < VDD 2.5V, 安全
  *
  * 充电检测:
@@ -86,8 +86,8 @@ static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
 
 /** 初始化外部 ADC 通道用于 VBAT 采样 */
 static void adc_vbat_init(void) {
-  /* 外部通道初始化: 采样时钟 3.2MHz, PGA = -6dB (1/2x) */
-  ADC_ExtSingleChSampInit(SampleFreq_3_2, ADC_PGA_1_2);
+  /* 外部通道初始化: 采样时钟 3.2MHz, PGA = -12dB (1/4x) */
+  ADC_ExtSingleChSampInit(SampleFreq_3_2, ADC_PGA_1_4);
   /* 选择 AIN4 通道 (PA14) */
   ADC_ChannelCfg(KBD_VBAT_ADC_CH);
 }

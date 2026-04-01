@@ -109,13 +109,13 @@ typedef struct
  * @brief ADC 满量程电压 (mV)
  *
  * 公式: VBAT_mV = adc * KBD_VBAT_FULL_SCALE_MV / 2048
- * 默认值 4200 基于 Vref = 1.05V, 总衰减 1/4
+ * 默认值 8400 基于 Vref = 1.05V, 外部 1/2 分压 + ADC 1/4 PGA
  *
  * 校准方法: 用万用表测实际电压 Vreal,
  *   新值 = 旧值 * Vreal / V显示
- *   例: 旧值 4200, 万用表 3.95V, 显示 4.10V → 4200 * 3.95 / 4.10 ≈ 4046
+ *   例: 旧值 8400, 万用表 3.95V, 显示 4.10V → 8400 * 3.95 / 4.10 ≈ 8092
  */
-#define KBD_VBAT_FULL_SCALE_MV 4200
+#define KBD_VBAT_FULL_SCALE_MV 8400
 
 /** @} */
 

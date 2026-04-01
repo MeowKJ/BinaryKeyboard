@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ch552g import DEFAULT_KEYBOARD, VALID_KEYBOARDS, build_dir_for
+from targets.ch552.build import DEFAULT_KEYBOARD, VALID_KEYBOARDS, build_dir_for
 from common import display_path as _display_path, find_sdcc
 from versioning import ch552_filename_for_keyboard
 from i18n import t
