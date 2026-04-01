@@ -1,4 +1,4 @@
-import { ScrollView } from "std-widgets.slint";
+import { ListView, ScrollView } from "std-widgets.slint";
 
 component ActionButton inherits Rectangle {
     in property <string> label;
@@ -72,43 +72,8 @@ component MiniButton inherits Rectangle {
     }
 }
 
-component IconButton inherits Rectangle {
-    in property <string> icon: "⧉";
-    in property <bool> enabled: true;
-    in property <bool> framed: false;
-    callback clicked;
-
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-    background: root.framed
-        ? touch.pressed && root.enabled
-            ? #efe3d5
-            : touch.has-hover && root.enabled
-                ? #f8efe7
-                : transparent
-        : transparent;
-    border-width: root.framed ? 1px : 0px;
-    border-color: root.framed && touch.has-hover && root.enabled ? #d8c2af : transparent;
-    opacity: root.enabled ? 1.0 : 0.38;
-
-    touch := TouchArea {
-        enabled: root.enabled;
-        clicked => { root.clicked(); }
-        mouse-cursor: root.enabled ? pointer : default;
-    }
-
-    Text {
-        text: root.icon;
-        color: #70584b;
-        font-size: 14px;
-        font-weight: 800;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-}
-
 export component AppWindow inherits Window {
+    in-out property <string> app-version: "dev";
     in-out property <string> ui-font-family: "";
     in-out property <string> brand-font-family: "";
     in-out property <int> cat-mood: 0;
@@ -164,7 +129,7 @@ export component AppWindow inherits Window {
     callback request-dismiss-success();
     callback request-dismiss-error();
 
-    title: "MeowISP";
+    title: root.app-version == "dev" ? "MeowISP dev" : "MeowISP v" + root.app-version;
     width: 430px;
     height: root.show-permission-bar ? 450px : 410px;
     background: #f8f1e8;
@@ -215,7 +180,7 @@ export component AppWindow inherits Window {
                         Text {
                             x: 0px;
                             y: (parent.height - self.height) / 2 + 2px;
-                            text: "MeowISP";
+                            text: root.app-version == "dev" ? "MeowISP dev" : "MeowISP v" + root.app-version;
                             color: #241914;
                             font-family: root.brand-font-family;
                             font-size: 25px;
@@ -528,14 +493,20 @@ export component AppWindow inherits Window {
                             vertical-alignment: center;
                         }
 
-                        IconButton {
-                            icon: "↺";
+                        MiniButton {
+                            width: 56px;
+                            label: "刷新";
+                            accent: #f0ebff;
+                            text-color: #5c4389;
                             enabled: !root.online-loading;
                             clicked => { root.request-refresh-online(); }
                         }
 
-                        IconButton {
-                            icon: "X";
+                        MiniButton {
+                            width: 56px;
+                            label: "关闭";
+                            accent: #fbf2ea;
+                            text-color: #70584b;
                             clicked => { root.request-close-online(); }
                         }
                     }
@@ -569,75 +540,67 @@ export component AppWindow inherits Window {
                         }
                     }
 
-                    ScrollView {
+                    ListView {
                         vertical-stretch: 1;
                         enabled: !root.online-loading;
 
-                        Rectangle {
+                        for option[index] in root.online-options : Rectangle {
                             width: parent.width - 4px;
-                            height: max(1px, 54px * root.online-options.length);
-                            background: transparent;
+                            height: 54px;
+                            border-radius: 16px;
+                            background: option-touch.pressed ? #e8dff8
+                                : option-touch.has-hover ? #f0eaff
+                                : transparent;
 
-                            for option[index] in root.online-options : Rectangle {
-                                x: 0px;
-                                y: index * 54px;
-                                width: parent.width;
-                                height: 48px;
-                                border-radius: 16px;
-                                background: option-touch.pressed ? #e8dff8
-                                    : option-touch.has-hover ? #f0eaff
-                                    : transparent;
+                            animate background { duration: 80ms; easing: ease; }
 
-                                animate background { duration: 80ms; easing: ease; }
+                            option-touch := TouchArea {
+                                clicked => { root.request-select-online(index); }
+                                mouse-cursor: pointer;
+                            }
 
-                                option-touch := TouchArea {
-                                    clicked => { root.request-select-online(index); }
-                                    mouse-cursor: pointer;
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 8px;
+
+                                // 左侧色块
+                                Rectangle {
+                                    width: 4px;
+                                    height: 28px;
+                                    border-radius: 2px;
+                                    background: #9b82d4;
+                                    y: (parent.height - self.height) / 2;
                                 }
 
-                                HorizontalLayout {
-                                    padding-left: 10px;
-                                    padding-right: 10px;
-                                    spacing: 8px;
+                                VerticalLayout {
+                                    alignment: center;
+                                    horizontal-stretch: 1;
+                                    spacing: 3px;
 
-                                    // 左侧色块
-                                    Rectangle {
-                                        width: 4px;
-                                        height: 28px;
-                                        border-radius: 2px;
-                                        background: #9b82d4;
-                                        y: (parent.height - self.height) / 2;
-                                    }
-
-                                    VerticalLayout {
-                                        alignment: center;
-                                        horizontal-stretch: 1;
-                                        spacing: 3px;
-
-                                        Text {
-                                            text: option;
-                                            color: #2b1e46;
-                                            font-size: 12px;
-                                            font-weight: 900;
-                                            overflow: elide;
-                                        }
-
-                                        Text {
-                                            text: root.online-subtitles[index];
-                                            color: #8a7aaa;
-                                            font-size: 10px;
-                                            font-weight: 600;
-                                            overflow: elide;
-                                        }
+                                    Text {
+                                        text: option;
+                                        color: #2b1e46;
+                                        font-size: 12px;
+                                        font-weight: 900;
+                                        overflow: elide;
                                     }
 
                                     Text {
-                                        text: "›";
-                                        color: #c4b0e8;
-                                        font-size: 18px;
-                                        font-weight: 900;
-                                        vertical-alignment: center;
+                                        text: root.online-subtitles[index];
+                                        color: #8a7aaa;
+                                        font-size: 10px;
+                                        font-weight: 600;
+                                        overflow: elide;
                                     }
+                                }
+
+                                Text {
+                                    text: "›";
+                                    color: #c4b0e8;
+                                    font-size: 18px;
+                                    font-weight: 900;
+                                    vertical-alignment: center;
                                 }
                             }
                         }

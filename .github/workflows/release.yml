@@ -31,6 +31,8 @@ jobs:
       ch552_version: ${{ steps.ver.outputs.ch552_version }}
       ch552_patch: ${{ steps.ver.outputs.ch552_patch }}
       studio_version: ${{ steps.ver.outputs.studio_version }}
+      meowisp_version: ${{ steps.ver.outputs.meowisp_version }}
+      meowisp_changed: ${{ steps.ver.outputs.meowisp_changed }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,11 +47,15 @@ jobs:
           CH592=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH592F'))")
           CH552=$(python3 -c "$PY; from versioning import firmware_version; print(firmware_version('CH552G'))")
           STUDIO=$(python3 -c "$PY; from versioning import studio_version; print(studio_version())")
+          MEOWISP=$(python3 -c "$PY; from versioning import meowisp_version; print(meowisp_version())")
+          MEOWISP_CHANGED=$(python3 tools/scripts/versioning.py changed --component meowisp)
           echo "ch592_version=$CH592" >> "$GITHUB_OUTPUT"
           echo "ch592_patch=${CH592##*.}" >> "$GITHUB_OUTPUT"
           echo "ch552_version=$CH552" >> "$GITHUB_OUTPUT"
           echo "ch552_patch=${CH552##*.}" >> "$GITHUB_OUTPUT"
           echo "studio_version=$STUDIO" >> "$GITHUB_OUTPUT"
+          echo "meowisp_version=$MEOWISP" >> "$GITHUB_OUTPUT"
+          echo "meowisp_changed=$MEOWISP_CHANGED" >> "$GITHUB_OUTPUT"
 
   build-ch592f:
     name: Package CH592F (${{ matrix.keyboard }})
@@ -198,6 +204,7 @@ jobs:
   build-meowisp:
     name: Package MeowISP (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
+    needs: [compute-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -206,27 +213,27 @@ jobs:
             label: Linux amd64
             platform: linux
             arch: amd64
-            artifact_name: MeowISP-linux-amd64-portable.tar.gz
+            artifact_name: MeowISP-linux-amd64-*.tar.gz
           - runner: ubuntu-24.04-arm
             label: Linux arm64
             platform: linux
             arch: arm64
-            artifact_name: MeowISP-linux-arm64-portable.tar.gz
+            artifact_name: MeowISP-linux-arm64-*.tar.gz
           - runner: macos-14
             label: macOS Apple Silicon
             platform: macos
             arch: apple-silicon
-            artifact_name: MeowISP-macos-apple-silicon-portable.zip
+            artifact_name: MeowISP-macos-apple-silicon-*.zip
           - runner: macos-15-intel
             label: macOS Intel
             platform: macos
             arch: intel
-            artifact_name: MeowISP-macos-intel-portable.zip
+            artifact_name: MeowISP-macos-intel-*.zip
           - runner: windows-latest
             label: Windows amd64
             platform: windows
             arch: amd64
-            artifact_name: MeowISP-windows-amd64.exe
+            artifact_name: MeowISP-windows-amd64-*.exe
 
     steps:
       - name: Checkout
@@ -234,16 +241,41 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Reuse previous MeowISP release asset
+        if: needs.compute-versions.outputs.meowisp_changed != 'true'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ needs.compute-versions.outputs.meowisp_version }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          case "$PLATFORM-$ARCH" in
+            linux-amd64) ASSET="MeowISP-linux-amd64-${VERSION}-portable.tar.gz" ;;
+            linux-arm64) ASSET="MeowISP-linux-arm64-${VERSION}-portable.tar.gz" ;;
+            macos-apple-silicon) ASSET="MeowISP-macos-apple-silicon-${VERSION}-portable.zip" ;;
+            macos-intel) ASSET="MeowISP-macos-intel-${VERSION}-portable.zip" ;;
+            windows-amd64) ASSET="MeowISP-windows-amd64-${VERSION}.exe" ;;
+            *) echo "Unsupported MeowISP target: $PLATFORM-$ARCH" >&2; exit 1 ;;
+          esac
+          LATEST_TAG=$(gh release view --repo "$REPO" --json tagName -q .tagName)
+          gh release download "$LATEST_TAG" --repo "$REPO" --pattern "$ASSET" --dir dist
+
       - name: Setup Python
+        if: needs.compute-versions.outputs.meowisp_changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: Setup Rust
+        if: needs.compute-versions.outputs.meowisp_changed == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'linux'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
@@ -259,7 +291,7 @@ jobs:
             libglu1-mesa-dev
 
       - name: Download CH375 DLL
-        if: matrix.platform == 'windows'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'windows'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -270,24 +302,29 @@ jobs:
             --asset CH375DLL64.dll
 
       - name: Build MeowISP
+        if: needs.compute-versions.outputs.meowisp_changed == 'true'
+        env:
+          BK_MEOWISP_VERSION: ${{ needs.compute-versions.outputs.meowisp_version }}
         run: cargo build --release --manifest-path tools/meowisp/Cargo.toml --bin meowisp
 
       - name: Package MeowISP (Unix)
-        if: matrix.platform != 'windows'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform != 'windows'
         run: |
           python3 tools/meowisp/scripts/package_portable.py \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
+            --version "${{ needs.compute-versions.outputs.meowisp_version }}" \
             --binary "tools/meowisp/target/release/meowisp" \
             --out-dir dist
 
       - name: Package MeowISP (Windows)
-        if: matrix.platform == 'windows'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'windows'
         shell: pwsh
         run: |
           python tools/meowisp/scripts/package_portable.py `
             --platform "${{ matrix.platform }}" `
             --arch "${{ matrix.arch }}" `
+            --version "${{ needs.compute-versions.outputs.meowisp_version }}" `
             --binary "tools/meowisp/target/release/meowisp.exe" `
             --out-dir dist
 
@@ -351,6 +388,7 @@ jobs:
           echo "previous_tag=${PREV_TAG}" >> "$GITHUB_OUTPUT"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           echo "studio_version=${{ needs.compute-versions.outputs.studio_version }}" >> "$GITHUB_OUTPUT"
+          echo "meowisp_version=${{ needs.compute-versions.outputs.meowisp_version }}" >> "$GITHUB_OUTPUT"
           echo "ch592_version=${{ needs.compute-versions.outputs.ch592_version }}" >> "$GITHUB_OUTPUT"
           echo "ch552_version=${{ needs.compute-versions.outputs.ch552_version }}" >> "$GITHUB_OUTPUT"
 
@@ -363,6 +401,7 @@ jobs:
           SHA: ${{ steps.version.outputs.sha }}
           DATE_DISPLAY: ${{ steps.version.outputs.date }}
           STUDIO_VERSION: ${{ steps.version.outputs.studio_version }}
+          MEOWISP_VERSION: ${{ steps.version.outputs.meowisp_version }}
           CH592_VERSION: ${{ steps.version.outputs.ch592_version }}
           CH552_VERSION: ${{ steps.version.outputs.ch552_version }}
         run: |
@@ -422,6 +461,7 @@ jobs:
             echo "| 组件 | 版本 | 说明 |"
             echo "|:-----|:-----|:-----|"
             echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
+            echo "| 🐱 MeowISP | \`v${MEOWISP_VERSION}\` | 首刷工具（Desktop） |"
             echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
             echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
             echo
@@ -725,8 +765,8 @@ jobs:
           files: |
             dist/CH592F-*-full.bin
             dist/CH552G-*.bin
-            dist/MeowISP-linux-amd64-portable.tar.gz
-            dist/MeowISP-linux-arm64-portable.tar.gz
-            dist/MeowISP-macos-apple-silicon-portable.zip
-            dist/MeowISP-macos-intel-portable.zip
-            dist/MeowISP-windows-amd64.exe
+            dist/MeowISP-linux-amd64-*-portable.tar.gz
+            dist/MeowISP-linux-arm64-*-portable.tar.gz
+            dist/MeowISP-macos-apple-silicon-*-portable.zip
+            dist/MeowISP-macos-intel-*-portable.zip
+            dist/MeowISP-windows-amd64-*.exe

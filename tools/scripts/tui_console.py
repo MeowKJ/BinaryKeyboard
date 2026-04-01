@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     curses = None
 
 from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
-from common import colorize as _c, find_cmake, find_sdcc, find_wchisp, display_path, use_color
+from common import colorize as _c, find_cmake, find_meowisp, find_sdcc, display_path, use_color
 from i18n import t
 from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
@@ -434,12 +434,16 @@ def run_command_sequence(stdscr, commands: list[tuple[list[str], Path]]) -> None
 
 def capture_command(cmd: list[str], cwd: Path = PROJECT_ROOT) -> tuple[int, str, str]:
     try:
+        kwargs: dict = {}
+        if os.name == "nt":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         result = subprocess.run(
             cmd,
             cwd=str(cwd),
             capture_output=True,
             text=True,
             check=False,
+            **kwargs,
         )
     except FileNotFoundError as exc:
         return (127, "", str(exc))
@@ -887,13 +891,13 @@ def doctor_lines(state: dict) -> list[str]:
     else:
         items.append("[FAIL] cmake: missing")
 
-    # wchisp
-    wchisp_path = find_wchisp()
-    if wchisp_path:
-        ver = _tool_version([str(wchisp_path), "--version"])
-        items.append(f"[OK] wchisp: {wchisp_path} ({ver})")
+    # meowisp
+    meowisp_path = find_meowisp()
+    if meowisp_path:
+        ver = _tool_version([str(meowisp_path), "--version"])
+        items.append(f"[OK] meowisp: {meowisp_path} ({ver})")
     else:
-        items.append("[FAIL] wchisp: missing")
+        items.append("[FAIL] meowisp: not built")
 
     # target-specific tools (sdcc / ninja / toolchain)
     items.extend(current_target_profile(state).doctor_lines(state))
@@ -1024,11 +1028,13 @@ def target_details_lines(state: dict) -> list[str]:
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_path = str(find_wchisp() or t('missing'))
+    meowisp_path = find_meowisp()
+    meowisp_label = display_path(meowisp_path) if meowisp_path else t('not_built')
     return [
         f"{t('isp.target')}: {state['target']}",
-        f"{t('isp.wchisp')}: {wchisp_path}",
+        f"{t('isp.meowisp')}: {meowisp_label}",
         f"{t('isp.flash_wrapper')}: {FLASH_SCRIPT}",
+        f"{t('isp.build_output')}: {meowisp_label}",
         f"{t('isp.default_image')}: {current_artifact_label(state)}",
         "",
         t("isp.transport_options"),
@@ -1213,12 +1219,6 @@ def action_meowisp_build(state: dict, stdscr) -> None:
     run_command_sequence(stdscr, commands)
 
 
-def action_meowisp_run(state: dict, stdscr) -> None:
-    del state
-    meowisp_bin = MEOWISP_DIR / "target" / "debug" / ("meowisp.exe" if os.name == "nt" else "meowisp")
-    run_command(stdscr, [str(meowisp_bin)], cwd=PROJECT_ROOT)
-
-
 def action_docs_install(state: dict, stdscr) -> None:
     run_command(stdscr, ["pnpm", "install"], cwd=DOCS_DIR)
 
@@ -1245,7 +1245,6 @@ ACTION_HANDLERS = {
     "generate_ide_config": action_generate_ide_config,
     "probe": action_probe,
     "meowisp_build": action_meowisp_build,
-    "meowisp_run": action_meowisp_run,
 }
 
 
@@ -1309,7 +1308,6 @@ def build_tabs(state: dict) -> list[dict]:
                 {"label": t("action.studio_dev"), "hint": t("hint.dev_studio"), "fn": action_studio_dev},
                 {"label": t("action.build_studio"), "hint": t("hint.build_studio"), "fn": action_studio_build},
                 {"label": t("action.build_meowisp"), "hint": t("hint.build_meowisp"), "fn": action_meowisp_build},
-                {"label": t("action.run_meowisp"), "hint": t("hint.run_meowisp"), "fn": action_meowisp_run},
                 {"label": t("action.docs_install"), "hint": t("hint.install_docs"), "fn": action_docs_install},
                 {"label": t("action.docs_dev"), "hint": t("hint.dev_docs"), "fn": action_docs_dev},
                 {"label": t("action.build_docs"), "hint": t("hint.build_docs"), "fn": action_docs_build},

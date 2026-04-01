@@ -6,11 +6,17 @@ default-run = "meowisp"
 build = "build.rs"
 
 [dependencies]
+anyhow = "1"
 arboard = "3.6"
+clap = { version = "4", features = ["derive"] }
+hxdmp = "0.2"
+log = "0.4"
 meowisp-core = { path = "../meowisp-core" }
 png = "0.18"
 rfd = "0.15"
+simplelog = "0.12"
 slint = { version = "1.8", default-features = true }
+wchisp = { path = "../../vendor-wchisp" }
 
 [build-dependencies]
 slint-build = "1.8"

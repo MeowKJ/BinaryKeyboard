@@ -30,7 +30,7 @@ from textual.widgets import (
 )
 
 from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
-from common import display_path, find_cmake, find_sdcc, find_wchisp
+from common import display_path, find_cmake, find_meowisp, find_sdcc
 from i18n import t, get_lang, set_lang, toggle_lang
 from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
@@ -142,10 +142,17 @@ def _effective_toolchain(state: dict) -> str:
     return state["toolchain_root"] or os.environ.get("MRS_TOOLCHAIN_ROOT", "")
 
 
+def _meowisp_binary() -> Path | None:
+    return find_meowisp()
+
+
 def _tool_version(cmd: list[str]) -> str:
     try:
+        kwargs: dict = {}
+        if os.name == "nt":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         result = subprocess.run(cmd, capture_output=True, text=True, check=False,
-                                cwd=str(PROJECT_ROOT))
+                                cwd=str(PROJECT_ROOT), **kwargs)
         out = (result.stdout or result.stderr).strip()
         return out.splitlines()[0] if out else "ok"
     except FileNotFoundError:
@@ -226,8 +233,8 @@ def doctor_lines(state: dict) -> list[str]:
 
     # ── Flash tools ──────────────────────────────────────────────────────
     items.append(t("doctor.sec_flash"))
-    wchisp_path = find_wchisp()
-    _check("wchisp", wchisp_path, [str(wchisp_path), "--version"] if wchisp_path else None)
+    meowisp_path = _meowisp_binary()
+    _check("meowisp", meowisp_path, [str(meowisp_path), "--version"] if meowisp_path else None)
 
     # ── CH552 compiler ───────────────────────────────────────────────────
     items.append(t("doctor.sec_ch552"))
@@ -278,11 +285,13 @@ def _param_bar_text(state: dict) -> str:
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_path = str(find_wchisp() or t("missing"))
+    meowisp_path = _meowisp_binary()
+    meowisp_label = display_path(meowisp_path) if meowisp_path else t("not_built")
     return [
         f"{t('isp.target')}: {state['target']}",
-        f"{t('isp.wchisp')}: {wchisp_path}",
+        f"{t('isp.meowisp')}: {meowisp_label}",
         f"{t('isp.flash_wrapper')}: {FLASH_SCRIPT}",
+        f"{t('isp.build_output')}: {meowisp_label}",
         f"{t('isp.default_image')}: {display_path(_artifact_path(state))}",
         "",
         t("isp.transport_options"),
@@ -330,8 +339,6 @@ def _dev_lines(state: dict) -> list[str]:
 
     studio_deps = (STUDIO_DIR / "node_modules").is_dir()
     studio_dist = STUDIO_DIR / "dist"
-    meowisp_build = MEOWISP_DIR / "target" / "debug"
-    meowisp_binary = meowisp_build / ("meowisp.exe" if os.name == "nt" else "meowisp")
     docs_deps = (DOCS_DIR / "node_modules").is_dir()
     docs_dist = DOCS_DIR / ".vitepress" / "dist"
 
@@ -348,13 +355,6 @@ def _dev_lines(state: dict) -> list[str]:
         f"{t('ready') if studio_deps else t('dev.not_installed')}",
         f"[{'OK' if studio_dist.is_dir() else 'WARN'}] {t('dev.build_output')}: "
         f"{display_path(studio_dist) if studio_dist.is_dir() else t('not_built')}",
-        "",
-        f"{t('tab.meowisp')}:",
-        f"{t('path')}: {display_path(MEOWISP_DIR)}",
-        t("meowisp.stack"),
-        t("meowisp.targets"),
-        f"[{'OK' if meowisp_binary.is_file() else 'WARN'}] {t('dev.build_output')}: "
-        f"{display_path(meowisp_binary) if meowisp_binary.is_file() else t('not_built')}",
         "",
         f"{t('tab.docs')}:",
         f"{t('path')}: {display_path(DOCS_DIR)}",
@@ -390,6 +390,7 @@ def _home_actions(state: dict) -> list[dict]:
 
 def _isp_actions() -> list[dict]:
     return [
+        {"id": "meowisp_build", "label": t("action.build_meowisp"), "hint": t("hint.build_meowisp")},
         {"id": "probe", "label": t("action.probe_devices"), "hint": t("hint.probe_devices")},
         {"id": "show_isp_sheet", "label": t("action.show_isp_sheet"), "hint": t("hint.show_isp_sheet")},
         {"id": "chip_menu", "label": t("action.chip_commands"), "hint": t("hint.chip_commands")},
@@ -405,8 +406,6 @@ def _dev_actions() -> list[dict]:
         {"id": "studio_install", "label": t("action.studio_install"), "hint": t("hint.install_studio")},
         {"id": "studio_dev", "label": t("action.studio_dev"), "hint": t("hint.dev_studio")},
         {"id": "studio_build", "label": t("action.build_studio"), "hint": t("hint.build_studio")},
-        {"id": "meowisp_build", "label": t("action.build_meowisp"), "hint": t("hint.build_meowisp")},
-        {"id": "meowisp_run", "label": t("action.run_meowisp"), "hint": t("hint.run_meowisp")},
         {"id": "docs_install", "label": t("action.docs_install"), "hint": t("hint.install_docs")},
         {"id": "docs_dev", "label": t("action.docs_dev"), "hint": t("hint.dev_docs")},
         {"id": "docs_build", "label": t("action.build_docs"), "hint": t("hint.build_docs")},
@@ -1192,23 +1191,25 @@ def _act_probe(app: BKConsoleApp) -> None:
 
 
 def _act_show_isp_sheet(app: BKConsoleApp) -> None:
+    meowisp_path = _meowisp_binary()
+    meowisp_cmd = display_path(meowisp_path) if meowisp_path else "meowisp"
     lines = [
         t("isp_sheet.title"), "",
         t("isp_sheet.build_first"),
         f"  {_build_cmd_display(app.state)}", "",
         t("isp_sheet.isp"),
-        "  python tools/scripts/flash.py info",
-        "  python tools/scripts/flash.py probe",
+        f"  {meowisp_cmd} info",
+        f"  {meowisp_cmd} probe",
         f"  {_flash_cmd_display(app.state)}",
         f"  {_verify_cmd_display(app.state)}",
-        "  python tools/scripts/flash.py erase",
-        "  python tools/scripts/flash.py reset",
-        "  python tools/scripts/flash.py eeprom dump --out eeprom_dump.bin",
-        "  python tools/scripts/flash.py eeprom erase",
-        "  python tools/scripts/flash.py eeprom erase   # clear dataflash",
-        "  python tools/scripts/flash.py eeprom write --file eeprom_dump.bin",
-        "  python tools/scripts/flash.py config info",
-        "  python tools/scripts/flash.py config reset",
+        f"  {meowisp_cmd} erase",
+        f"  {meowisp_cmd} reset",
+        f"  {meowisp_cmd} eeprom dump --out eeprom_dump.bin",
+        f"  {meowisp_cmd} eeprom erase",
+        f"  {meowisp_cmd} eeprom erase   # clear dataflash",
+        f"  {meowisp_cmd} eeprom write --file eeprom_dump.bin",
+        f"  {meowisp_cmd} config info",
+        f"  {meowisp_cmd} config reset",
         "", t("isp_sheet.transport_flags"),
         "  -d 0",
         "  -s --port /dev/cu.usbmodemXXXX",
@@ -1297,11 +1298,6 @@ def _act_meowisp_build(app: BKConsoleApp) -> None:
     app._suspend_and_run_sequence(commands)
 
 
-def _act_meowisp_run(app: BKConsoleApp) -> None:
-    meowisp_bin = MEOWISP_DIR / "target" / "debug" / ("meowisp.exe" if os.name == "nt" else "meowisp")
-    app._suspend_and_run([str(meowisp_bin)], cwd=PROJECT_ROOT)
-
-
 def _act_docs_install(app: BKConsoleApp) -> None:
     app._suspend_and_run(["pnpm", "install"], cwd=DOCS_DIR)
 
@@ -1351,7 +1347,6 @@ ACTION_DISPATCH: dict[str, callable] = {
     "studio_dev": _act_studio_dev,
     "studio_build": _act_studio_build,
     "meowisp_build": _act_meowisp_build,
-    "meowisp_run": _act_meowisp_run,
     "docs_install": _act_docs_install,
     "docs_dev": _act_docs_dev,
     "docs_build": _act_docs_build,

@@ -6,6 +6,13 @@
         "tools/studio"
       ]
     },
+    "meowisp": {
+      "base_version": "0.1",
+      "version_parts": 2,
+      "paths": [
+        "tools/meowisp"
+      ]
+    },
     "ch592": {
       "base_version": "3.0",
       "chip_family": "CH592F",

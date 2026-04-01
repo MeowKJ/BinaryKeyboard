@@ -22,6 +22,7 @@ VERSIONS_FILE = PROJECT_ROOT / "config" / "versions.json"
 
 COMPONENT_ALIASES = {
     "studio": "studio",
+    "meowisp": "meowisp",
     "ch552": "ch552",
     "ch552g": "ch552",
     "ch592": "ch592",
@@ -38,6 +39,9 @@ CH552_MODELS = ("BASIC", "5KEY", "KNOB")
 STUDIO_ASSET_RE = re.compile(
     r"^BinaryKeyboard(?:[ .-])Studio-(?P<version>\d+\.\d+\.\d+)-"
 )
+MEOWISP_ASSET_RE = re.compile(
+    r"^MeowISP-(?:linux-(?:amd64|arm64)|macos-(?:apple-silicon|intel))-(?P<version>\d+\.\d+)-portable\.(?:tar\.gz|zip)$|^MeowISP-windows-amd64-(?P<win_version>\d+\.\d+)\.exe$"
+)
 CH592_RELEASE_ASSET_RE = re.compile(
     r"^CH592F-(?:BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?:-(?:app|full|iap))?\.(?:bin|hex)$"
 )
@@ -51,6 +55,11 @@ def _split_base_version(value: str) -> tuple[int, int]:
     if len(parts) != 2:
         raise ValueError(f"Expected base version 'x.y', got: {value}")
     return parts[0], parts[1]
+
+
+def _version_parts(component: str) -> int:
+    meta = component_meta(component)
+    return int(meta.get("version_parts", 3))
 
 
 def _git_output(args: list[str]) -> str:
@@ -146,6 +155,7 @@ def _version_from_release_assets(component: str, assets: list[dict[str, Any]]) -
     versions_found: set[str] = set()
     matcher = {
         "studio": STUDIO_ASSET_RE,
+        "meowisp": MEOWISP_ASSET_RE,
         "ch592": CH592_RELEASE_ASSET_RE,
         "ch552": CH552_RELEASE_ASSET_RE,
     }[component]
@@ -154,7 +164,7 @@ def _version_from_release_assets(component: str, assets: list[dict[str, Any]]) -
         name = str(asset.get("name", ""))
         match = matcher.match(name)
         if match:
-            versions_found.add(match.group("version"))
+            versions_found.add(match.group("version") or match.group("win_version"))
 
     if len(versions_found) == 1:
         return next(iter(versions_found))
@@ -171,7 +181,7 @@ def _latest_release_versions() -> tuple[str, dict[str, str]] | None:
     assets = payload.get("assets") or []
     versions: dict[str, str] = {}
 
-    for component in ("studio", "ch552", "ch592"):
+    for component in ("studio", "meowisp", "ch552", "ch592"):
         version = _version_from_release_assets(component, assets)
         if version:
             versions[component] = version
@@ -213,6 +223,15 @@ def component_meta(component: str) -> dict[str, Any]:
         raise KeyError(f"Missing component metadata: {component}") from exc
 
 
+def component_changed(component: str) -> bool:
+    paths = list(component_meta(component).get("paths", []))
+    latest_release = _latest_release_versions()
+    if latest_release:
+        release_tag, _released_versions = latest_release
+        return _git_paths_changed_since(release_tag, paths)
+    return _git_commit_count_for_paths(paths) > 0
+
+
 def _is_local_build() -> bool:
     """True when running outside GitHub Actions (local dev environment)."""
     return not os.environ.get("CI")
@@ -221,6 +240,12 @@ def _is_local_build() -> bool:
 def component_version(component: str, build_number: int | None = None) -> str:
     meta = component_meta(component)
     major, minor = _split_base_version(str(meta["base_version"]))
+    version_parts = int(meta.get("version_parts", 3))
+    if version_parts == 2:
+        if _is_local_build():
+            return "dev"
+        return f"{major}.{minor}"
+
     if build_number is not None:
         return f"{major}.{minor}.{build_number}"
 
@@ -259,6 +284,10 @@ def studio_version(build_number: int | None = None) -> str:
     return component_version("studio", build_number)
 
 
+def meowisp_version(build_number: int | None = None) -> str:
+    return component_version("meowisp", build_number)
+
+
 def firmware_meta(chip: str) -> dict[str, Any]:
     chip_key = chip.strip().upper()
     try:
@@ -287,6 +316,7 @@ def protocol_family(chip: str) -> str:
 def current_component_versions(build_number: int | None = None) -> dict[str, str]:
     return {
         "studio": studio_version(build_number),
+        "meowisp": meowisp_version(build_number),
         "ch552": component_version("ch552", build_number),
         "ch592": component_version("ch592", build_number),
     }
@@ -448,6 +478,10 @@ def studio_component_version(build_number: int | None = None) -> str:
     return studio_version(build_number)
 
 
+def meowisp_component_version(build_number: int | None = None) -> str:
+    return meowisp_version(build_number)
+
+
 def normalize_keyboard_name(keyboard: str) -> str:
     value = keyboard.strip().upper()
     aliases = {
@@ -508,9 +542,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_show = sub.add_parser("show", help="Print component version metadata")
-    p_show.add_argument("--component", choices=("studio", "ch552", "ch592", "CH552G", "CH592F"))
+    p_show.add_argument("--component", choices=("studio", "meowisp", "ch552", "ch592", "CH552G", "CH592F"))
     p_show.add_argument("--build-number", type=int, default=None,
                         help="Override patch number instead of git history")
+
+    p_changed = sub.add_parser("changed", help="Check whether a component changed since the latest release")
+    p_changed.add_argument("--component", required=True, choices=("studio", "meowisp", "ch552", "ch592", "CH552G", "CH592F"))
 
     p_emit = sub.add_parser("emit-c-header", help="Generate a C header for a chip family")
     p_emit.add_argument("--chip", required=True, choices=("CH592F", "CH552G"))
@@ -549,6 +586,13 @@ def main() -> int:
                 data["components"][component_key]["version"] = component_version(component_key, build_number)
             data["release_manifest"] = release_manifest_payload(build_number)
             print(json.dumps(data, indent=2, ensure_ascii=True))
+        return 0
+
+    if args.command == "changed":
+        key = args.component
+        if key.upper() in CHIP_TO_COMPONENT:
+            key = CHIP_TO_COMPONENT[key.upper()]
+        print("true" if component_changed(key) else "false")
         return 0
 
     if args.command == "emit-c-header":
