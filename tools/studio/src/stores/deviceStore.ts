@@ -533,7 +533,7 @@ export const useDeviceStore = defineStore("device", () => {
   // 实时轮询
   // ========================================
 
-  /** 内部轮询: 每次取 SysStatus, 每 5 次额外取电压 */
+  /** 内部轮询: 每次取 SysStatus，并同步刷新电池电压 */
   async function _pollStatus(): Promise<void> {
     try {
       const status = await hidService.getSysStatus();
@@ -545,9 +545,8 @@ export const useDeviceStore = defineStore("device", () => {
       //   currentEditLayer.value = status.currentLayer;
       // }
 
-      // 每 5 个 tick (~10s) 采样电压
       _pollTick++;
-      if (supportsBattery.value && _pollTick % 5 === 0) {
+      if (supportsBattery.value) {
         const bat = await hidService.getBattery();
         batteryVoltage.value = bat.voltage;
       }

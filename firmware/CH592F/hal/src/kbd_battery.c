@@ -5,10 +5,10 @@
  * 采样电路 (VDD = 2.5V):
  * - PA15 (VBAT_AD_EN): 高电平启动分压电路, 低电平关闭
  * - PA14 (AIN4): VBAT 经两个 100K 电阻分压 (1/2) 后进入 ADC
- * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -6dB (1/2x)
+ * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -12dB (1/4x)
  * - Vref = 内部 1.05V 带隙基准 (与 VDD 无关)
- * - 公式: VBAT_mV = ADC_val * 4200 / 2048
- *   (1/2 分压 × 1/2 PGA = 1/4, Vref ≈ 1.05V, 满量程对应 4.2V)
+ * - 公式: VBAT_mV = ADC_val * 8400 / 2048
+ *   (1/2 分压 × 1/4 PGA = 1/8, Vref ≈ 1.05V, 满量程对应 8.4V)
  * - ADC 输入最大 2.1V < VDD 2.5V, 安全
  *
  * 充电检测:
@@ -30,6 +30,11 @@
 /* 采样时序 */
 #define BAT_SETTLE_MS 5u
 #define BAT_PERIODIC_MS (30u * 1000u)
+/* 粗调校准只用于微调零点，过大偏移会把高电压直接钉死到满量程。 */
+#define BAT_ADC_CALIB_LIMIT 64
+/* TP4054 + 2K PROG 下，充电末段会较早接近 4.2V，但终止前不适合直接显示 100%。 */
+#define BAT_CHARGING_LEVEL_MAX 98u
+#define BAT_FULL_DONE_MV 4120u
 
 /*============================================================================*/
 /*                              私有变量                                      */
@@ -76,6 +81,21 @@ static uint8_t voltage_to_percent(uint16_t mv) {
   return 100;
 }
 
+static uint8_t battery_level_from_state(uint16_t mv,
+                                        kbd_charge_state_t charge_state) {
+  uint8_t level = voltage_to_percent(mv);
+
+  if (charge_state == BAT_CHG_CHARGING) {
+    return (level > BAT_CHARGING_LEVEL_MAX) ? BAT_CHARGING_LEVEL_MAX : level;
+  }
+
+  if (mv >= BAT_FULL_DONE_MV) {
+    return 100;
+  }
+
+  return level;
+}
+
 static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
 
 /*============================================================================*/
@@ -84,8 +104,8 @@ static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
 
 /** 初始化外部 ADC 通道用于 VBAT 采样 */
 static void adc_vbat_init(void) {
-  /* 外部通道初始化: 采样时钟 3.2MHz, PGA = -6dB (1/2x) */
-  ADC_ExtSingleChSampInit(SampleFreq_3_2, ADC_PGA_1_2);
+  /* 外部通道初始化: 采样时钟 3.2MHz, PGA = -12dB (1/4x) */
+  ADC_ExtSingleChSampInit(SampleFreq_3_2, ADC_PGA_1_4);
   /* 选择 AIN4 通道 (PA14) */
   ADC_ChannelCfg(KBD_VBAT_ADC_CH);
 }
@@ -160,6 +180,15 @@ void KBD_Battery_Init(void) {
   /* 初始化 ADC 并获取校准值 */
   adc_vbat_init();
   s_adc_calib = ADC_DataCalib_Rough();
+  if (s_adc_calib > BAT_ADC_CALIB_LIMIT) {
+    LOG_W(TAG, "Battery ADC calib too high: %d -> %d", s_adc_calib,
+          BAT_ADC_CALIB_LIMIT);
+    s_adc_calib = BAT_ADC_CALIB_LIMIT;
+  } else if (s_adc_calib < -BAT_ADC_CALIB_LIMIT) {
+    LOG_W(TAG, "Battery ADC calib too low: %d -> %d", s_adc_calib,
+          -BAT_ADC_CALIB_LIMIT);
+    s_adc_calib = -BAT_ADC_CALIB_LIMIT;
+  }
 
   s_task_id = TMOS_ProcessEventRegister(KBD_Battery_ProcessEvent);
   if (s_task_id == TASK_NO_TASK) {
@@ -189,7 +218,8 @@ uint16_t KBD_Battery_GetVoltage_mV(void) {
 }
 
 uint8_t KBD_Battery_GetLevel(void) {
-  return voltage_to_percent(KBD_Battery_GetVoltage_mV());
+  uint16_t mv = KBD_Battery_GetVoltage_mV();
+  return battery_level_from_state(mv, KBD_Battery_GetChargeState());
 }
 
 kbd_charge_state_t KBD_Battery_GetChargeState(void) {

@@ -54,6 +54,9 @@ typedef uint8_t (*battServiceCalcCB_t)(uint16_t adcVal);
 // Battery measure HW teardown function
 typedef void (*battServiceTeardownCB_t)(void);
 
+// Battery measure direct percentage callback
+typedef uint8_t (*battServiceMeasureCB_t)(void);
+
 /*********************************************************************
  * MACROS
  */
@@ -149,6 +152,19 @@ extern bStatus_t Batt_MeasLevel(void);
 extern void Batt_Setup(uint8_t adc_ch, uint16_t minVal, uint16_t maxVal,
                        battServiceSetupCB_t sCB, battServiceTeardownCB_t tCB,
                        battServiceCalcCB_t cCB);
+
+/*********************************************************************
+ * @fn      Batt_RegisterMeasureCB
+ *
+ * @brief   Register a direct battery percentage callback.
+ *          When set, Batt_MeasLevel() and battery reads use this
+ *          callback instead of the legacy internal ADC placeholder.
+ *
+ * @param   pfnMeasureCB - Callback that returns 0-100 battery level.
+ *
+ * @return  none.
+ */
+extern void Batt_RegisterMeasureCB(battServiceMeasureCB_t pfnMeasureCB);
 
 /*********************************************************************
  * @fn          Batt_HandleConnStatusCB

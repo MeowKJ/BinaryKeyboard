@@ -479,10 +479,11 @@ export function parseReceiveFrame(frame: Uint8Array): {
       break;
 
     case Command.BATTERY:
-      if (len >= 4) {
+      if (len >= 5) {
         const battery = data[1];
         const charging = data[2] ? "充电中" : "未充电";
-        const voltage = (data[3] / 10).toFixed(1);
+        const voltageMv = data[3] | (data[4] << 8);
+        const voltage = (voltageMv / 1000).toFixed(2);
         parsed += ` | ${battery}% ${charging} ${voltage}V`;
       }
       break;

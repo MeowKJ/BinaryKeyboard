@@ -29,7 +29,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from ch552g import VALID_KEYBOARDS as CH552_KEYBOARDS
+from targets.ch552.build import VALID_KEYBOARDS as CH552_KEYBOARDS
 from common import display_path, find_cmake, find_sdcc, find_wchisp
 from i18n import t, get_lang, set_lang, toggle_lang
 from targets.ch592.profile import _find_gcc_in_toolchain

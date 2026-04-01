@@ -3020,12 +3020,18 @@ dependencies = [
 name = "meowisp"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "arboard",
+ "clap",
+ "hxdmp",
+ "log",
  "meowisp-core",
  "png 0.18.1",
  "rfd",
+ "simplelog",
  "slint",
  "slint-build",
+ "wchisp",
 ]
 
 [[package]]

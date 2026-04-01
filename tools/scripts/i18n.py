@@ -113,7 +113,7 @@ _EN: dict[str, str] = {
         "hint.show_commands": "Print the resolved build / flash / verify commands.",
         "hint.generate_ide": "Write VSCode C/C++ settings and a root compile_commands.json.",
         "hint.probe": "List connected WCH ISP devices.",
-        "hint.check_tools": "Show cmake/ninja/wchisp/toolchain detection.",
+        "hint.check_tools": "Show cmake/ninja/meowisp/toolchain detection.",
         "hint.show_isp_sheet": "Print all flash.py ISP commands and examples.",
         "hint.probe_devices": "Run flash.py probe.",
         "hint.chip_commands": "Choose info / verify / erase / reset.",
@@ -150,8 +150,9 @@ _EN: dict[str, str] = {
 
         # ── ISP reference panel ───────────────────────────────────────────
         "isp.target": "target",
-        "isp.wchisp": "wchisp",
+        "isp.meowisp": "meowisp",
         "isp.flash_wrapper": "flash wrapper",
+        "isp.build_output": "build output",
         "isp.default_image": "default image",
         "isp.transport_options": "Transport options:",
         "isp.device_help": "  -d/--device N   choose USB device index",
@@ -346,7 +347,7 @@ _ZH: dict[str, str] = {
         "hint.show_commands": "打印解析后的 build / flash / verify 命令。",
         "hint.generate_ide": "写入 VSCode C/C++ 设置和根目录 compile_commands.json。",
         "hint.probe": "列出已连接的 WCH ISP 设备。",
-        "hint.check_tools": "显示 cmake/ninja/wchisp/工具链检测结果。",
+        "hint.check_tools": "显示 cmake/ninja/meowisp/工具链检测结果。",
         "hint.show_isp_sheet": "打印所有 flash.py ISP 命令和示例。",
         "hint.probe_devices": "运行 flash.py probe。",
         "hint.chip_commands": "选择 info / verify / erase / reset。",
@@ -383,8 +384,9 @@ _ZH: dict[str, str] = {
 
         # ── ISP reference panel ───────────────────────────────────────────
         "isp.target": "目标",
-        "isp.wchisp": "wchisp",
+        "isp.meowisp": "meowisp",
         "isp.flash_wrapper": "flash 封装",
+        "isp.build_output": "构建产物",
         "isp.default_image": "默认镜像",
         "isp.transport_options": "传输参数:",
         "isp.device_help": "  -d/--device N   选择 USB 设备序号",

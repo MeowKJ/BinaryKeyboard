@@ -7,6 +7,8 @@ import subprocess
 import sys
 import venv
 
+from common import find_wchisp
+
 
 SCRIPT_PATH = Path(__file__).resolve()
 SCRIPT_DIR = SCRIPT_PATH.parent
@@ -14,6 +16,8 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 VENV_DIR = PROJECT_ROOT / ".venv"
 VENV_BIN_DIR = VENV_DIR / ("Scripts" if os.name == "nt" else "bin")
 CONSOLE_REQUIREMENTS = SCRIPT_DIR / "requirements-console.txt"
+SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
+FETCH_WINDOWS_DLL_SCRIPT = PROJECT_ROOT / "tools" / "meowisp" / "scripts" / "fetch_windows_dll.py"
 
 
 def _venv_python() -> Path:
@@ -93,6 +97,58 @@ def _reexec_in_venv(python_exe: Path) -> None:
     os.execve(str(python_exe), argv, _venv_env())
 
 
+def _ensure_wchisp_ready(python_exe: Path) -> None:
+    if find_wchisp():
+        return
+
+    print("[console] wchisp not found, running setup.py...", file=sys.stderr)
+    result = subprocess.run(
+        [str(python_exe), str(SETUP_SCRIPT)],
+        env=_venv_env(),
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            "[console] Auto-install of wchisp failed. "
+            "The console will continue and show ISP tools as unavailable.",
+            file=sys.stderr,
+        )
+
+
+def _ensure_windows_isp_assets_ready(python_exe: Path) -> None:
+    if os.name != "nt":
+        return
+    if not FETCH_WINDOWS_DLL_SCRIPT.is_file():
+        print(
+            f"[console] Windows ISP DLL fetch script not found: {FETCH_WINDOWS_DLL_SCRIPT}",
+            file=sys.stderr,
+        )
+        return
+    wchisp = find_wchisp()
+    if not wchisp:
+        print("[console] wchisp not found, skip CH375 DLL check.", file=sys.stderr)
+        return
+    dll_path = wchisp.parent / "CH375DLL64.dll"
+    if dll_path.is_file():
+        return
+
+    print(
+        f"[console] CH375DLL64.dll not found next to wchisp, fetching to {dll_path}...",
+        file=sys.stderr,
+    )
+    result = subprocess.run(
+        [str(python_exe), str(FETCH_WINDOWS_DLL_SCRIPT), "--out", str(dll_path)],
+        env=_venv_env(),
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            "[console] Auto-fetch of CH375DLL64.dll failed. "
+            "Windows ISP may be unavailable until the DLL is downloaded.",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     if len(sys.argv) > 1:
         raise SystemExit("Legacy console flags were removed. Run `python tools/scripts/console.py` without arguments.")
@@ -102,6 +158,8 @@ def main() -> None:
     if not _same_python(python_exe):
         _reexec_in_venv(python_exe)
     os.environ.update(_venv_env())
+    _ensure_wchisp_ready(python_exe)
+    _ensure_windows_isp_assets_ready(python_exe)
 
     try:
         from tui_textual import run_textual

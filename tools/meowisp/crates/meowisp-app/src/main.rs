@@ -1,6 +1,7 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::cell::{Cell, RefCell};
+use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,15 +10,25 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use anyhow::{Context, Result};
+use clap::{ArgAction, Parser, Subcommand};
 use meowisp_core::{isp, online, permission};
 use png::{BlendOp, ColorType, DisposeOp, FrameControl, Transformations};
 use rfd::FileDialog;
+use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
 use slint::{
     ComponentHandle, Image, Rgba8Pixel, SharedPixelBuffer, SharedString, Timer, TimerMode,
     VecModel, Weak,
 };
+use wchisp::{
+    constants::SECTOR_SIZE,
+    format::read_firmware_from_file,
+    transport::{SerialTransport, UsbTransport},
+    Baudrate, Flashing,
+};
 
 slint::include_modules!();
+include!(concat!(env!("OUT_DIR"), "/app_version.rs"));
 
 #[derive(Debug, Clone)]
 enum FirmwareSource {
@@ -40,6 +51,305 @@ struct AnimatedFrame {
 struct AnimatedImage {
     frames: Vec<AnimatedFrame>,
     num_plays: u32,
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "meowisp", version = APP_VERSION, about = "BinaryKeyboard ISP tool + desktop UI")]
+struct Cli {
+    /// Print verbose backend logs
+    #[arg(short = 'v', long = "verbose", action = ArgAction::SetTrue)]
+    verbose: bool,
+
+    /// Optional USB device index
+    #[arg(short = 'd', long = "device", value_name = "INDEX")]
+    device: Option<usize>,
+
+    /// Use serial transport
+    #[arg(short = 's', long = "serial", action = ArgAction::SetTrue)]
+    serial: bool,
+
+    /// Serial port path
+    #[arg(long = "port", value_name = "PORT")]
+    port: Option<String>,
+
+    /// Serial baudrate
+    #[arg(long = "baudrate", value_name = "BAUDRATE")]
+    baudrate: Option<Baudrate>,
+
+    #[command(subcommand)]
+    command: CliCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum CliCommand {
+    Doctor,
+    Probe,
+    Info,
+    Flash {
+        #[arg(short = 'f', long = "file", value_name = "FILE")]
+        file: String,
+        #[arg(long = "skip-erase", action = ArgAction::SetTrue)]
+        skip_erase: bool,
+        #[arg(long = "skip-verify", action = ArgAction::SetTrue)]
+        skip_verify: bool,
+        #[arg(long = "skip-reset", action = ArgAction::SetTrue)]
+        skip_reset: bool,
+    },
+    Verify {
+        #[arg(short = 'f', long = "file", value_name = "FILE")]
+        file: String,
+    },
+    Erase,
+    Reset,
+    Eeprom {
+        #[command(subcommand)]
+        command: EepromCommand,
+    },
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+    InstallUdev,
+    RemoveUdev,
+}
+
+#[derive(Subcommand, Debug)]
+enum EepromCommand {
+    Dump {
+        #[arg(short = 'o', long = "out", value_name = "FILE")]
+        out: Option<String>,
+    },
+    Erase,
+    Write {
+        #[arg(short = 'f', long = "file", value_name = "FILE")]
+        file: String,
+        #[arg(long = "skip-erase", action = ArgAction::SetTrue)]
+        skip_erase: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigCommand {
+    Info,
+    Reset,
+}
+
+fn cli_uses_serial(cli: &Cli) -> bool {
+    cli.serial || cli.port.is_some() || cli.baudrate.is_some()
+}
+
+fn init_cli_logging(verbose: bool) {
+    let level = if verbose {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    };
+    let _ = TermLogger::init(
+        level,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    );
+}
+
+fn extend_firmware_to_sector_boundary(buf: &mut Vec<u8>) {
+    if buf.len() % SECTOR_SIZE != 0 {
+        let remain = SECTOR_SIZE - (buf.len() % SECTOR_SIZE);
+        buf.resize(buf.len() + remain, 0xFF);
+    }
+}
+
+fn get_flashing(cli: &Cli) -> Result<Flashing<'_>> {
+    if cli_uses_serial(cli) {
+        Flashing::new_from_serial(cli.port.as_deref(), cli.baudrate).context("failed to open serial device")
+    } else {
+        Flashing::new_from_usb(cli.device).context("failed to open USB device")
+    }
+}
+
+fn run_cli(cli: Cli) -> Result<()> {
+    init_cli_logging(cli.verbose);
+
+    match cli.command {
+        CliCommand::Doctor => {
+            print_doctor();
+        }
+        CliCommand::Probe => {
+            if cli_uses_serial(&cli) {
+                let ports = SerialTransport::scan_ports().context("failed to scan serial ports")?;
+                log::info!(
+                    "Found {} serial port{}",
+                    ports.len(),
+                    if ports.len() == 1 { "" } else { "s" }
+                );
+                for port in ports {
+                    log::info!("\t{port}");
+                }
+            } else {
+                let ndevices = UsbTransport::scan_devices().context("failed to scan USB devices")?;
+                log::info!(
+                    "Found {} USB device{}",
+                    ndevices,
+                    if ndevices == 1 { "" } else { "s" }
+                );
+                for index in 0..ndevices {
+                    let mut transport = UsbTransport::open_nth(index)
+                        .with_context(|| format!("failed to open USB device #{index}"))?;
+                    let chip = Flashing::get_chip(&mut transport)
+                        .with_context(|| format!("failed to identify USB device #{index}"))?;
+                    log::info!("\tDevice #{index}: {chip}");
+                }
+            }
+        }
+        CliCommand::Info => {
+            let mut flashing = get_flashing(&cli)?;
+            flashing.dump_info().context("failed to read chip info")?;
+        }
+        CliCommand::Flash {
+            ref file,
+            skip_erase,
+            skip_verify,
+            skip_reset,
+        } => {
+            let mut flashing = get_flashing(&cli)?;
+            flashing.dump_info().context("failed to read chip info")?;
+
+            let mut binary = read_firmware_from_file(&file)
+                .with_context(|| format!("failed to read firmware file: {file}"))?;
+            extend_firmware_to_sector_boundary(&mut binary);
+            log::info!("Firmware size: {}", binary.len());
+
+            if skip_erase {
+                log::warn!("Skipping erase");
+            } else {
+                log::info!("Erasing...");
+                let sectors = binary.len() / SECTOR_SIZE + 1;
+                flashing
+                    .erase_code(sectors as u32)
+                    .context("erase failed")?;
+                thread::sleep(Duration::from_secs(1));
+                log::info!("Erase done");
+            }
+
+            log::info!("Writing to code flash...");
+            flashing.flash(&binary).context("flash failed")?;
+            thread::sleep(Duration::from_millis(500));
+
+            if skip_verify {
+                log::warn!("Skipping verify");
+            } else {
+                log::info!("Verifying...");
+                flashing.verify(&binary).context("verify failed")?;
+                log::info!("Verify OK");
+            }
+
+            if skip_reset {
+                log::warn!("Skipping reset");
+            } else {
+                log::info!("Resetting target...");
+                let _ = flashing.reset();
+            }
+        }
+        CliCommand::Verify { ref file } => {
+            let mut flashing = get_flashing(&cli)?;
+            let mut binary = read_firmware_from_file(&file)
+                .with_context(|| format!("failed to read firmware file: {file}"))?;
+            extend_firmware_to_sector_boundary(&mut binary);
+            log::info!("Firmware size: {}", binary.len());
+            log::info!("Verifying...");
+            flashing.verify(&binary).context("verify failed")?;
+            log::info!("Verify OK");
+        }
+        CliCommand::Erase => {
+            let mut flashing = get_flashing(&cli)?;
+            let sectors = flashing.chip.flash_size / 1024;
+            flashing.erase_code(sectors).context("erase failed")?;
+            log::info!("Code flash erased");
+        }
+        CliCommand::Reset => {
+            let mut flashing = get_flashing(&cli)?;
+            let _ = flashing.reset();
+            log::info!("Reset sent");
+        }
+        CliCommand::Eeprom { ref command } => {
+            let mut flashing = get_flashing(&cli)?;
+            flashing.reidenfity().context("failed to identify chip")?;
+
+            match command {
+                EepromCommand::Dump { out } => {
+                    log::info!("Reading EEPROM(Data Flash)...");
+                    let eeprom = flashing.dump_eeprom().context("EEPROM dump failed")?;
+                    log::info!("EEPROM data size: {}", eeprom.len());
+                    if let Some(path) = out {
+                        fs::write(&path, &eeprom)
+                            .with_context(|| format!("failed to write EEPROM dump: {path}"))?;
+                        log::info!("EEPROM data saved to {}", path);
+                    } else {
+                        let mut buf = vec![];
+                        hxdmp::hexdump(&eeprom, &mut buf).context("failed to format hexdump")?;
+                        println!("{}", String::from_utf8_lossy(&buf));
+                    }
+                }
+                EepromCommand::Erase => {
+                    log::info!("Erasing EEPROM(Data Flash)...");
+                    flashing.erase_data().context("EEPROM erase failed")?;
+                    log::info!("EEPROM erased");
+                }
+                EepromCommand::Write { file, skip_erase } => {
+                    if *skip_erase {
+                        log::warn!("Skipping erase");
+                    } else {
+                        log::info!("Erasing EEPROM(Data Flash)...");
+                        flashing.erase_data().context("EEPROM erase failed")?;
+                        log::info!("EEPROM erased");
+                    }
+
+                    let eeprom = fs::read(&file)
+                        .with_context(|| format!("failed to read EEPROM file: {file}"))?;
+                    log::info!("Read {} bytes from bin file", eeprom.len());
+                    if eeprom.len() as u32 != flashing.chip.eeprom_size {
+                        anyhow::bail!(
+                            "EEPROM size mismatch: expected {}, got {}",
+                            flashing.chip.eeprom_size,
+                            eeprom.len()
+                        );
+                    }
+
+                    log::info!("Writing EEPROM(Data Flash)...");
+                    flashing.write_eeprom(&eeprom).context("EEPROM write failed")?;
+                    log::info!("EEPROM written");
+                }
+            }
+        }
+        CliCommand::Config { ref command } => {
+            let mut flashing = get_flashing(&cli)?;
+            match command {
+                ConfigCommand::Info => {
+                    flashing.dump_config().context("config dump failed")?;
+                }
+                ConfigCommand::Reset => {
+                    flashing.reset_config().context("config reset failed")?;
+                    log::info!(
+                        "Config register restored to default value(non-protected, debug-enabled)"
+                    );
+                }
+            }
+        }
+        CliCommand::InstallUdev => {
+            println!(
+                "{}",
+                permission::install_udev_rules().map_err(anyhow::Error::msg)?
+            );
+        }
+        CliCommand::RemoveUdev => {
+            println!(
+                "{}",
+                permission::remove_udev_rules().map_err(anyhow::Error::msg)?
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn ui_font_family() -> &'static str {
@@ -760,41 +1070,34 @@ fn start_usb_watch(weak: Weak<AppWindow>, stop: Arc<AtomicBool>, op_busy: Arc<At
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    if std::env::args().any(|arg| arg == "--doctor") {
-        print_doctor();
-        return Ok(());
-    }
-
-    if std::env::args().any(|arg| arg == "--probe") {
-        match isp::probe() {
-            Ok(info) => {
-                println!("{} ({})", info.name, info.category);
-                print!("{}", info.detail);
+    let raw_args: Vec<String> = std::env::args().collect();
+    if raw_args.len() > 1 {
+        let mut cli_args = raw_args.clone();
+        let compat_commands = [
+            ("--doctor", "doctor"),
+            ("--probe", "probe"),
+            ("--install-udev", "install-udev"),
+            ("--remove-udev", "remove-udev"),
+        ];
+        for (flag, command) in compat_commands {
+            if let Some(index) = cli_args.iter().position(|arg| arg == flag) {
+                cli_args[index] = command.to_string();
+                break;
             }
-            Err(err) => eprintln!("{err}"),
         }
-        return Ok(());
-    }
 
-    if std::env::args().any(|arg| arg == "--install-udev") {
-        match permission::install_udev_rules() {
-            Ok(msg) => println!("{msg}"),
-            Err(err) => eprintln!("{err}"),
+        let cli = Cli::try_parse_from(cli_args).unwrap_or_else(|err| err.exit());
+        if let Err(err) = run_cli(cli) {
+            eprintln!("{err:?}");
+            std::process::exit(1);
         }
-        return Ok(());
-    }
-
-    if std::env::args().any(|arg| arg == "--remove-udev") {
-        match permission::remove_udev_rules() {
-            Ok(msg) => println!("{msg}"),
-            Err(err) => eprintln!("{err}"),
-        }
-        return Ok(());
+        std::process::exit(0);
     }
 
     let app = AppWindow::new()?;
     let state = Arc::new(Mutex::new(AppState::default()));
 
+    app.set_app_version(APP_VERSION.into());
     app.set_ui_font_family(ui_font_family().into());
     app.set_brand_font_family(brand_font_family().into());
     app.set_status_text("准备就绪".into());

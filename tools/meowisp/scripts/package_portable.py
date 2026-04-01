@@ -70,8 +70,8 @@ def create_targz(source_dir: Path, archive_base: Path) -> Path:
     return archive_path
 
 
-def package_linux(binary: Path, out_dir: Path, arch: str) -> Path:
-    package_name = f"MeowISP-linux-{arch}-portable"
+def package_linux(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
+    package_name = f"MeowISP-linux-{arch}-{version}-portable"
     with tempfile.TemporaryDirectory(prefix="meowisp-linux-") as temp_dir:
         root = Path(temp_dir) / package_name
         root.mkdir(parents=True, exist_ok=True)
@@ -83,14 +83,14 @@ def package_linux(binary: Path, out_dir: Path, arch: str) -> Path:
         return create_targz(root, out_dir / package_name)
 
 
-def package_windows(binary: Path, out_dir: Path, arch: str) -> Path:
-    target = out_dir / f"MeowISP-windows-{arch}.exe"
+def package_windows(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
+    target = out_dir / f"MeowISP-windows-{arch}-{version}.exe"
     shutil.copy2(binary, target)
     return target
 
 
-def package_macos(binary: Path, out_dir: Path, arch: str) -> Path:
-    package_name = f"MeowISP-macos-{arch}-portable"
+def package_macos(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
+    package_name = f"MeowISP-macos-{arch}-{version}-portable"
     with tempfile.TemporaryDirectory(prefix="meowisp-macos-") as temp_dir:
         root = Path(temp_dir) / package_name
         app_dir = root / "MeowISP.app" / "Contents"
@@ -105,7 +105,7 @@ def package_macos(binary: Path, out_dir: Path, arch: str) -> Path:
             "CFBundleExecutable": "MeowISP",
             "CFBundleIdentifier": "io.binarykeyboard.meowisp",
             "CFBundlePackageType": "APPL",
-            "CFBundleShortVersionString": "0.1.0",
+            "CFBundleShortVersionString": version,
             "CFBundleVersion": os.environ.get("GITHUB_SHA", "dev")[:7] or "dev",
             "LSMinimumSystemVersion": "12.0",
             "NSHighResolutionCapable": True,
@@ -120,6 +120,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Package MeowISP portable app archives")
     parser.add_argument("--platform", required=True, choices=("linux", "macos", "windows"))
     parser.add_argument("--arch", required=True)
+    parser.add_argument("--version", required=True)
     parser.add_argument("--binary", required=True)
     parser.add_argument("--out-dir", required=True)
     args = parser.parse_args()
@@ -132,11 +133,11 @@ def main() -> int:
         raise SystemExit(f"binary not found: {binary}")
 
     if args.platform == "linux":
-        archive = package_linux(binary, out_dir, args.arch)
+        archive = package_linux(binary, out_dir, args.arch, args.version)
     elif args.platform == "macos":
-        archive = package_macos(binary, out_dir, args.arch)
+        archive = package_macos(binary, out_dir, args.arch, args.version)
     else:
-        archive = package_windows(binary, out_dir, args.arch)
+        archive = package_windows(binary, out_dir, args.arch, args.version)
 
     print(archive)
     return 0

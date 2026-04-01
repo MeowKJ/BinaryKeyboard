@@ -5,7 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from ch592f import DEFAULT_KEYBOARD, DEFAULT_PROFILE, artifact_paths as _artifact_paths, preset_for
+from targets.ch592.build import DEFAULT_KEYBOARD, DEFAULT_PROFILE, artifact_paths as _artifact_paths, preset_for
 from common import display_path as _display_path
 from versioning import ch592_filename_for_keyboard, ch592_full_filenames_for_keyboard
 from i18n import t
