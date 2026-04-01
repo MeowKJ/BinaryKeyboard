@@ -242,6 +242,7 @@ jobs:
           fetch-depth: 0
 
       - name: Reuse previous MeowISP release asset
+        id: reuse_meowisp
         if: needs.compute-versions.outputs.meowisp_changed != 'true'
         shell: bash
         env:
@@ -262,20 +263,27 @@ jobs:
             *) echo "Unsupported MeowISP target: $PLATFORM-$ARCH" >&2; exit 1 ;;
           esac
           LATEST_TAG=$(gh release view --repo "$REPO" --json tagName -q .tagName)
-          gh release download "$LATEST_TAG" --repo "$REPO" --pattern "$ASSET" --dir dist
+          if gh release download "$LATEST_TAG" --repo "$REPO" --pattern "$ASSET" --dir dist; then
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+            echo "fallback_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "MeowISP asset not found in latest release; fallback to local build for $PLATFORM-$ARCH"
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+            echo "fallback_build=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Python
-        if: needs.compute-versions.outputs.meowisp_changed == 'true'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: Setup Rust
-        if: needs.compute-versions.outputs.meowisp_changed == 'true'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies
-        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'linux'
+        if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform == 'linux'
         run: |
           sudo apt-get update -q
           sudo apt-get install -y \
@@ -291,7 +299,7 @@ jobs:
             libglu1-mesa-dev
 
       - name: Download CH375 DLL
-        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'windows'
+        if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform == 'windows'
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -302,13 +310,13 @@ jobs:
             --asset CH375DLL64.dll
 
       - name: Build MeowISP
-        if: needs.compute-versions.outputs.meowisp_changed == 'true'
+        if: needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true'
         env:
           BK_MEOWISP_VERSION: ${{ needs.compute-versions.outputs.meowisp_version }}
         run: cargo build --release --manifest-path tools/meowisp/Cargo.toml --bin meowisp
 
       - name: Package MeowISP (Unix)
-        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform != 'windows'
+        if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform != 'windows'
         run: |
           python3 tools/meowisp/scripts/package_portable.py \
             --platform "${{ matrix.platform }}" \
@@ -318,7 +326,7 @@ jobs:
             --out-dir dist
 
       - name: Package MeowISP (Windows)
-        if: needs.compute-versions.outputs.meowisp_changed == 'true' && matrix.platform == 'windows'
+        if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform == 'windows'
         shell: pwsh
         run: |
           python tools/meowisp/scripts/package_portable.py `
