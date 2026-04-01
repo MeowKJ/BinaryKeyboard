@@ -16,7 +16,7 @@
           <div class="battery-info">
             <span class="bat-percent" :style="{ color: batColor }">{{ batteryLevel }}%</span>
             <span class="bat-dot">·</span>
-            <span class="bat-voltage">{{ voltage.toFixed(2) }}V</span>
+            <span class="bat-voltage">{{ voltage }}V</span>
             <span v-if="isCharging" class="bat-charging">
               <i class="pi pi-bolt"></i> 充电中
             </span>

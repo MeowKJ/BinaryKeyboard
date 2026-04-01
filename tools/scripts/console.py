@@ -7,6 +7,8 @@ import subprocess
 import sys
 import venv
 
+from common import find_wchisp
+
 
 SCRIPT_PATH = Path(__file__).resolve()
 SCRIPT_DIR = SCRIPT_PATH.parent
@@ -14,6 +16,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 VENV_DIR = PROJECT_ROOT / ".venv"
 VENV_BIN_DIR = VENV_DIR / ("Scripts" if os.name == "nt" else "bin")
 CONSOLE_REQUIREMENTS = SCRIPT_DIR / "requirements-console.txt"
+SETUP_SCRIPT = SCRIPT_DIR / "setup.py"
 
 
 def _venv_python() -> Path:
@@ -93,6 +96,24 @@ def _reexec_in_venv(python_exe: Path) -> None:
     os.execve(str(python_exe), argv, _venv_env())
 
 
+def _ensure_wchisp_ready(python_exe: Path) -> None:
+    if find_wchisp():
+        return
+
+    print("[console] wchisp not found, running setup.py...", file=sys.stderr)
+    result = subprocess.run(
+        [str(python_exe), str(SETUP_SCRIPT)],
+        env=_venv_env(),
+        check=False,
+    )
+    if result.returncode != 0:
+        print(
+            "[console] Auto-install of wchisp failed. "
+            "The console will continue and show ISP tools as unavailable.",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     if len(sys.argv) > 1:
         raise SystemExit("Legacy console flags were removed. Run `python tools/scripts/console.py` without arguments.")
@@ -102,6 +123,7 @@ def main() -> None:
     if not _same_python(python_exe):
         _reexec_in_venv(python_exe)
     os.environ.update(_venv_env())
+    _ensure_wchisp_ready(python_exe)
 
     try:
         from tui_textual import run_textual

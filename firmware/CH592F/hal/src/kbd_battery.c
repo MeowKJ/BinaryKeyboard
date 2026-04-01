@@ -30,6 +30,8 @@
 /* 采样时序 */
 #define BAT_SETTLE_MS 5u
 #define BAT_PERIODIC_MS (30u * 1000u)
+/* 粗调校准只用于微调零点，过大偏移会把高电压直接钉死到满量程。 */
+#define BAT_ADC_CALIB_LIMIT 64
 
 /*============================================================================*/
 /*                              私有变量                                      */
@@ -160,6 +162,15 @@ void KBD_Battery_Init(void) {
   /* 初始化 ADC 并获取校准值 */
   adc_vbat_init();
   s_adc_calib = ADC_DataCalib_Rough();
+  if (s_adc_calib > BAT_ADC_CALIB_LIMIT) {
+    LOG_W(TAG, "Battery ADC calib too high: %d -> %d", s_adc_calib,
+          BAT_ADC_CALIB_LIMIT);
+    s_adc_calib = BAT_ADC_CALIB_LIMIT;
+  } else if (s_adc_calib < -BAT_ADC_CALIB_LIMIT) {
+    LOG_W(TAG, "Battery ADC calib too low: %d -> %d", s_adc_calib,
+          -BAT_ADC_CALIB_LIMIT);
+    s_adc_calib = -BAT_ADC_CALIB_LIMIT;
+  }
 
   s_task_id = TMOS_ProcessEventRegister(KBD_Battery_ProcessEvent);
   if (s_task_id == TASK_NO_TASK) {

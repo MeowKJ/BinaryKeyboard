@@ -193,19 +193,38 @@ def find_sdcc() -> Optional[Path]:
     return resolve_tool_path("sdcc", binary, env_name="SDCC_PATH", candidates=candidates)
 
 
-def find_meowisp() -> Optional[Path]:
-    binary = "meowisp.exe" if platform.system() == "Windows" else "meowisp"
-    meowisp_root = PROJECT_ROOT / "tools" / "meowisp"
-    preferred = [
-        meowisp_root / "target" / "debug" / binary,
-        meowisp_root / "target" / "release" / binary,
-        SCRIPT_DIR / binary,
-    ]
+def _candidate_wchisp_paths() -> list[Path]:
+    system = platform.system()
+    home = Path.home()
+    if system == "Darwin":
+        return [
+            home / "Downloads/wchisp-macos-arm64/wchisp",
+            home / "Downloads/wchisp-macos-x64/wchisp",
+            Path("/opt/homebrew/bin/wchisp"),
+            Path("/usr/local/bin/wchisp"),
+        ]
+    if system == "Linux":
+        return [
+            home / ".local/bin/wchisp",
+            Path("/usr/local/bin/wchisp"),
+            Path("/usr/bin/wchisp"),
+            home / "Downloads/wchisp-linux-x64/wchisp",
+            home / "Downloads/wchisp-linux-aarch64/wchisp",
+        ]
+    if system == "Windows":
+        appdata = Path(os.environ.get("APPDATA", ""))
+        return [
+            appdata / "wchisp/wchisp.exe",
+            Path("C:/Program Files/wchisp/wchisp.exe"),
+        ]
+    return []
+
+
+def find_wchisp() -> Optional[Path]:
+    binary = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
+    local = SCRIPT_DIR / binary
+    candidates = _candidate_wchisp_paths()
     return resolve_tool_path(
-        "meowisp",
-        binary,
-        env_name="MEOWISP_PATH",
-        preferred_candidates=preferred,
+        "wchisp", binary, env_name="WCHISP_PATH",
+        preferred_candidates=[local], candidates=candidates,
     )
-
-

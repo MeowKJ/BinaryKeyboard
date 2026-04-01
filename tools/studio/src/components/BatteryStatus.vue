@@ -211,7 +211,7 @@ const cssVars = computed(() => ({
     <div class="battery-stats">
       <div class="stat-item">
         <span class="stat-label">电压</span>
-        <span class="stat-value">{{ voltage.toFixed(2) }}V</span>
+        <span class="stat-value">{{ voltage }}V</span>
       </div>
       <div class="stat-item">
         <span class="stat-label">状态</span>

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""tools/scripts/flash.py — MeowISP CLI wrapper for BinaryKeyboard."""
+"""
+tools/scripts/flash.py — Generic WCH ISP tool wrapper
+Cross-platform (macOS / Linux / Windows)
+Supports: flash, verify, erase, reset, info, probe, eeprom, config
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import colorize as _c, die, find_meowisp, info, ok, sep, warn
+from common import colorize as _c, die, find_wchisp, info, ok, sep, warn
 from versioning import ch552_filename_for_keyboard, ch592_filename_for_keyboard
 
 
@@ -23,6 +27,25 @@ def resolve_file(file_arg: str) -> Path:
     return path
 
 
+def check_device(wchisp: Path, extra: list[str]) -> None:
+    info("Checking for ISP device...")
+    result = subprocess.run(
+        [str(wchisp), "info"] + extra,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        die(
+            "No WCH ISP device found.\n\n"
+            f"  {_c('33', 'Hint: Hold BOOT button, then connect USB')}\n"
+            f"        (or press RESET while holding BOOT)"
+        )
+    for line in result.stdout.splitlines():
+        if any(key in line for key in ("Chip:", "BTVER", "UID")):
+            print(f"  {_c('2', line.strip())}")
+
+
 def confirm(prompt: str) -> None:
     try:
         answer = input(f"  {prompt} [y/N] ").strip().lower()
@@ -32,6 +55,105 @@ def confirm(prompt: str) -> None:
     if answer != "y":
         info("Aborted.")
         sys.exit(0)
+
+
+def cmd_flash(args, wchisp: Path, extra: list[str]) -> None:
+    file_path = resolve_file(args.file)
+    sep()
+    check_device(wchisp, extra)
+
+    flash_args: list[str] = []
+    if args.skip_erase:
+        flash_args.append("--skip-erase")
+    if args.skip_verify:
+        flash_args.append("--skip-verify")
+    if args.skip_reset:
+        flash_args.append("--skip-reset")
+
+    size_kb = file_path.stat().st_size / 1024
+    sep()
+    info(f"Flashing: {_c('1', file_path.name)}  ({size_kb:.1f} KB)")
+    run([str(wchisp), "flash"] + extra + flash_args + [str(file_path)])
+    sep()
+    ok("Flash complete.")
+
+
+def cmd_verify(args, wchisp: Path, extra: list[str]) -> None:
+    file_path = resolve_file(args.file)
+    sep()
+    check_device(wchisp, extra)
+    sep()
+    info(f"Verifying: {_c('1', file_path.name)}")
+    run([str(wchisp), "verify"] + extra + [str(file_path)])
+    sep()
+    ok("Verify passed.")
+
+
+def cmd_erase(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    check_device(wchisp, extra)
+    warn("This will erase ALL code flash on the chip!")
+    confirm("Continue?")
+    sep()
+    run([str(wchisp), "erase"] + extra)
+    ok("Erase complete.")
+
+
+def cmd_reset(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    check_device(wchisp, extra)
+    info("Resetting chip...")
+    run([str(wchisp), "reset"] + extra)
+    ok("Reset sent.")
+
+
+def cmd_info(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    info("Chip information:")
+    sep()
+    run([str(wchisp), "info"] + extra)
+
+
+def cmd_probe(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    info("Probing connected WCH ISP devices...")
+    sep()
+    run([str(wchisp), "probe"] + extra)
+
+
+def cmd_eeprom(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    check_device(wchisp, extra)
+    sep()
+    if args.eeprom_cmd == "dump":
+        out = Path(args.out) if args.out else Path("eeprom_dump.bin")
+        info(f"Dumping EEPROM -> {_c('1', str(out))}")
+        run([str(wchisp), "eeprom", "dump"] + extra + ["--out", str(out)])
+        ok(f"EEPROM dumped to: {out}")
+    elif args.eeprom_cmd == "erase":
+        warn("This will erase the DATA EEPROM (not code flash).")
+        confirm("Continue?")
+        run([str(wchisp), "eeprom", "erase"] + extra)
+        ok("EEPROM erased.")
+    elif args.eeprom_cmd == "write":
+        file_path = resolve_file(args.file)
+        info(f"Writing EEPROM from: {_c('1', str(file_path))}")
+        run([str(wchisp), "eeprom", "write"] + extra + [str(file_path)])
+        ok("EEPROM write complete.")
+
+
+def cmd_config(args, wchisp: Path, extra: list[str]) -> None:
+    sep()
+    check_device(wchisp, extra)
+    sep()
+    if args.config_cmd == "info":
+        info("Config registers:")
+        run([str(wchisp), "config", "info"] + extra)
+    elif args.config_cmd == "reset":
+        warn("This will reset config registers to factory defaults!")
+        confirm("Continue?")
+        run([str(wchisp), "config", "reset"] + extra)
+        ok("Config registers reset.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,12 +217,12 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    meowisp = find_meowisp()
-    if not meowisp:
+    wchisp = find_wchisp()
+    if not wchisp:
         die(
-            "meowisp not found.\n\n"
-            "  Run:  cargo build --manifest-path tools/meowisp/Cargo.toml --bin meowisp\n"
-            "  Or:   set MEOWISP_PATH=/path/to/meowisp"
+            "wchisp not found.\n\n"
+            "  Run:  python tools/scripts/setup.py          (auto-download)\n"
+            "  Or:   set WCHISP_PATH=/path/to/wchisp"
         )
 
     extra: list[str] = []
@@ -111,44 +233,19 @@ def main() -> None:
     if args.port:
         extra += ["--port", args.port]
 
-    cmd: list[str] = [str(meowisp), *extra]
-    if args.command == "flash":
-        cmd += ["flash", "--file", args.file]
-        if args.skip_erase:
-            cmd.append("--skip-erase")
-        if args.skip_verify:
-            cmd.append("--skip-verify")
-        if args.skip_reset:
-            cmd.append("--skip-reset")
-    elif args.command == "verify":
-        cmd += ["verify", "--file", args.file]
-    elif args.command == "erase":
-        cmd += ["erase"]
-    elif args.command == "reset":
-        cmd += ["reset"]
-    elif args.command == "info":
-        cmd += ["info"]
-    elif args.command == "probe":
-        cmd += ["probe"]
-    elif args.command == "eeprom":
-        if args.eeprom_cmd == "dump":
-            cmd += ["eeprom", "dump"]
-            if args.out:
-                cmd += ["--out", args.out]
-        elif args.eeprom_cmd == "erase":
-            cmd += ["eeprom", "erase"]
-        elif args.eeprom_cmd == "write":
-            cmd += ["eeprom", "write", "--file", args.file]
-    elif args.command == "config":
-        if args.config_cmd == "info":
-            cmd += ["config", "info"]
-        elif args.config_cmd == "reset":
-            cmd += ["config", "reset"]
-    else:
-        parser.error(f"Unknown command: {args.command}")
+    dispatch = {
+        "flash": cmd_flash,
+        "verify": cmd_verify,
+        "erase": cmd_erase,
+        "reset": cmd_reset,
+        "info": cmd_info,
+        "probe": cmd_probe,
+        "eeprom": cmd_eeprom,
+        "config": cmd_config,
+    }
 
     try:
-        run(cmd)
+        dispatch[args.command](args, wchisp=wchisp, extra=extra)
     except subprocess.CalledProcessError as exc:
         die(f"Command failed (exit {exc.returncode})")
     except KeyboardInterrupt:
