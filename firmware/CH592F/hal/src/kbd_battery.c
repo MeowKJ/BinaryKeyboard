@@ -7,8 +7,8 @@
  * - PA14 (AIN4): VBAT 经两个 100K 电阻分压 (1/2) 后进入 ADC
  * - ADC 配置: 外部通道 CH_EXTIN_4, PGA = -12dB (1/4x)
  * - Vref = 内部 1.05V 带隙基准 (与 VDD 无关)
- * - 公式: VBAT_mV = ADC_val * 8400 / 2048
- *   (1/2 分压 × 1/4 PGA = 1/8, Vref ≈ 1.05V, 满量程对应 8.4V)
+ * - 公式: VBAT_mV = ADC_val * 4200 / 2048
+ *   当前板级按 4.2V 满量程标定，避免上报翻倍为 8.xV
  * - ADC 输入最大 2.1V < VDD 2.5V, 安全
  *
  * 充电检测:
@@ -34,7 +34,7 @@
 #define BAT_ADC_CALIB_LIMIT 64
 /* TP4054 + 2K PROG 下，充电末段会较早接近 4.2V，但终止前不适合直接显示 100%。 */
 #define BAT_CHARGING_LEVEL_MAX 98u
-#define BAT_FULL_DONE_MV 4120u
+#define BAT_FULL_DONE_MV 4150u
 
 /*============================================================================*/
 /*                              私有变量                                      */
