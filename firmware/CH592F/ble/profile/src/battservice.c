@@ -72,6 +72,9 @@ static battServiceTeardownCB_t battServiceTeardownCB = NULL;
 // Measurement calculation callback
 static battServiceCalcCB_t battServiceCalcCB = NULL;
 
+// Direct percentage measurement callback
+static battServiceMeasureCB_t battServiceMeasureCB = NULL;
+
 static uint16_t battMinLevel = BATT_ADC_LEVEL_2V; // For VDD/3 measurements
 static uint16_t battMaxLevel = BATT_ADC_LEVEL_3V; // For VDD/3 measurements
 
@@ -307,13 +310,10 @@ bStatus_t Batt_MeasLevel(void)
 
     level = battMeasure();
 
-    // If level has gone down
-    if (level < battLevel)
+    // Update and notify on any battery level change.
+    if (level != battLevel)
     {
-        // Update level
         battLevel = level;
-
-        // Send a notification
         battNotifyLevel();
     }
 
@@ -345,6 +345,11 @@ void Batt_Setup(uint8_t adc_ch, uint16_t minVal, uint16_t maxVal,
     battServiceSetupCB = sCB;
     battServiceTeardownCB = tCB;
     battServiceCalcCB = cCB;
+}
+
+void Batt_RegisterMeasureCB(battServiceMeasureCB_t pfnMeasureCB)
+{
+    battServiceMeasureCB = pfnMeasureCB;
 }
 
 /*********************************************************************
@@ -382,10 +387,8 @@ static bStatus_t battReadAttrCB(uint16_t connHandle, gattAttribute_t *pAttr,
 
         level = battMeasure();
 
-        // If level has gone down
-        if (level < battLevel)
+        if (level != battLevel)
         {
-            // Update level
             battLevel = level;
         }
 
@@ -496,6 +499,11 @@ static uint8_t battMeasure(void)
 {
     uint16_t adc;
     uint8_t percent;
+
+    if (battServiceMeasureCB != NULL)
+    {
+        return battServiceMeasureCB();
+    }
 
     // Call measurement setup callback
     if (battServiceSetupCB != NULL)

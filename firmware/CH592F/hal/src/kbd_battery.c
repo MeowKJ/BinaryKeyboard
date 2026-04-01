@@ -32,6 +32,9 @@
 #define BAT_PERIODIC_MS (30u * 1000u)
 /* 粗调校准只用于微调零点，过大偏移会把高电压直接钉死到满量程。 */
 #define BAT_ADC_CALIB_LIMIT 64
+/* TP4054 + 2K PROG 下，充电末段会较早接近 4.2V，但终止前不适合直接显示 100%。 */
+#define BAT_CHARGING_LEVEL_MAX 98u
+#define BAT_FULL_DONE_MV 4120u
 
 /*============================================================================*/
 /*                              私有变量                                      */
@@ -76,6 +79,21 @@ static uint8_t voltage_to_percent(uint16_t mv) {
     }
   }
   return 100;
+}
+
+static uint8_t battery_level_from_state(uint16_t mv,
+                                        kbd_charge_state_t charge_state) {
+  uint8_t level = voltage_to_percent(mv);
+
+  if (charge_state == BAT_CHG_CHARGING) {
+    return (level > BAT_CHARGING_LEVEL_MAX) ? BAT_CHARGING_LEVEL_MAX : level;
+  }
+
+  if (mv >= BAT_FULL_DONE_MV) {
+    return 100;
+  }
+
+  return level;
 }
 
 static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
@@ -200,7 +218,8 @@ uint16_t KBD_Battery_GetVoltage_mV(void) {
 }
 
 uint8_t KBD_Battery_GetLevel(void) {
-  return voltage_to_percent(KBD_Battery_GetVoltage_mV());
+  uint16_t mv = KBD_Battery_GetVoltage_mV();
+  return battery_level_from_state(mv, KBD_Battery_GetChargeState());
 }
 
 kbd_charge_state_t KBD_Battery_GetChargeState(void) {

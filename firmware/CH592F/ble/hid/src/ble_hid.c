@@ -13,6 +13,7 @@
 #include "devinfoservice.h"
 #include "scanparamservice.h"
 #include "debug.h"
+#include "kbd_battery.h"
 #include <string.h>
 
 /* ==================== 常量定义 ==================== */
@@ -37,8 +38,6 @@ static gapRole_States_t g_ble_state = GAPROLE_INIT;
 static uint16_t g_conn_handle = GAP_CONNHANDLE_INIT;
 static ble_hid_callbacks_t *g_pCallbacks = NULL;
 static uint8_t g_keyboard_leds = 0;
-static const char *TAG = "BLE_HID";
-
 // HID 配置
 static hidDevCfg_t g_hidDevCfg = {
     BLE_HID_IDLE_TIMEOUT,  // 空闲超时
@@ -74,6 +73,7 @@ static uint8_t BLE_HID_RptCallback (uint8_t id, uint8_t type, uint16_t uuid,
 static void BLE_HID_EvtCallback (uint8_t evt);
 static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pEvent);
 static void BLE_HID_BuildDeviceNameData (void);
+static uint8_t BLE_HID_ReadBatteryLevel (void);
 
 // HID 设备回调
 static hidDevCB_t g_hidDevCallbacks = {
@@ -132,6 +132,10 @@ static void BLE_HID_BuildDeviceNameData (void) {
     g_scanRspDataLen = cursor;
 }
 
+static uint8_t BLE_HID_ReadBatteryLevel (void) {
+    return KBD_Battery_GetLevel();
+}
+
 /* ==================== 初始化实现 ==================== */
 
 int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
@@ -183,6 +187,7 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     {
         uint8_t critical = 6;
         Batt_SetParameter (BATT_PARAM_CRITICAL_LEVEL, sizeof (uint8_t), &critical);
+        Batt_RegisterMeasureCB (BLE_HID_ReadBatteryLevel);
     }
 
     // 注册 HID 设备回调
