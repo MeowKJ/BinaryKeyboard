@@ -211,7 +211,7 @@ void KBD_Battery_RequestRefresh(void) {
 }
 
 uint16_t KBD_Battery_GetVoltage_mV(void) {
-  if (!s_cache_ready || !s_sample_pending) {
+  if (!s_cache_ready && !s_sample_pending) {
     KBD_Battery_RequestRefresh();
   }
   return s_cached_voltage_mv;
