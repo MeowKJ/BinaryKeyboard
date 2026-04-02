@@ -1,7 +1,11 @@
-import { useTerminalStore } from '@/stores/terminalStore';
-import type { DeviceProtocol } from '@/types/protocol';
-import type { DeviceCodec, CodecCommandOptions, CodecTransport } from './codecTypes';
-import type { HidAdapter, HidOptionalOperations } from './types';
+import { useTerminalStore } from "@/stores/terminalStore";
+import type { DeviceProtocol } from "@/types/protocol";
+import type {
+  DeviceCodec,
+  CodecCommandOptions,
+  CodecTransport,
+} from "./codecTypes";
+import type { HidAdapter, HidOptionalOperations } from "./types";
 
 export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   readonly protocol: DeviceProtocol;
@@ -10,7 +14,10 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
 
   protected readonly codec: DeviceCodec<TResponse>;
   protected device: HIDDevice | null = null;
-  private responsePromise: { resolve: (data: TResponse) => void; reject: (err: Error) => void } | null = null;
+  private responsePromise: {
+    resolve: (data: TResponse) => void;
+    reject: (err: Error) => void;
+  } | null = null;
   private responseTimeout: number | null = null;
   private readonly transport: CodecTransport<TResponse>;
   private readonly inputReportHandler = this.handleInputReport.bind(this);
@@ -18,7 +25,10 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   /** 命令串行队列：保证同一时刻只有一个 sendAndWait 在等待响应 */
   private sendQueue: Promise<unknown> = Promise.resolve();
 
-  protected constructor(codec: DeviceCodec<TResponse>, filters: HIDDeviceFilter[]) {
+  protected constructor(
+    codec: DeviceCodec<TResponse>,
+    filters: HIDDeviceFilter[],
+  ) {
     this.codec = codec;
     this.protocol = codec.protocol;
     this.filters = filters;
@@ -38,7 +48,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   async connect(device: HIDDevice): Promise<boolean> {
     try {
       if (this.device && this.device !== device) {
-        this.device.removeEventListener('inputreport', this.inputReportHandler);
+        this.device.removeEventListener("inputreport", this.inputReportHandler);
       }
       this.clearPendingResponse();
       this.codec.resetState?.();
@@ -50,12 +60,15 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
             await Promise.race([
               device.open(),
               new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('device.open() timeout')), 4000)
+                setTimeout(
+                  () => reject(new Error("device.open() timeout")),
+                  4000,
+                ),
               ),
             ]);
             break;
           } catch {
-            if (attempt === 1) throw new Error('device.open() timeout');
+            if (attempt === 1) throw new Error("device.open() timeout");
             await new Promise((r) => setTimeout(r, 1000));
           }
         }
@@ -64,8 +77,8 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
         await new Promise((r) => setTimeout(r, 500));
       }
       this.device = device;
-      device.removeEventListener('inputreport', this.inputReportHandler);
-      device.addEventListener('inputreport', this.inputReportHandler);
+      device.removeEventListener("inputreport", this.inputReportHandler);
+      device.addEventListener("inputreport", this.inputReportHandler);
       try {
         // 连接后的预热是 best-effort，不阻断正式初始化流程。
         await this.codec.warmupConnection?.(this.transport);
@@ -81,7 +94,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   async disconnect(): Promise<void> {
     if (this.device) {
       try {
-        this.device.removeEventListener('inputreport', this.inputReportHandler);
+        this.device.removeEventListener("inputreport", this.inputReportHandler);
         await this.device.close();
       } catch {
         // ignore
@@ -112,7 +125,9 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     return this.codec.getFullKeymap(this.transport);
   }
 
-  async setFullKeymap(config: Parameters<DeviceCodec<TResponse>['setFullKeymap']>[1]) {
+  async setFullKeymap(
+    config: Parameters<DeviceCodec<TResponse>["setFullKeymap"]>[1],
+  ) {
     await this.codec.setFullKeymap(this.transport, config);
   }
 
@@ -121,10 +136,12 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     // TResponse is DataView for CH592 — wrap if needed
     if (resp instanceof DataView) return resp;
     // Fallback: shouldn't happen for CH592
-    throw new Error('sendRawFrame: unexpected response type');
+    throw new Error("sendRawFrame: unexpected response type");
   }
 
-  protected addTerminalEntry(entry: Parameters<ReturnType<typeof useTerminalStore>['addEntry']>[0]): void {
+  protected addTerminalEntry(
+    entry: Parameters<ReturnType<typeof useTerminalStore>["addEntry"]>[0],
+  ): void {
     try {
       const terminalStore = useTerminalStore();
       terminalStore.addEntry(entry);
@@ -133,21 +150,29 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     }
   }
 
-  protected sendAndWait(frame: Uint8Array, options: CodecCommandOptions = {}): Promise<TResponse> {
+  protected sendAndWait(
+    frame: Uint8Array,
+    options: CodecCommandOptions = {},
+  ): Promise<TResponse> {
     // 所有命令通过串行队列发送，避免并发覆盖 responsePromise
-    const task = this.sendQueue.then(() => this.sendAndWaitInternal(frame, options));
+    const task = this.sendQueue.then(() =>
+      this.sendAndWaitInternal(frame, options),
+    );
     // 无论成功失败都推进队列，不让错误阻塞后续命令
     this.sendQueue = task.catch(() => {});
     return task;
   }
 
-  private async sendAndWaitInternal(frame: Uint8Array, options: CodecCommandOptions): Promise<TResponse> {
+  private async sendAndWaitInternal(
+    frame: Uint8Array,
+    options: CodecCommandOptions,
+  ): Promise<TResponse> {
     if (!this.device || !this.device.opened) {
-      throw new Error('设备未连接');
+      throw new Error("设备未连接");
     }
 
     const timeout = options.timeout ?? 3000;
-    const timeoutLabel = options.timeoutLabel ?? '命令响应超时';
+    const timeoutLabel = options.timeoutLabel ?? "命令响应超时";
     const sendTimeout = Math.min(1500, timeout);
     const responsePromise = new Promise<TResponse>((resolve, reject) => {
       this.responsePromise = { resolve, reject };
@@ -162,26 +187,35 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
 
     try {
       await Promise.race([
-        this.device.sendReport(this.commandReportId, frame),
+        this.device.sendReport(
+          this.commandReportId,
+          frame as unknown as BufferSource,
+        ),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('发送 HID 报告超时')), sendTimeout)
+          setTimeout(() => reject(new Error("发送 HID 报告超时")), sendTimeout),
         ),
       ]);
     } catch (error) {
       this.clearPendingResponse();
-      throw error instanceof Error ? error : new Error('发送 HID 报告失败');
+      throw error instanceof Error ? error : new Error("发送 HID 报告失败");
     }
 
     return responsePromise;
   }
 
-  protected async sendNoWait(frame: Uint8Array, _options?: CodecCommandOptions): Promise<void> {
+  protected async sendNoWait(
+    frame: Uint8Array,
+    _options?: CodecCommandOptions,
+  ): Promise<void> {
     if (!this.device || !this.device.opened) {
-      throw new Error('设备未连接');
+      throw new Error("设备未连接");
     }
 
     this.addTerminalEntry(this.codec.describeOutgoingFrame(frame));
-    await this.device.sendReport(this.commandReportId, frame);
+    await this.device.sendReport(
+      this.commandReportId,
+      frame as unknown as BufferSource,
+    );
   }
 
   private clearPendingResponse(error?: Error): void {
@@ -196,13 +230,14 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   }
 
   private handleInputReport(event: HIDInputReportEvent): void {
-    if (this.responseReportId !== 0 && event.reportId !== this.responseReportId) return;
+    if (this.responseReportId !== 0 && event.reportId !== this.responseReportId)
+      return;
 
     const frame = this.responseFrameBytes(event);
     const packet = this.codec.parseIncomingPacket(frame);
     this.addTerminalEntry(packet.entry);
 
-    if (packet.kind !== 'response' || !this.responsePromise) {
+    if (packet.kind !== "response" || !this.responsePromise) {
       return;
     }
 
