@@ -244,6 +244,12 @@ def component_version(component: str, build_number: int | None = None) -> str:
     meta = component_meta(component)
     major, minor = _split_base_version(str(meta["base_version"]))
     version_parts = int(meta.get("version_parts", 3))
+
+    # Per-component override (e.g. BK_VERSION_CH592=3.0.34)
+    env_version = os.environ.get(f"BK_VERSION_{component.upper()}")
+    if env_version is not None:
+        return env_version.strip()
+
     if version_parts == 2:
         if _is_local_build():
             return "dev"
