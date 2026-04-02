@@ -142,6 +142,7 @@ async function startUpdate() {
 
   const model = resolveModel();
   progress.value = { stage: 'downloading', percent: 0, message: '准备中...' };
+  deviceStore.iapInProgress = true;
 
   try {
     await performIapUpdate(
@@ -156,6 +157,8 @@ async function startUpdate() {
     if (progress.value.stage !== 'error') {
       progress.value = { stage: 'error', percent: 0, message: '更新失败', error: '未知错误' };
     }
+  } finally {
+    deviceStore.iapInProgress = false;
   }
 }
 </script>

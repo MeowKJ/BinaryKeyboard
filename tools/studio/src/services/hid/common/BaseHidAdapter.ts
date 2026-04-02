@@ -43,13 +43,22 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       this.clearPendingResponse();
       this.codec.resetState?.();
       if (!device.opened) {
-        // device.open() 在某些系统/驱动下会永久挂起（如固件刷写后立即重连），加超时保护
-        await Promise.race([
-          device.open(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('device.open() timeout')), 4000)
-          ),
-        ]);
+        // device.open() 在某些系统/驱动下会永久挂起（如首次授权后驱动未就绪），
+        // 加超时保护并重试一次
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            await Promise.race([
+              device.open(),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('device.open() timeout')), 4000)
+              ),
+            ]);
+            break;
+          } catch {
+            if (attempt === 1) throw new Error('device.open() timeout');
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
         // 设备刚打开时 HID 端点尚未完全就绪，稍等再注册监听 + 发命令，
         // 否则第一包 sendReport 在内核 HID 驱动初始化期间丢失导致超时重试
         await new Promise((r) => setTimeout(r, 500));
@@ -139,6 +148,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
 
     const timeout = options.timeout ?? 3000;
     const timeoutLabel = options.timeoutLabel ?? '命令响应超时';
+    const sendTimeout = Math.min(1500, timeout);
     const responsePromise = new Promise<TResponse>((resolve, reject) => {
       this.responsePromise = { resolve, reject };
       this.responseTimeout = window.setTimeout(() => {
@@ -151,7 +161,12 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     this.addTerminalEntry(this.codec.describeOutgoingFrame(frame));
 
     try {
-      await this.device.sendReport(this.commandReportId, frame);
+      await Promise.race([
+        this.device.sendReport(this.commandReportId, frame),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('发送 HID 报告超时')), sendTimeout)
+        ),
+      ]);
     } catch (error) {
       this.clearPendingResponse();
       throw error instanceof Error ? error : new Error('发送 HID 报告失败');

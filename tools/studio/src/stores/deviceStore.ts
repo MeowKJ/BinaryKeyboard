@@ -69,6 +69,9 @@ export const useDeviceStore = defineStore("device", () => {
   /** 电池电压 (V, 如 4.12) */
   const batteryVoltage = ref(0);
 
+  /** IAP 更新中 (抑制断连跳转) */
+  const iapInProgress = ref(false);
+
   /** 加载状态 */
   const isLoading = ref(false);
 
@@ -591,6 +594,7 @@ export const useDeviceStore = defineStore("device", () => {
     fnKeyConfig,
     currentEditLayer,
     batteryVoltage,
+    iapInProgress,
     isLoading,
     errorMessage,
 

@@ -337,7 +337,8 @@ export async function performIapUpdate(
       { timeout: 10_000 },
     );
     checkResponse(verifyResp, 'IAP_VERIFY');
-    onProgress({ stage: 'verifying', percent: 100, message: '校验通过' });
+    onProgress({ stage: 'verifying', percent: 100, message: '✅ 固件校验通过，准备重启...' });
+    await new Promise(r => setTimeout(r, 1500));
 
     // 5. IAP_ACTIVATE — 触发更新
     onProgress({ stage: 'activating', percent: 0, message: '正在激活更新...' });
