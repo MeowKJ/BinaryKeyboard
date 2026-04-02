@@ -56,7 +56,7 @@ macOS note:
 
 
 def create_zip(source_dir: Path, archive_base: Path) -> Path:
-    archive_path = archive_base.with_suffix(".zip")
+    archive_path = archive_base.parent / (archive_base.name + ".zip")
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for item in sorted(source_dir.rglob("*")):
             zf.write(item, item.relative_to(source_dir.parent))
@@ -64,7 +64,7 @@ def create_zip(source_dir: Path, archive_base: Path) -> Path:
 
 
 def create_targz(source_dir: Path, archive_base: Path) -> Path:
-    archive_path = archive_base.with_suffix(".tar.gz")
+    archive_path = archive_base.parent / (archive_base.name + ".tar.gz")
     with tarfile.open(archive_path, "w:gz") as tf:
         tf.add(source_dir, arcname=source_dir.name)
     return archive_path

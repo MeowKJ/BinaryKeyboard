@@ -742,6 +742,10 @@ jobs:
       - name: Generate release manifest
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          BK_VERSION_STUDIO: ${{ steps.version.outputs.studio_version }}
+          BK_VERSION_MEOWISP: ${{ steps.version.outputs.meowisp_version }}
+          BK_VERSION_CH592: ${{ steps.version.outputs.ch592_version }}
+          BK_VERSION_CH552: ${{ steps.version.outputs.ch552_version }}
         run: |
           mkdir -p dist/api
           python3 tools/scripts/versioning.py emit-release-manifest \
