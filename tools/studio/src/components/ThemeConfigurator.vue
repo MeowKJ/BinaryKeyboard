@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import CatEmoji from '@/components/CatEmoji.vue';
 import { useTheme, type ThemeId } from '@/composables/useTheme';
+import type { StudioEmojiType } from '@/utils/fluentEmoji';
 
 const {
   themeId,
@@ -17,12 +19,13 @@ const {
   resetToDefault,
 } = useTheme();
 
-const themes: { id: ThemeId; label: string; emoji: string }[] = [
-  { id: 'default', label: '默认', emoji: '🖥️' },
-  { id: 'liuli', label: '琉璃', emoji: '🔮' },
-  { id: 'neko', label: '猫咪', emoji: '🐱' },
-  { id: 'frog', label: '青蛙', emoji: '🐸' },
-  { id: 'angora', label: '兔子', emoji: '🐰' },
+const themes: { id: ThemeId; label: string; emoji: StudioEmojiType }[] = [
+  { id: 'default', label: '默认', emoji: 'desktop-computer-3d' },
+  { id: 'liuli', label: '琉璃', emoji: 'crystal-ball-3d' },
+  { id: 'neko', label: '猫咪', emoji: 'cat' },
+  { id: 'frog', label: '青蛙', emoji: 'frog-3d' },
+  { id: 'angora', label: '兔子', emoji: 'rabbit-face-3d' },
+  { id: 'storm', label: '风暴', emoji: 'cloud-lightning-3d' },
 ];
 
 const canCustomizeHue = () => (themeId.value === 'default' || themeId.value === 'neko');
@@ -62,7 +65,7 @@ function onSyncToggle() {
           :class="{ active: themeId === t.id }"
           @click="setThemeId(t.id)"
         >
-          <span class="theme-card-emoji">{{ t.emoji }}</span>
+          <CatEmoji :type="t.emoji" class="theme-card-emoji" />
           <span class="theme-card-label">{{ t.label }}</span>
         </button>
       </div>

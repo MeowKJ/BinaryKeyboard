@@ -5,7 +5,7 @@
 import { ref, computed } from 'vue';
 import { applyTheme, getSavedTheme, saveTheme, getSystemTheme, type ThemeMode } from '@/config/theme';
 
-export type ThemeId = 'default' | 'liuli' | 'neko' | 'frog' | 'angora';
+export type ThemeId = 'default' | 'liuli' | 'neko' | 'frog' | 'angora' | 'storm';
 
 export interface ThemeConfig {
   id: ThemeId;
@@ -108,7 +108,7 @@ export function useTheme() {
     const root = document.documentElement;
     root.setAttribute('data-theme-id', config.value.id);
 
-    if (config.value.id === 'liuli' || config.value.id === 'frog' || config.value.id === 'angora') {
+    if (config.value.id === 'liuli' || config.value.id === 'frog' || config.value.id === 'angora' || config.value.id === 'storm') {
       root.setAttribute('data-theme', config.value.id === 'angora' ? 'light' : 'dark');
       const hslProps = ['--c-accent', '--c-accent-light', '--c-accent-soft', '--c-accent-gradient',
         '--c-key-active-bg', '--c-key-active-border', '--c-key-shadow',

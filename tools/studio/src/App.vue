@@ -1,5 +1,8 @@
 <template>
   <div class="app-root" :data-theme="themeMode" :data-theme-id="themeId">
+    <!-- 风暴主题全屏效果 -->
+    <StormEffect v-if="themeId === 'storm'" />
+
     <Toast position="top-center" />
 
     <!-- PWA 新版本提示 -->
@@ -61,6 +64,7 @@ import ProgressSpinner from 'primevue/progressspinner';
 import WelcomeView from '@/views/WelcomeView.vue';
 import ConnectedView from '@/views/ConnectedView.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
+import StormEffect from '@/components/StormEffect.vue';
 
 // 初始化服务
 const toast = useToast();

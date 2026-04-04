@@ -1,13 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import CatEmoji from '@/components/CatEmoji.vue';
 import { lastToastSeverity } from '@/services/toastService';
-
-import idleImg from '@/assets/emoji/grinning_cat_with_smiling_eyes_animated.png';
-import successImg from '@/assets/emoji/smiling_cat_with_heart-eyes_animated.png';
-import errorImg from '@/assets/emoji/crying_cat_animated.png';
-import warnImg from '@/assets/emoji/weary_cat_animated.png';
-import infoImg from '@/assets/emoji/grinning_cat_animated.png';
-import loadingImg from '@/assets/emoji/hourglass_not_done_animated.png';
+import type { StudioEmojiType } from '@/utils/fluentEmoji';
 
 const props = defineProps<{
   loading?: boolean;
@@ -19,14 +14,14 @@ const emit = defineEmits<{
 
 const menuOpen = ref(false);
 
-const currentImg = computed(() => {
-  if (props.loading) return loadingImg;
+const currentEmoji = computed<StudioEmojiType>(() => {
+  if (props.loading) return 'hourglass-not-done-animated';
   switch (lastToastSeverity.value) {
-    case 'success': return successImg;
-    case 'error': return errorImg;
-    case 'warn': return warnImg;
-    case 'info': return infoImg;
-    default: return idleImg;
+    case 'success': return 'heart-eyes-animated';
+    case 'error': return 'crying-animated';
+    case 'warn': return 'weary-animated';
+    case 'info': return 'grinning-animated';
+    default: return 'grinning-eyes-animated';
   }
 });
 
@@ -51,7 +46,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
 
 <template>
   <div class="cat-assistant" :class="{ loading }" @click.stop="toggleMenu">
-    <img :src="currentImg" alt="猫咪助手" draggable="false" />
+    <CatEmoji :type="currentEmoji" alt="猫咪助手" class="cat-assistant-emoji" />
     <span v-if="loading" class="cat-loading-text">加载中...</span>
 
     <transition name="cat-menu">
@@ -99,10 +94,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
   transform: scale(1.1);
 }
 
-.cat-assistant img {
+.cat-assistant :deep(.cat-assistant-emoji) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
   pointer-events: none;
   /* 独立合成层，防止 APNG 帧切换时与父元素 transform transition 互相干扰产生跳动 */
   will-change: contents;

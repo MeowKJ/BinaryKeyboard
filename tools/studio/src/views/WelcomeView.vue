@@ -45,7 +45,7 @@ const { toggleMode, themeMode } = useTheme();
 
           <!-- 连接中状态 -->
           <div v-if="connecting" class="connecting-overlay">
-            <img src="@/assets/emoji/hourglass_not_done_animated.png" class="connecting-hourglass" alt="" />
+            <CatEmoji type="hourglass-not-done-animated" class="connecting-hourglass" />
             <span class="connecting-text">正在连接...</span>
           </div>
           <template v-else>

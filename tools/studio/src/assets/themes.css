@@ -222,3 +222,73 @@
 [data-theme-id="angora"] .welcome-screen {
   background: transparent !important;
 }
+
+/* ==============================================
+   风暴主题 — 天气循环: 阴云遮月 → 闪电 → 暴雨 → 明月
+   动态效果由 StormEffect.vue 组件处理
+============================================== */
+
+[data-theme-id="storm"] {
+  --c-bg-primary: rgba(8, 10, 18, 0.4);
+  --c-bg-secondary: rgba(14, 16, 28, 0.3);
+  --c-bg-tertiary: rgba(20, 24, 40, 0.25);
+  --c-bg-hover: rgba(35, 40, 65, 0.3);
+  --c-border: rgba(120, 140, 200, 0.15);
+  --c-border-light: rgba(120, 140, 200, 0.08);
+  /* accent 由 StormEffect 组件根据天气阶段动态设置 */
+  --c-text-primary: #d0d8e8;
+  --c-text-secondary: #8898b8;
+  --c-text-muted: #586888;
+}
+
+/* 背景透明 — 交由 StormEffect 组件渲染天空 */
+[data-theme-id="storm"] .app-root {
+  background: transparent;
+}
+
+/* 磨砂面板 — 高透明度 */
+[data-theme-id="storm"] .panel,
+[data-theme-id="storm"] .keyboard-card,
+[data-theme-id="storm"] .connect-card,
+[data-theme-id="storm"] .welcome-version-card,
+[data-theme-id="storm"] .app-header {
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  background: rgba(10, 14, 28, 0.3) !important;
+  border-color: rgba(100, 120, 200, 0.1) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15), inset 0 0 0 1px rgba(120, 140, 220, 0.04);
+}
+
+[data-theme-id="storm"] .sidebar {
+  scrollbar-color: rgba(100, 120, 200, 0.3) transparent;
+}
+
+/* 发光边框 — 幽蓝电光 */
+[data-theme-id="storm"] .keyboard-card {
+  border: 1px solid rgba(100, 120, 200, 0.12) !important;
+  background: rgba(10, 14, 28, 0.2) !important;
+  box-shadow:
+    0 8px 32px rgba(30, 50, 120, 0.1),
+    0 0 1px rgba(120, 140, 220, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02) !important;
+}
+
+/* 按键也高透明 */
+[data-theme-id="storm"] .key-btn {
+  background: rgba(15, 20, 40, 0.25) !important;
+  border-color: rgba(100, 120, 200, 0.12) !important;
+}
+
+[data-theme-id="storm"] .card-header {
+  background: rgba(10, 14, 28, 0.15) !important;
+  border-color: rgba(100, 120, 200, 0.08) !important;
+}
+
+[data-theme-id="storm"] .keyboard-container {
+  background: transparent;
+}
+
+/* 欢迎页透明 */
+[data-theme-id="storm"] .welcome-screen {
+  background: transparent !important;
+}
