@@ -16,6 +16,8 @@
 #include "kbd_battery.h"
 #include <string.h>
 
+#define TAG "BLE"
+
 /* ==================== 常量定义 ==================== */
 
 // 参数更新延迟（625us 单位）
@@ -499,4 +501,3 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         g_pCallbacks->onStateChange (newState);
     }
 }
-

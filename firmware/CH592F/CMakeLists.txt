@@ -76,7 +76,6 @@ endif()
 #   StdPeriphDriver/CH59x_flash.c CH59x_lcd.c CH59x_timer2.c CH59x_timer3.c
 #   StdPeriphDriver/CH59x_uart0.c CH59x_uart1.c (unused in current build; APIs resolved elsewhere / not enabled)
 #   ble/core/src/KEY.c  LED.c
-#   ble/core/src/ble_sleep.c (HAL_SLEEP = FALSE in current config)
 #   app/Main_Test.c  app/RGB_TEST.c
 #   RVMSIS/core_riscv.c (current firmware only uses header inlines/macros)
 # ---------------------------------------------------------------------------
@@ -99,6 +98,7 @@ set(CH592_BLE_CORE_SOURCES
     # BLE – core
     ble/core/src/ble_mcu.c
     ble/core/src/ble_rtc.c
+    ble/core/src/ble_sleep.c
 )
 
 set(CH592_BLE_HID_SOURCES
@@ -143,14 +143,9 @@ set(CH592_VENDOR_DRIVER_SOURCES
     SDK/StdPeriphDriver/CH59x_sys.c
     SDK/StdPeriphDriver/CH59x_timer0.c
     SDK/StdPeriphDriver/CH59x_timer1.c
+    SDK/StdPeriphDriver/CH59x_uart1.c
     SDK/StdPeriphDriver/CH59x_usbdev.c
 )
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND CH592_VENDOR_DRIVER_SOURCES
-        SDK/StdPeriphDriver/CH59x_uart1.c
-    )
-endif()
 
 set(CH592_STARTUP_SOURCES
     # Startup (assembly)
@@ -200,6 +195,8 @@ set(CH592_COMPILE_DEFINITIONS
     ${KBD_LAYOUT_DEFINE}
     KBD_MODEL_NAME=\"${KBD_MODEL_UPPER}\"
     KBD_DEVICE_NAME=\"${KBD_DEVICE_NAME}\"
+    HAL_SLEEP=FALSE
+    DCDC_ENABLE=TRUE
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -211,8 +208,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 else()
     list(APPEND CH592_COMPILE_DEFINITIONS
-        UART_LOG_ENABLE=0
-        KBD_DEBUG_BUILD=0
+        DEBUG=Debug_UART1
+        UART_LOG_ENABLE=1
+        KBD_DEBUG_BUILD=1
         KBD_USB_LOG_ENABLE=0
     )
 endif()

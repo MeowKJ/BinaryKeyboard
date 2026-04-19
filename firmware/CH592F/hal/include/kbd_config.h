@@ -94,7 +94,7 @@ typedef struct
 #define KBD_INDICATOR_MIN_BRIGHTNESS 13
 
 /* TP4054 充电状态引脚: PA13 (开漏输出, 低=充电中, 高阻=未充电) */
-#define KBD_HAS_CHARGE_DET 1
+#define KBD_HAS_CHARGE_DET 0
 #define KBD_CHG_PORT GPIO_PORT_A
 #define KBD_CHG_PIN GPIO_Pin_13
 
@@ -109,13 +109,14 @@ typedef struct
  * @brief ADC 满量程电压 (mV)
  *
  * 公式: VBAT_mV = adc * KBD_VBAT_FULL_SCALE_MV / 2048
- * 默认值 4200 对应当前板级电池采样链路的实测满量程
+ * 当前板级实测仍按 4200mV 满量程标定；
+ * 若再把外部 1/2 分压额外乘回去，会直接上报约 8.4V
  *
  * 校准方法: 用万用表测实际电压 Vreal,
  *   新值 = 旧值 * Vreal / V显示
  *   例: 旧值 4200, 万用表 3.95V, 显示 4.10V → 4200 * 3.95 / 4.10 ≈ 4046
  */
-#define KBD_VBAT_FULL_SCALE_MV 4200
+#define KBD_VBAT_FULL_SCALE_MV 4200u
 
 /** @} */
 
@@ -131,6 +132,11 @@ typedef struct
 /* BOOT 按键: PB22 */
 #define KBD_FN_BOOT_PORT GPIO_PORT_B
 #define KBD_FN_BOOT_PIN GPIO_Pin_22
+
+/* 调试入口：单击 BOOT 键后直接进入 IAP bootloader */
+#ifndef KBD_BOOT_KEY_ENTER_BOOTLOADER
+#define KBD_BOOT_KEY_ENTER_BOOTLOADER 1
+#endif
 
 /* FN1: PA4 */
 #define KBD_FN1_PORT GPIO_PORT_A
