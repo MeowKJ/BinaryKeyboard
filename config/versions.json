@@ -1,7 +1,7 @@
 {
   "components": {
     "studio": {
-      "base_version": "3.0",
+      "base_version": "3.1",
       "paths": [
         "tools/studio"
       ]
@@ -14,7 +14,7 @@
       ]
     },
     "ch592": {
-      "base_version": "3.0",
+      "base_version": "3.1",
       "chip_family": "CH592F",
       "protocol_family": "BKHID64",
       "paths": [

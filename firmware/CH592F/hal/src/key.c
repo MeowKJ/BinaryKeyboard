@@ -120,6 +120,7 @@
 
 #include "key.h"
 #include "kbd_config.h"
+#include "kbd_mode.h"
 #include "encoder.h"
 
 #include <string.h>
@@ -136,9 +137,9 @@
 #define STATIC_ASSERT(cond, msg) typedef char static_assert_##msg[(cond) ? 1 : -1]
 
 /** @brief 普通按键队列大小必须为 2 的幂。 */
-STATIC_ASSERT ((KEY_QUEUE_SIZE & (KEY_QUEUE_SIZE - 1)) == 0, key_queue_must_be_power_of_2);
+STATIC_ASSERT((KEY_QUEUE_SIZE & (KEY_QUEUE_SIZE - 1)) == 0, key_queue_must_be_power_of_2);
 /** @brief FN 按键队列大小必须为 2 的幂。 */
-STATIC_ASSERT ((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_be_power_of_2);
+STATIC_ASSERT((FNKEY_QUEUE_SIZE & (FNKEY_QUEUE_SIZE - 1)) == 0, fn_queue_must_be_power_of_2);
 
 /* ============================================================================
  * Pin mapping
@@ -241,7 +242,7 @@ static volatile uint32_t s_tick_ms = 0;
  * @brief 获取当前毫秒 tick。
  * @return 自 Key_Init() 起累计的毫秒数。
  */
-static inline uint32_t GetTickMs (void) { return s_tick_ms; }
+static inline uint32_t GetTickMs(void) { return s_tick_ms; }
 
 /* ============================================================================
  * Contexts
@@ -251,10 +252,11 @@ static inline uint32_t GetTickMs (void) { return s_tick_ms; }
 /**
  * @brief 普通按键上下文（边沿 + 锁定去抖）。
  */
-typedef struct {
+typedef struct
+{
     volatile uint16_t lock_ms; /**< 锁定倒计时（ms）。>0 表示锁定中。 */
-    volatile uint8_t  is_down; /**< 当前是否按下（1=按下，0=松开）。 */
-    volatile uint8_t  expect;  /**< 期待的边沿：0=按下(下降沿)，1=松开(上升沿)。 */
+    volatile uint8_t is_down;  /**< 当前是否按下（1=按下，0=松开）。 */
+    volatile uint8_t expect;   /**< 期待的边沿：0=按下(下降沿)，1=松开(上升沿)。 */
 } key_ctx_t;
 
 /** @brief 普通按键上下文数组（每个键一个 ctx）。 */
@@ -265,12 +267,13 @@ static volatile key_ctx_t s_key_ctx[KBD_SCAN_KEY_COUNT];
  * @details
  * FN 键在松开边沿计算 dur = now - press_tick 并决定 CLICK / LONG。
  */
-typedef struct {
-    volatile uint16_t lock_ms;     /**< 锁定倒计时（ms）。 */
-    volatile uint8_t  is_down;     /**< 当前是否按下（1=按下，0=松开）。 */
-    volatile uint8_t  expect;      /**< 期待边沿：0=按下(下降沿)，1=松开(上升沿)。 */
-    volatile uint8_t  combo_used;  /**< FN+Key 组合已触发，松开时跳过事件。 */
-    volatile uint32_t press_tick;  /**< 按下边沿发生时的 tick（ms）。 */
+typedef struct
+{
+    volatile uint16_t lock_ms;    /**< 锁定倒计时（ms）。 */
+    volatile uint8_t is_down;     /**< 当前是否按下（1=按下，0=松开）。 */
+    volatile uint8_t expect;      /**< 期待边沿：0=按下(下降沿)，1=松开(上升沿)。 */
+    volatile uint8_t combo_used;  /**< FN+Key 组合已触发，松开时跳过事件。 */
+    volatile uint32_t press_tick; /**< 按下边沿发生时的 tick（ms）。 */
 } fn_ctx_t;
 
 /** @brief FN 按键上下文数组。 */
@@ -285,33 +288,36 @@ static volatile fn_ctx_t s_fn_ctx[KBD_FN_NUM_KEYS];
  * @brief 将指定引脚配置为上拉输入。
  * @param pin 引脚描述（端口 + pin 位）。
  */
-static inline void ConfigPinInputPullup (const kbd_key_pin_t *pin) {
+static inline void ConfigPinInputPullup(const kbd_key_pin_t *pin)
+{
     if (pin->port == GPIO_PORT_A)
-        GPIOA_ModeCfg (pin->pin, GPIO_ModeIN_PU);
+        GPIOA_ModeCfg(pin->pin, GPIO_ModeIN_PU);
     else
-        GPIOB_ModeCfg (pin->pin, GPIO_ModeIN_PU);
+        GPIOB_ModeCfg(pin->pin, GPIO_ModeIN_PU);
 }
 
 /**
  * @brief 将指定引脚配置为下降沿触发中断（按下沿，Active-Low）。
  * @param pin 引脚描述。
  */
-static inline void ConfigPinFallEdge (const kbd_key_pin_t *pin) {
+static inline void ConfigPinFallEdge(const kbd_key_pin_t *pin)
+{
     if (pin->port == GPIO_PORT_A)
-        GPIOA_ITModeCfg (pin->pin, GPIO_ITMode_FallEdge);
+        GPIOA_ITModeCfg(pin->pin, GPIO_ITMode_FallEdge);
     else
-        GPIOB_ITModeCfg (pin->pin, GPIO_ITMode_FallEdge);
+        GPIOB_ITModeCfg(pin->pin, GPIO_ITMode_FallEdge);
 }
 
 /**
  * @brief 将指定引脚配置为上升沿触发中断（松开沿）。
  * @param pin 引脚描述。
  */
-static inline void ConfigPinRiseEdge (const kbd_key_pin_t *pin) {
+static inline void ConfigPinRiseEdge(const kbd_key_pin_t *pin)
+{
     if (pin->port == GPIO_PORT_A)
-        GPIOA_ITModeCfg (pin->pin, GPIO_ITMode_RiseEdge);
+        GPIOA_ITModeCfg(pin->pin, GPIO_ITMode_RiseEdge);
     else
-        GPIOB_ITModeCfg (pin->pin, GPIO_ITMode_RiseEdge);
+        GPIOB_ITModeCfg(pin->pin, GPIO_ITMode_RiseEdge);
 }
 
 /**
@@ -319,7 +325,8 @@ static inline void ConfigPinRiseEdge (const kbd_key_pin_t *pin) {
  * @param port GPIO_PORT_A / GPIO_PORT_B
  * @return 对应端口的中断标志位集合。
  */
-static inline uint32_t ReadPortItFlags (gpio_port_t port) {
+static inline uint32_t ReadPortItFlags(gpio_port_t port)
+{
     return (port == GPIO_PORT_A) ? GPIOA_ReadITFlagPort() : GPIOB_ReadITFlagPort();
 }
 
@@ -328,11 +335,12 @@ static inline uint32_t ReadPortItFlags (gpio_port_t port) {
  * @param port 端口
  * @param pin  引脚位（bitmask）
  */
-static inline void ClearPinItFlag (gpio_port_t port, uint32_t pin) {
+static inline void ClearPinItFlag(gpio_port_t port, uint32_t pin)
+{
     if (port == GPIO_PORT_A)
-        GPIOA_ClearITFlagBit (pin);
+        GPIOA_ClearITFlagBit(pin);
     else
-        GPIOB_ClearITFlagBit (pin);
+        GPIOB_ClearITFlagBit(pin);
 }
 
 /**
@@ -340,7 +348,8 @@ static inline void ClearPinItFlag (gpio_port_t port, uint32_t pin) {
  * @param port 端口
  * @param pin  引脚位（bitmask）
  */
-static inline void EnablePinIrq (gpio_port_t port, uint32_t pin) {
+static inline void EnablePinIrq(gpio_port_t port, uint32_t pin)
+{
     if (port == GPIO_PORT_A)
         R16_PA_INT_EN |= (uint16_t)pin;
     else
@@ -352,7 +361,8 @@ static inline void EnablePinIrq (gpio_port_t port, uint32_t pin) {
  * @param port 端口
  * @param pin  引脚位（bitmask）
  */
-static inline void DisablePinIrq (gpio_port_t port, uint32_t pin) {
+static inline void DisablePinIrq(gpio_port_t port, uint32_t pin)
+{
     if (port == GPIO_PORT_A)
         R16_PA_INT_EN &= (uint16_t)(~pin);
     else
@@ -365,10 +375,11 @@ static inline void DisablePinIrq (gpio_port_t port, uint32_t pin) {
  * @return 1 表示高电平（松开），0 表示低电平（按下）。
  * @note Active-Low 语义：pressed=0, released=1
  */
-static inline uint8_t ReadPinLevel(const kbd_key_pin_t *pin) {
-  uint32_t v = (pin->port == GPIO_PORT_A) ? GPIOA_ReadPortPin(pin->pin)
-                                         : GPIOB_ReadPortPin(pin->pin);
-  return (v != 0) ? 1 : 0;   /* 或 return !!v; */
+static inline uint8_t ReadPinLevel(const kbd_key_pin_t *pin)
+{
+    uint32_t v = (pin->port == GPIO_PORT_A) ? GPIOA_ReadPortPin(pin->pin)
+                                            : GPIOB_ReadPortPin(pin->pin);
+    return (v != 0) ? 1 : 0; /* 或 return !!v; */
 }
 
 /* ============================================================================
@@ -383,7 +394,8 @@ static inline uint8_t ReadPinLevel(const kbd_key_pin_t *pin) {
  * @param tick_ms 时间戳
  * @note 队列满时丢弃新事件（不覆盖旧事件）。
  */
-static inline void PushKeyEvent (uint8_t key, uint8_t type, uint32_t tick_ms) {
+static inline void PushKeyEvent(uint8_t key, uint8_t type, uint32_t tick_ms)
+{
     uint8_t next = (uint8_t)((s_key_wr + 1) & (KEY_QUEUE_SIZE - 1));
     if (next == s_key_rd)
         return;
@@ -400,7 +412,8 @@ static inline void PushKeyEvent (uint8_t key, uint8_t type, uint32_t tick_ms) {
  * @param tick_ms 时间戳
  * @note 队列满时丢弃新事件。
  */
-static inline void PushFnEvent (uint8_t id, uint8_t type, uint32_t tick_ms) {
+static inline void PushFnEvent(uint8_t id, uint8_t type, uint32_t tick_ms)
+{
     uint8_t next = (uint8_t)((s_fn_wr + 1) & (FNKEY_QUEUE_SIZE - 1));
     if (next == s_fn_rd)
         return;
@@ -427,14 +440,15 @@ static volatile uint8_t s_timer_active = 0;
  * - 提供 s_tick_ms 时间戳
  * - 驱动 key/fn 的 lock_ms 倒计时并在归零时重新使能引脚中断
  */
-static inline void StartTimer1ms (void) {
+static inline void StartTimer1ms(void)
+{
     if (s_timer_active)
         return;
 
-    TMR0_TimerInit (FREQ_SYS / 1000); /* 1ms */
-    TMR0_ITCfg (ENABLE, TMR0_3_IT_CYC_END);
-    PFIC_SetPriority (TMR0_IRQn, TIMER_IRQ_PRIORITY);
-    PFIC_EnableIRQ (TMR0_IRQn);
+    TMR0_TimerInit(FREQ_SYS / 1000); /* 1ms */
+    TMR0_ITCfg(ENABLE, TMR0_3_IT_CYC_END);
+    PFIC_SetPriority(TMR0_IRQn, TIMER_IRQ_PRIORITY);
+    PFIC_EnableIRQ(TMR0_IRQn);
 
     s_timer_active = 1;
 }
@@ -442,10 +456,11 @@ static inline void StartTimer1ms (void) {
 /**
  * @brief 停止 1ms 定时器（TMR0）。
  */
-static inline void StopTimer1ms (void) {
-    TMR0_ITCfg (DISABLE, TMR0_3_IT_CYC_END);
-    PFIC_DisableIRQ (TMR0_IRQn);
-    TMR0_ClearITFlag (TMR0_3_IT_CYC_END);
+static inline void StopTimer1ms(void)
+{
+    TMR0_ITCfg(DISABLE, TMR0_3_IT_CYC_END);
+    PFIC_DisableIRQ(TMR0_IRQn);
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
     s_timer_active = 0;
 }
 
@@ -465,7 +480,8 @@ static inline void StopTimer1ms (void) {
  *     - lock_ms = KEY_LOCKOUT_MS
  *     - DisablePinIrq()（锁定期间不再响应该引脚中断）
  */
-static inline void HandleNormalKeyEdge (uint8_t idx) {
+static inline void HandleNormalKeyEdge(uint8_t idx)
+{
     const kbd_key_pin_t *pin = &g_key_pins[idx];
     uint8_t logical_key = g_key_logical_ids[idx];
     if (s_key_ctx[idx].lock_ms > 0)
@@ -473,25 +489,28 @@ static inline void HandleNormalKeyEdge (uint8_t idx) {
 
     uint32_t now = GetTickMs();
 
-    if (s_key_ctx[idx].expect == 0) {
+    if (s_key_ctx[idx].expect == 0)
+    {
         s_key_ctx[idx].is_down = 1;
-        PushKeyEvent (logical_key, KEY_EVT_PRESS, now);
+        PushKeyEvent(logical_key, KEY_EVT_PRESS, now);
 
 #if KEY_ENABLE_RELEASE_EVENT
         s_key_ctx[idx].expect = 1;
-        ConfigPinRiseEdge (pin);
+        ConfigPinRiseEdge(pin);
 #else
-        ConfigPinFallEdge (pin);
+        ConfigPinFallEdge(pin);
 #endif
-    } else {
+    }
+    else
+    {
         s_key_ctx[idx].is_down = 0;
-        PushKeyEvent (logical_key, KEY_EVT_RELEASE, now);
+        PushKeyEvent(logical_key, KEY_EVT_RELEASE, now);
         s_key_ctx[idx].expect = 0;
-        ConfigPinFallEdge (pin);
+        ConfigPinFallEdge(pin);
     }
 
     s_key_ctx[idx].lock_ms = KEY_LOCKOUT_MS;
-    DisablePinIrq (pin->port, pin->pin);
+    DisablePinIrq(pin->port, pin->pin);
 }
 
 /**
@@ -502,40 +521,48 @@ static inline void HandleNormalKeyEdge (uint8_t idx) {
  * - 松开沿：dur=now-press_tick，dur>=FN_LONG_PRESS_MS -> LONG，否则 CLICK
  * - 每次边沿后都进入 lockout：禁用引脚中断，等待 1ms 定时器解锁
  */
-static inline void HandleFnKeyEdge (uint8_t id) {
+static inline void HandleFnKeyEdge(uint8_t id)
+{
     const kbd_key_pin_t *pin = &g_fn_pins[id];
     if (s_fn_ctx[id].lock_ms > 0)
         return;
 
     uint32_t now = GetTickMs();
 
-    if (s_fn_ctx[id].expect == 0) {
+    if (s_fn_ctx[id].expect == 0)
+    {
         /* Press edge. */
         s_fn_ctx[id].is_down = 1;
         s_fn_ctx[id].combo_used = 0;
         s_fn_ctx[id].press_tick = now;
         s_fn_ctx[id].expect = 1;
-        ConfigPinRiseEdge (pin);
-    } else {
+        ConfigPinRiseEdge(pin);
+    }
+    else
+    {
         /* Release edge -> decide click/long. */
         s_fn_ctx[id].is_down = 0;
         s_fn_ctx[id].expect = 0;
-        ConfigPinFallEdge (pin);
+        ConfigPinFallEdge(pin);
 
         /* FN+Key 组合已使用过，跳过 click/long 事件 */
-        if (!s_fn_ctx[id].combo_used) {
+        if (!s_fn_ctx[id].combo_used)
+        {
             uint32_t dur = now - s_fn_ctx[id].press_tick;
-            if (dur >= (uint32_t)FN_LONG_PRESS_MS) {
-                PushFnEvent (id, FNKEY_EVT_LONG, now);
-            } else {
-                PushFnEvent (id, FNKEY_EVT_CLICK, now);
+            if (dur >= (uint32_t)FN_LONG_PRESS_MS)
+            {
+                PushFnEvent(id, FNKEY_EVT_LONG, now);
+            }
+            else
+            {
+                PushFnEvent(id, FNKEY_EVT_CLICK, now);
             }
         }
         s_fn_ctx[id].combo_used = 0;
     }
 
     s_fn_ctx[id].lock_ms = FN_LOCKOUT_MS;
-    DisablePinIrq (pin->port, pin->pin);
+    DisablePinIrq(pin->port, pin->pin);
 }
 
 /* ============================================================================
@@ -554,32 +581,42 @@ static inline void HandleFnKeyEdge (uint8_t id) {
  *    - ClearPinItFlag()
  *    - 调用对应 HandleXxxEdge()
  */
-static inline void HandlePortIrq (gpio_port_t port) {
-    uint32_t flags = ReadPortItFlags (port);
+static inline void HandlePortIrq(gpio_port_t port)
+{
+    uint32_t flags = ReadPortItFlags(port);
     uint16_t enabled = (port == GPIO_PORT_A) ? R16_PA_INT_EN : R16_PB_INT_EN;
     flags &= enabled;
     if (flags == 0)
         return;
 
-    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT && flags; i++) {
+    if (KBD_Mode_IsInSleep())
+    {
+        KBD_Mode_RequestWake();
+    }
+
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT && flags; i++)
+    {
         if (g_key_pins[i].port != port)
             continue;
         uint32_t pin = g_key_pins[i].pin;
-        if (flags & pin) {
-            ClearPinItFlag (port, pin);
+        if (flags & pin)
+        {
+            ClearPinItFlag(port, pin);
             flags &= ~pin;
-            HandleNormalKeyEdge (i);
+            HandleNormalKeyEdge(i);
         }
     }
 
-    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS && flags; id++) {
+    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS && flags; id++)
+    {
         if (g_fn_pins[id].port != port)
             continue;
         uint32_t pin = g_fn_pins[id].pin;
-        if (flags & pin) {
-            ClearPinItFlag (port, pin);
+        if (flags & pin)
+        {
+            ClearPinItFlag(port, pin);
             flags &= ~pin;
-            HandleFnKeyEdge (id);
+            HandleFnKeyEdge(id);
         }
     }
 
@@ -589,12 +626,12 @@ static inline void HandlePortIrq (gpio_port_t port) {
 /**
  * @brief GPIOA 端口中断服务函数。
  */
-__INTERRUPT __HIGH_CODE void GPIOA_IRQHandler (void) { HandlePortIrq (GPIO_PORT_A); }
+__INTERRUPT __HIGH_CODE void GPIOA_IRQHandler(void) { HandlePortIrq(GPIO_PORT_A); }
 
 /**
  * @brief GPIOB 端口中断服务函数。
  */
-__INTERRUPT __HIGH_CODE void GPIOB_IRQHandler (void) { HandlePortIrq (GPIO_PORT_B); }
+__INTERRUPT __HIGH_CODE void GPIOB_IRQHandler(void) { HandlePortIrq(GPIO_PORT_B); }
 
 /* ============================================================================
  * TMR0 IRQ: tick + unlock
@@ -609,38 +646,43 @@ __INTERRUPT __HIGH_CODE void GPIOB_IRQHandler (void) { HandlePortIrq (GPIO_PORT_
  *   - 遍历所有普通键 ctx：若 lock_ms>0 则 lock_ms--，到 0 时清 flag 并 EnablePinIrq()
  *   - 遍历所有 FN 键 ctx：同理
  */
-__INTERRUPT __HIGH_CODE void TMR0_IRQHandler (void) {
-    if (!TMR0_GetITFlag (TMR0_3_IT_CYC_END))
+__INTERRUPT __HIGH_CODE void TMR0_IRQHandler(void)
+{
+    if (!TMR0_GetITFlag(TMR0_3_IT_CYC_END))
         return;
-    TMR0_ClearITFlag (TMR0_3_IT_CYC_END);
+    TMR0_ClearITFlag(TMR0_3_IT_CYC_END);
 
     s_tick_ms++;
 
-    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++)
+    {
         uint16_t lm = s_key_ctx[i].lock_ms;
         if (lm == 0)
             continue;
         lm--;
         s_key_ctx[i].lock_ms = lm;
-        if (lm == 0) {
+        if (lm == 0)
+        {
             gpio_port_t port = g_key_pins[i].port;
             uint32_t pin = g_key_pins[i].pin;
-            ClearPinItFlag (port, pin);
-            EnablePinIrq (port, pin);
+            ClearPinItFlag(port, pin);
+            EnablePinIrq(port, pin);
         }
     }
 
-    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++) {
+    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++)
+    {
         uint16_t lm = s_fn_ctx[id].lock_ms;
         if (lm == 0)
             continue;
         lm--;
         s_fn_ctx[id].lock_ms = lm;
-        if (lm == 0) {
+        if (lm == 0)
+        {
             gpio_port_t port = g_fn_pins[id].port;
             uint32_t pin = g_fn_pins[id].pin;
-            ClearPinItFlag (port, pin);
-            EnablePinIrq (port, pin);
+            ClearPinItFlag(port, pin);
+            EnablePinIrq(port, pin);
         }
     }
 
@@ -657,7 +699,8 @@ __INTERRUPT __HIGH_CODE void TMR0_IRQHandler (void) {
  * @param[out] evt 事件输出
  * @return 1=成功；0=无事件或参数无效
  */
-uint8_t Key_GetEvent (key_event_t *evt) {
+uint8_t Key_GetEvent(key_event_t *evt)
+{
     if (evt == NULL)
         return 0;
     if (s_key_rd == s_key_wr)
@@ -672,7 +715,8 @@ uint8_t Key_GetEvent (key_event_t *evt) {
  * @param[out] evt 事件输出
  * @return 1=成功；0=无事件或参数无效
  */
-uint8_t FnKey_GetEvent (fnkey_event_t *evt) {
+uint8_t FnKey_GetEvent(fnkey_event_t *evt)
+{
     if (evt == NULL)
         return 0;
     if (s_fn_rd == s_fn_wr)
@@ -687,9 +731,12 @@ uint8_t FnKey_GetEvent (fnkey_event_t *evt) {
  * @param key_index 按键索引
  * @return 1=按下；0=松开；-1=非法索引
  */
-int8_t Key_IsDown (uint8_t key_index) {
-    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
-        if (g_key_logical_ids[i] == key_index) {
+int8_t Key_IsDown(uint8_t key_index)
+{
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++)
+    {
+        if (g_key_logical_ids[i] == key_index)
+        {
             return s_key_ctx[i].is_down ? 1 : 0;
         }
     }
@@ -701,7 +748,8 @@ int8_t Key_IsDown (uint8_t key_index) {
  * @param id FN 键索引
  * @return 1=按下；0=松开；-1=非法索引
  */
-int8_t FnKey_IsDown (uint8_t id) {
+int8_t FnKey_IsDown(uint8_t id)
+{
     if (id >= KBD_FN_NUM_KEYS)
         return -1;
     return s_fn_ctx[id].is_down ? 1 : 0;
@@ -712,7 +760,8 @@ int8_t FnKey_IsDown (uint8_t id) {
  * @param id FN 键索引
  * @details 调用后，该 FN 键松开时不会产生 CLICK/LONG 事件。
  */
-void FnKey_MarkComboUsed (uint8_t id) {
+void FnKey_MarkComboUsed(uint8_t id)
+{
     if (id < KBD_FN_NUM_KEYS)
         s_fn_ctx[id].combo_used = 1;
 }
@@ -721,81 +770,104 @@ void FnKey_MarkComboUsed (uint8_t id) {
  * @brief BOOT 键是否按下（原始读取，Active-Low）。
  * @return 1=按下；0=松开
  */
-int8_t BootKey_IsPressed (void) {
+int8_t BootKey_IsPressed(void)
+{
     /* Active-low raw read. */
-    return (ReadPinLevel (&g_boot_pin) == 0) ? 1 : 0;
+    return (ReadPinLevel(&g_boot_pin) == 0) ? 1 : 0;
 }
 
 /**
  * @brief 初始化按键驱动（见 key.h 文档）。
  */
-void Key_Init (void) {
-    memset ((void *)s_key_ctx, 0, sizeof (s_key_ctx));
-    memset ((void *)s_fn_ctx, 0, sizeof (s_fn_ctx));
+void Key_Init(void)
+{
+    memset((void *)s_key_ctx, 0, sizeof(s_key_ctx));
+    memset((void *)s_fn_ctx, 0, sizeof(s_fn_ctx));
 
     s_key_rd = s_key_wr = 0;
     s_fn_rd = s_fn_wr = 0;
     s_tick_ms = 0;
 
     /* BOOT: input only. */
-    ConfigPinInputPullup (&g_boot_pin);
+    ConfigPinInputPullup(&g_boot_pin);
 
     /* Normal keys: input + falling/rising edge depends on current level. */
-    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++) {
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++)
+    {
         const kbd_key_pin_t *pin = &g_key_pins[i];
-        ConfigPinInputPullup (pin);
+        ConfigPinInputPullup(pin);
 
-        uint8_t level = ReadPinLevel (pin);
+        uint8_t level = ReadPinLevel(pin);
         s_key_ctx[i].is_down = (level == 0) ? 1 : 0;
         s_key_ctx[i].lock_ms = 0;
 
         /* 若初始化时已按下(level=0)，下一次应期待 release(上升沿)；否则期待 press(下降沿) */
         s_key_ctx[i].expect = (level == 0) ? 1 : 0;
         if (level == 0)
-            ConfigPinRiseEdge (pin);
+            ConfigPinRiseEdge(pin);
         else
-            ConfigPinFallEdge (pin);
+            ConfigPinFallEdge(pin);
 
-        ClearPinItFlag (pin->port, pin->pin);
-        EnablePinIrq (pin->port, pin->pin);
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
     }
 
     /* FN keys: input + ALWAYS start from press(fall). */
-    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++) {
+    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++)
+    {
         const kbd_key_pin_t *pin = &g_fn_pins[id];
-        ConfigPinInputPullup (pin);
+        ConfigPinInputPullup(pin);
 
         /* 可选：读两次/丢一次，等上拉稳定 */
-        (void)ReadPinLevel (pin);
-        uint8_t level = ReadPinLevel (pin);
+        (void)ReadPinLevel(pin);
+        uint8_t level = ReadPinLevel(pin);
 
         s_fn_ctx[id].is_down = (level == 0) ? 1 : 0;
         s_fn_ctx[id].lock_ms = 0;
 
         /* 关键：强制下一次当成“按下沿” */
         s_fn_ctx[id].expect = 0;
-        s_fn_ctx[id].press_tick = 0;  /* 按下沿会重写 */
+        s_fn_ctx[id].press_tick = 0; /* 按下沿会重写 */
 
         /* 关键：强制先等下降沿（按下） */
-        ConfigPinFallEdge (pin);
+        ConfigPinFallEdge(pin);
 
-        ClearPinItFlag (pin->port, pin->pin);
-        EnablePinIrq (pin->port, pin->pin);
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
     }
 
-    PFIC_SetPriority (GPIO_A_IRQn, KEY_IRQ_PRIORITY);
-    PFIC_SetPriority (GPIO_B_IRQn, KEY_IRQ_PRIORITY);
-    PFIC_EnableIRQ (GPIO_A_IRQn);
-    PFIC_EnableIRQ (GPIO_B_IRQn);
+    PFIC_SetPriority(GPIO_A_IRQn, KEY_IRQ_PRIORITY);
+    PFIC_SetPriority(GPIO_B_IRQn, KEY_IRQ_PRIORITY);
+    PFIC_EnableIRQ(GPIO_A_IRQn);
+    PFIC_EnableIRQ(GPIO_B_IRQn);
 
     StartTimer1ms();
 }
 
 /**
- * @brief 进入低功耗：停止 1ms 定时器。
+ * @brief 进入低功耗：停止 1ms 定时器，解除所有 lockout 并重新使能引脚 IRQ。
+ * @note 1ms 定时器停止后 lock_ms 无法递减，若不强制解锁会导致处于锁定中的键无法唤醒系统。
+ *       30s+ 空闲进入休眠时硬件上不存在抖动，可安全强制解锁。
  */
-void Key_EnterSleep (void) {
+void Key_EnterSleep(void)
+{
     Encoder_EnterSleep();
+
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++)
+    {
+        const kbd_key_pin_t *pin = &g_key_pins[i];
+        s_key_ctx[i].lock_ms = 0;
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
+    }
+    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++)
+    {
+        const kbd_key_pin_t *pin = &g_fn_pins[id];
+        s_fn_ctx[id].lock_ms = 0;
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
+    }
+
     if (s_timer_active)
         StopTimer1ms();
 }
@@ -803,8 +875,40 @@ void Key_EnterSleep (void) {
 /**
  * @brief 退出低功耗：启动 1ms 定时器。
  */
-void Key_ExitSleep (void) {
+void Key_ExitSleep(void)
+{
     Encoder_ExitSleep();
     if (!s_timer_active)
         StartTimer1ms();
+}
+
+/**
+ * @brief 配置深度休眠唤醒：所有按键引脚切换到低电平触发 + 打开 GPIO 唤醒源。
+ * @note 调用前应保证按键已松开（否则进入休眠瞬间立即唤醒）。
+ *       深休眠使用 LowPower_Shutdown() 时，唤醒等价于复位，事件状态不会保留。
+ */
+void Key_ConfigDeepSleepWakeup(void)
+{
+    for (uint8_t i = 0; i < KBD_SCAN_KEY_COUNT; i++)
+    {
+        const kbd_key_pin_t *pin = &g_key_pins[i];
+        if (pin->port == GPIO_PORT_A)
+            GPIOA_ITModeCfg(pin->pin, GPIO_ITMode_LowLevel);
+        else
+            GPIOB_ITModeCfg(pin->pin, GPIO_ITMode_LowLevel);
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
+    }
+    for (uint8_t id = 0; id < KBD_FN_NUM_KEYS; id++)
+    {
+        const kbd_key_pin_t *pin = &g_fn_pins[id];
+        if (pin->port == GPIO_PORT_A)
+            GPIOA_ITModeCfg(pin->pin, GPIO_ITMode_LowLevel);
+        else
+            GPIOB_ITModeCfg(pin->pin, GPIO_ITMode_LowLevel);
+        ClearPinItFlag(pin->port, pin->pin);
+        EnablePinIrq(pin->port, pin->pin);
+    }
+
+    PWR_PeriphWakeUpCfg(ENABLE, RB_SLP_GPIO_WAKE, Long_Delay);
 }

@@ -44,6 +44,9 @@ static kbd_state_t s_current_state = KBD_STATE_USB_CONNECTED;
 /** @brief 效果相位计数器 */
 static uint32_t s_effect_phase = 0;
 
+/** @brief 当前状态已持续时长 (毫秒) */
+static uint32_t s_state_elapsed_ms = 0;
+
 /** @brief 临时闪烁激活标志 */
 static bool s_flash_active = false;
 
@@ -67,11 +70,20 @@ static uint8_t s_layer_flash_layer = 0; /**< 闪烁的目标按键位置 (层号
 /** @brief 层颜色表 */
 static const uint8_t s_layer_colors[5][3] = KBD_LAYER_COLORS;
 
+/** @brief 层号到提示按键的映射表 */
+static const uint8_t s_layer_to_key[KBD_DEFAULT_LAYERS] = KBD_LAYER_TO_KEY_MAP;
+
 /** @brief 逻辑按键到物理 LED 映射表 */
 static const uint8_t s_logical_to_physical[KBD_NUM_KEYS] = KBD_LOGICAL_TO_PHYSICAL_MAP;
 
 /** @brief TMOS 任务 ID */
 static tmosTaskID s_rgb_task_id = TASK_NO_TASK;
+
+/** @brief 低功耗指示灯模式：仅驱动指示灯，不驱动按键灯 */
+static bool s_low_power_active = false;
+
+/** @brief RGB 周期任务是否启用 */
+static bool s_scheduler_enabled = true;
 
 /**
  * @brief 将逻辑按键索引转换为 WS2812 LED 索引
@@ -80,8 +92,16 @@ static tmosTaskID s_rgb_task_id = TASK_NO_TASK;
  */
 static inline uint8_t KeyToLed(uint8_t key_idx)
 {
-    if (key_idx >= KBD_NUM_KEYS) return 0;
+    if (key_idx >= KBD_NUM_KEYS)
+        return 0;
     return (WS2812_LED_NUM > 1) ? (s_logical_to_physical[key_idx] + 1) : 0;
+}
+
+static inline uint8_t LayerToLed(uint8_t layer_idx)
+{
+    if (layer_idx >= KBD_DEFAULT_LAYERS)
+        return 0;
+    return KeyToLed(s_layer_to_key[layer_idx]);
 }
 
 /*============================================================================*/
@@ -89,9 +109,9 @@ static inline uint8_t KeyToLed(uint8_t key_idx)
 /*============================================================================*/
 
 /** @brief 按下效果常量 */
-#define PRESS_EFFECT_NONE       0
+#define PRESS_EFFECT_NONE 0
 #define PRESS_EFFECT_LIGHT_FADE 1
-#define PRESS_EFFECT_DARK_FADE  2
+#define PRESS_EFFECT_DARK_FADE 2
 
 /** @brief 每个按键的按下衰减值 (255=刚按下, 0=无效果) */
 static uint8_t s_press_fade[KBD_NUM_KEYS];
@@ -240,9 +260,12 @@ static void ProcessPressEffects(kbd_rgb_config_t *cfg)
             uint8_t pb = ((uint16_t)s_press_color_b[i] * intensity) >> 8;
             uint8_t br, bg, bb;
             SampleModeKeyColor(cfg, i, false, &br, &bg, &bb);
-            if (pr > br) br = pr;
-            if (pg > bg) bg = pg;
-            if (pb > bb) bb = pb;
+            if (pr > br)
+                br = pr;
+            if (pg > bg)
+                bg = pg;
+            if (pb > bb)
+                bb = pb;
             WS2812_Set(led_idx, br, bg, bb);
         }
         else
@@ -282,7 +305,10 @@ static uint16_t KBD_RGB_ProcessEvent(uint8_t task_id, uint16_t events)
     if (events & RGB_UPDATE_EVT)
     {
         KBD_RGB_Process();
-        tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
+        if (s_scheduler_enabled)
+        {
+            tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
+        }
         return (events ^ RGB_UPDATE_EVT);
     }
     return 0;
@@ -344,7 +370,8 @@ static bool CalcBlink(uint8_t phase)
  * @param[out] period_ms 动画周期 (毫秒)
  */
 static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_t *b,
-                               uint8_t *effect, uint16_t *period_ms)
+                               uint8_t *effect, uint16_t *period_ms,
+                               uint16_t *active_ms, bool *repeat)
 {
     switch (state)
     {
@@ -354,6 +381,8 @@ static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_
         *b = KBD_IND_USB_CONN_B;
         *effect = 0; /* 常亮 */
         *period_ms = 0;
+        *active_ms = 600;
+        *repeat = false;
         break;
 
     case KBD_STATE_BLE_DISCONNECTED:
@@ -362,6 +391,8 @@ static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_
         *b = KBD_IND_BLE_DISCONN_B;
         *effect = 1;       /* 呼吸 */
         *period_ms = 2000; /* 2 秒周期 */
+        *active_ms = 2000;
+        *repeat = true;
         break;
 
     case KBD_STATE_BLE_ADVERTISING:
@@ -370,6 +401,8 @@ static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_
         *b = KBD_IND_BLE_ADV_B;
         *effect = 1;       /* 呼吸 */
         *period_ms = 1000; /* 1 秒周期 */
+        *active_ms = 1000;
+        *repeat = true;
         break;
 
     case KBD_STATE_BLE_CONNECTED:
@@ -378,6 +411,8 @@ static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_
         *b = KBD_IND_BLE_CONN_B;
         *effect = 0; /* 常亮 */
         *period_ms = 0;
+        *active_ms = 600;
+        *repeat = false;
         break;
 
     case KBD_STATE_LOW_BATTERY:
@@ -386,12 +421,46 @@ static void GetIndicatorParams(kbd_state_t state, uint8_t *r, uint8_t *g, uint8_
         *b = KBD_IND_LOW_BATT_B;
         *effect = 2; /* 快闪 */
         *period_ms = 500;
+        *active_ms = 500;
+        *repeat = true;
+        break;
+
+    case KBD_STATE_CHARGING:
+        *r = KBD_IND_CHARGING_R;
+        *g = KBD_IND_CHARGING_G;
+        *b = KBD_IND_CHARGING_B;
+        *effect = 1; /* 短呼吸脉冲 */
+        *period_ms = 3000;
+        *active_ms = 700;
+        *repeat = true;
+        break;
+
+    case KBD_STATE_SLEEP_READY:
+        *r = KBD_IND_SLEEP_READY_R;
+        *g = KBD_IND_SLEEP_READY_G;
+        *b = KBD_IND_SLEEP_READY_B;
+        *effect = 1; /* 短呼吸 */
+        *period_ms = 900;
+        *active_ms = 900;
+        *repeat = false;
+        break;
+
+    case KBD_STATE_SLEEPING:
+        *r = KBD_IND_SLEEPING_R;
+        *g = KBD_IND_SLEEPING_G;
+        *b = KBD_IND_SLEEPING_B;
+        *effect = 2; /* 短闪 */
+        *period_ms = 280;
+        *active_ms = 280;
+        *repeat = false;
         break;
 
     default:
         *r = *g = *b = 0;
         *effect = 0;
         *period_ms = 0;
+        *active_ms = 0;
+        *repeat = false;
         break;
     }
 }
@@ -410,21 +479,34 @@ static void ProcessIndicatorMode(void)
 
     uint8_t r, g, b, effect;
     uint16_t period_ms;
-    GetIndicatorParams(s_current_state, &r, &g, &b, &effect, &period_ms);
+    uint16_t active_ms;
+    bool repeat;
+    GetIndicatorParams(s_current_state, &r, &g, &b, &effect, &period_ms,
+                       &active_ms, &repeat);
 
     uint8_t brightness = cfg->indicator_brightness;
+    uint32_t phase_ms = repeat && period_ms > 0 ? (s_state_elapsed_ms % period_ms)
+                                                : s_state_elapsed_ms;
+
+    if (active_ms > 0 && phase_ms >= active_ms)
+    {
+        WS2812_Clear_Indicator();
+        return;
+    }
 
     if (effect == 1 && period_ms > 0)
     {
         /* 呼吸效果 */
-        uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
+        uint16_t window_ms = (active_ms > 0) ? active_ms : period_ms;
+        uint8_t phase = (phase_ms * 256 / window_ms) & 0xFF;
         brightness = CalcBreathing(phase);
         brightness = ((uint16_t)brightness * cfg->indicator_brightness) >> 8;
     }
     else if (effect == 2 && period_ms > 0)
     {
         /* 闪烁效果 */
-        uint8_t phase = (s_effect_phase * 256 / period_ms) & 0xFF;
+        uint16_t window_ms = (active_ms > 0) ? active_ms : period_ms;
+        uint8_t phase = (phase_ms * 256 / window_ms) & 0xFF;
         if (!CalcBlink(phase))
         {
             brightness = 0;
@@ -557,6 +639,7 @@ void KBD_RGB_Init(void)
     }
 
     s_effect_phase = 0;
+    s_state_elapsed_ms = 0;
     s_flash_active = false;
     s_layer_flash_active = false;
     ClearPressEffects();
@@ -579,6 +662,11 @@ void KBD_RGB_Process(void)
     if (s_effect_phase > 10000)
     {
         s_effect_phase = s_effect_phase % 10000;
+    }
+
+    if (s_state_elapsed_ms < 60000)
+    {
+        s_state_elapsed_ms += RGB_UPDATE_INTERVAL_MS;
     }
 
     /* 处理临时闪烁 */
@@ -627,7 +715,7 @@ void KBD_RGB_Process(void)
                 {
                     s_layer_flash_is_on = true;
                     WS2812_FillKeys(0, 0, 0);
-                    WS2812_Set(KeyToLed(s_layer_flash_layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+                    WS2812_Set(LayerToLed(s_layer_flash_layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
                     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
                 }
             }
@@ -639,6 +727,17 @@ void KBD_RGB_Process(void)
             WS2812_Update();
             return;
         }
+    }
+
+    if (s_low_power_active)
+    {
+        if (WS2812_LED_NUM > 1)
+        {
+            WS2812_FillKeys(0, 0, 0);
+        }
+        WS2812_Clear_Indicator();
+        WS2812_Update();
+        return;
     }
 
     /* 检测按下效果状态 */
@@ -815,6 +914,7 @@ void KBD_RGB_SetState(kbd_state_t state)
     {
         s_current_state = state;
         s_effect_phase = 0;
+        s_state_elapsed_ms = 0;
         LOG_D(TAG, "state=%d", state);
     }
 }
@@ -823,6 +923,49 @@ void KBD_RGB_EnableIndicator(bool enable)
 {
     kbd_rgb_config_t *cfg = KBD_GetRgbConfig();
     cfg->indicator_enabled = enable ? 1 : 0;
+}
+
+void KBD_RGB_SetLowPower(bool enable)
+{
+    if (s_low_power_active == enable)
+    {
+        return;
+    }
+
+    s_low_power_active = enable;
+    if (enable)
+    {
+        s_layer_flash_active = false;
+        s_flash_active = false;
+        ClearPressEffects();
+        /* 彻底切断 WS2812 总电源 + 数据脚置高阻，避免 ESD 漏流 */
+        WS2812_Sleep();
+    }
+    else
+    {
+        /* 数据脚恢复推挽输出；LED 电源由后续 WS2812_Update 按需打开 */
+        WS2812_Wakeup();
+        s_effect_phase = 0;
+        s_state_elapsed_ms = 0;
+    }
+}
+
+void KBD_RGB_SetSchedulerEnabled(bool enable)
+{
+    if (s_scheduler_enabled == enable)
+    {
+        return;
+    }
+
+    s_scheduler_enabled = enable;
+    if (!enable)
+    {
+        tmos_stop_task(s_rgb_task_id, RGB_UPDATE_EVT);
+        return;
+    }
+
+    tmos_stop_task(s_rgb_task_id, RGB_UPDATE_EVT);
+    tmos_start_task(s_rgb_task_id, RGB_UPDATE_EVT, MS1_TO_SYSTEM_TIME(RGB_UPDATE_INTERVAL_MS));
 }
 
 void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms)
@@ -854,7 +997,7 @@ void KBD_RGB_FlashLayer(uint8_t layer)
 
     /* 仅点亮对应层号位置的按键灯，其余熄灭；指示灯保持独立 */
     WS2812_FillKeys(0, 0, 0);
-    WS2812_Set(KeyToLed(layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+    WS2812_Set(LayerToLed(layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
     ProcessIndicatorMode();
     WS2812_Update();
 }

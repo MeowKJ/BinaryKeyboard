@@ -252,6 +252,13 @@ void Key_EnterSleep(void);
  */
 void Key_ExitSleep(void);
 
+/**
+ * @brief 配置深度休眠唤醒：所有按键引脚设置为低电平触发 + 打开 GPIO 唤醒源。
+ * @note 进入 LowPower_Shutdown() / LowPower_Sleep() 前调用；
+ *       任意按键 / FN 键按下（低电平）都会唤醒 MCU。
+ */
+void Key_ConfigDeepSleepWakeup(void);
+
 /** @} */ /* end of KBD_KEY */
 
 #ifdef __cplusplus

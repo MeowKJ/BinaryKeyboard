@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import platform
+import stat
 import re
 import shutil
 import subprocess
@@ -227,6 +228,40 @@ def user_facing_artifact_paths(build_dir: Path, keyboard: str) -> dict[str, Path
     }
 
 
+def _directory_is_writable(path: Path) -> bool:
+    if not path.exists():
+        probe = path.parent
+        while not probe.exists() and probe != probe.parent:
+            probe = probe.parent
+        return probe.exists() and os.access(probe, os.W_OK)
+    mode = path.stat().st_mode
+    return path.is_dir() and bool(mode & stat.S_IWUSR) and os.access(path, os.W_OK)
+
+
+def _ensure_writable_build_dir(build_dir: Path, action: str) -> None:
+    if _directory_is_writable(build_dir):
+        return
+
+    owner_uid = build_dir.stat().st_uid if build_dir.exists() else None
+    owner_text = f"uid {owner_uid}" if owner_uid is not None else "unknown owner"
+    try:
+        import pwd
+
+        if owner_uid is not None:
+            owner_text = pwd.getpwuid(owner_uid).pw_name
+    except Exception:
+        pass
+
+    build_root = FIRMWARE_DIR / "build"
+    die(
+        f"Cannot {action}: build directory is not writable: {build_dir}\n"
+        f"Owner: {owner_text}\n"
+        "This usually happens after running ./run.sh with sudo and leaving root-owned CH592F build artifacts behind.\n"
+        f"Fix it with:\n  sudo chown -R $USER '{build_root}'\n"
+        f"Or remove '{build_root}' and rebuild without sudo."
+    )
+
+
 def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
     raw = raw_artifact_paths(build_dir)
     exported = artifact_paths(build_dir, keyboard)
@@ -234,7 +269,11 @@ def export_named_artifacts(build_dir: Path, keyboard: str) -> dict[str, Path]:
         src = raw[name]
         dst = exported[name]
         if src.is_file() and src != dst:
-            shutil.copy2(src, dst)
+            try:
+                shutil.copy2(src, dst)
+            except PermissionError:
+                _ensure_writable_build_dir(build_dir, f"export {dst.name}")
+                raise
     return exported
 
 
@@ -360,6 +399,7 @@ def configure(keyboard: str, profile: str) -> Path:
     profile = _normalize_profile(profile)
     build_dir = build_dir_for(keyboard, profile)
     build_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_writable_build_dir(build_dir, "configure CH592F build outputs")
     sep()
     info(f"Configuring CH592F ({keyboard}, {profile})")
     run(
@@ -378,6 +418,7 @@ def build(keyboard: str, profile: str) -> Path:
     keyboard = _normalize_keyboard(keyboard)
     profile = _normalize_profile(profile)
     build_dir = build_dir_for(keyboard, profile)
+    _ensure_writable_build_dir(build_dir, "build CH592F artifacts")
     cache_file = build_dir / "CMakeCache.txt"
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
     cached_model = _parse_cmake_cache_var(cache_file, "KBD_MODEL")

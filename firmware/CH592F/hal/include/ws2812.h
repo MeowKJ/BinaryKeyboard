@@ -137,4 +137,14 @@ void WS2812_Set_Indicator(uint8_t r, uint8_t g, uint8_t b);
  */
 void WS2812_Clear_Indicator(void);
 
+/**
+ * @brief 进入超低功耗：停 PWM/DMA，拉低使能脚，数据脚置高阻，切断 ESD 漏流
+ */
+void WS2812_Sleep(void);
+
+/**
+ * @brief 退出低功耗：数据脚恢复推挽输出（使能由下一次 WS2812_Update 自动打开）
+ */
+void WS2812_Wakeup(void);
+
 #endif /* __WS2812_H */
