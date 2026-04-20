@@ -124,14 +124,14 @@ extern "C"
 /** 启用低功耗模式 */
 #define KBD_LOW_POWER_ENABLE 1
 
-/** 进入 LIGHT 休眠的空闲时间（毫秒）：RGB 断电 + TMR0 停 + 电池分压关闭，BLE 仍保持 */
+/** 兼容旧宏：当前实际超时以 DataFlash / Studio 配置为准 */
 #ifndef KBD_LIGHT_SLEEP_TIMEOUT_MS
-#define KBD_LIGHT_SLEEP_TIMEOUT_MS 3000u /**< 3 秒（测试值；生产建议 30000 = 30 秒） */
+#define KBD_LIGHT_SLEEP_TIMEOUT_MS 60000u /**< LIGHT 默认 1 分钟 */
 #endif
 
-/** 进入 DEEP 休眠的空闲时间（毫秒）：LowPower_Shutdown，按键唤醒等同复位 */
+/** 兼容旧宏：当前实际超时以 DataFlash / Studio 配置为准 */
 #ifndef KBD_DEEP_SLEEP_TIMEOUT_MS
-#define KBD_DEEP_SLEEP_TIMEOUT_MS 10000u /**< 10 秒（测试值；生产建议 600000 = 10 分钟） */
+#define KBD_DEEP_SLEEP_TIMEOUT_MS 120000u /**< 总空闲默认 2 分钟 */
 #endif
 
 /** 兼容旧命名 */

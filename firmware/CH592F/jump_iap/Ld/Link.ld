@@ -18,4 +18,25 @@ SECTIONS
 		. = ALIGN(4);
 		_einit = .;
 	} >FLASH AT>FLASH
+
+	.vector :
+	{
+		. = ALIGN(4);
+		KEEP(*(.vector))
+		. = ALIGN(4);
+	} >FLASH AT>FLASH
+
+	.vector_handler :
+	{
+		. = ALIGN(4);
+		KEEP(*(.vector_handler))
+		. = ALIGN(4);
+	} >FLASH AT>FLASH
+
+	.handle_reset :
+	{
+		. = ALIGN(4);
+		KEEP(*(SORT_NONE(.handle_reset)))
+		. = ALIGN(4);
+	} >FLASH AT>FLASH
 }

@@ -242,8 +242,10 @@ typedef struct
  */
 #if defined(KBD_LAYOUT_5KEY)
 #define KBD_LOGICAL_TO_PHYSICAL_MAP {2, 3, 4, 1, 0}
+#define KBD_LAYER_TO_KEY_MAP {0, 1, 2, 3, 4}
 #elif defined(KBD_LAYOUT_KNOB)
 #define KBD_LOGICAL_TO_PHYSICAL_MAP {3, 2, 0, 1}
+#define KBD_LAYER_TO_KEY_MAP {1, 0, 3, 2}
 #endif
 
 /**

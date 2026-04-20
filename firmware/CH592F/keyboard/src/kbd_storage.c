@@ -254,9 +254,10 @@ static const kbd_rgb_config_t s_default_rgb = {
  */
 static const kbd_system_config_t s_default_system = {
     .default_mode = 0,          /* USB */
-    .auto_sleep_min = 5,        /* 5 分钟 */
+    .auto_sleep_min = 1,        /* LIGHT 默认 1 分钟 */
     .debounce_ms = 10,          /* 10ms */
     .log_enabled = KBD_LOG_DEFAULT_ENABLED, /* HID 日志默认开关由构建类型决定 */
+    .deep_sleep_min = 1,        /* DEEP 默认在 LIGHT 后 1 分钟 */
 };
 
 /*============================================================================*/
@@ -577,7 +578,7 @@ static bool TryLoadConfigSlot(uint8_t slot, kbd_config_slot_cache_t *out) {
   if (out->header.magic != KBD_CONFIG_MAGIC) {
     return false;
   }
-  if ((out->header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) {
+  if (out->header.version != KBD_CONFIG_VERSION) {
     return false;
   }
 
@@ -589,24 +590,6 @@ static bool TryLoadConfigSlot(uint8_t slot, kbd_config_slot_cache_t *out) {
     return false;
   }
 
-  return true;
-}
-
-static bool TryLoadConfigAtAddr(uint32_t base_addr, uint8_t slot_tag,
-                                kbd_config_slot_cache_t *out) {
-  memset(out, 0, sizeof(*out));
-  out->slot = slot_tag;
-  EEPROM_READ(base_addr + KBD_FLASH_HEADER, &out->header, sizeof(out->header));
-
-  if (out->header.magic != KBD_CONFIG_MAGIC) return false;
-  if ((out->header.version >> 8) != (KBD_CONFIG_VERSION >> 8)) return false;
-
-  ReadConfigPayloadFromSlot(base_addr, &out->system, &out->keymap, &out->fnkey,
-                            &out->rgb);
-  if (CalcConfigCRC(&out->system, &out->keymap, &out->fnkey, &out->rgb) !=
-      out->header.crc32) {
-    return false;
-  }
   return true;
 }
 
@@ -726,7 +709,6 @@ int KBD_Config_Load(void) {
   bool found = false;
   kbd_config_slot_cache_t best = {0};
   kbd_config_slot_cache_t cur;
-  bool legacy_slot_loaded = false;
 
   for (uint8_t slot = 0; slot < KBD_CFG_SLOT_COUNT; slot++) {
     if (!TryLoadConfigSlot(slot, &cur)) continue;
@@ -738,30 +720,12 @@ int KBD_Config_Load(void) {
   }
 
   if (!found) {
-    /* 兼容旧布局：历史版本可能把完整配置写在 0x0C00~0x0FFF（现已改为 runtime 热数据区） */
-    if (TryLoadConfigAtAddr(KBD_RUNTIME_REGION_ADDR, 3, &best)) {
-      found = true;
-      legacy_slot_loaded = true;
-      LOG_W(TAG, "Loaded config from legacy slot3 (0x0C00), will migrate on save");
-    } else {
-      LOG_W(TAG, "No valid config slot found");
-      s_config_active_slot = KBD_CFG_INVALID_SLOT;
-      return -1;
-    }
+    LOG_W(TAG, "No valid config slot found");
+    s_config_active_slot = KBD_CFG_INVALID_SLOT;
+    return -1;
   }
 
   ApplyLoadedConfig(&best);
-
-  /* 迁移：旧配置可能无 indicator_brightness，若低于最低值则提升（不可完全关闭） */
-  if (s_rgb_config.indicator_brightness < KBD_INDICATOR_MIN_BRIGHTNESS) {
-    s_rgb_config.indicator_brightness = KBD_INDICATOR_MIN_BRIGHTNESS;
-  }
-
-  /* 迁移 v1.1 → v1.2: 初始化 HID 日志开关 */
-  if (s_config_header.version < 0x0102) {
-    s_system_config.log_enabled = KBD_LOG_DEFAULT_ENABLED;
-    LOG_I(TAG, "Migrated log config (v1.1->v1.2)");
-  }
 
 #if !KBD_USB_LOG_ENABLE
   s_system_config.log_enabled = 0;
@@ -769,14 +733,6 @@ int KBD_Config_Load(void) {
 
   /* 热数据（层号）独立覆盖，减少高频切层带来的整份配置写入 */
   ApplyRuntimeLayerIfValid();
-
-  /* 若从旧 slot3 加载，首次启动即迁移到新布局，避免后续 runtime 覆盖该区域后丢配置 */
-  if (legacy_slot_loaded) {
-    s_config_active_slot = KBD_CFG_INVALID_SLOT;
-    if (KBD_Config_Save() != 0) {
-      LOG_W(TAG, "Legacy config migration save failed");
-    }
-  }
 
   LOG_I(TAG, "Config loaded: slot=%d ver=0x%04X saves=%d", s_config_active_slot,
         s_config_header.version, s_config_header.save_count);

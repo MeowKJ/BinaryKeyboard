@@ -65,6 +65,28 @@
         </select>
       </div>
 
+      <div v-if="showSleepConfig" class="rgb-item">
+        <span class="rgb-label">LIGHT 休眠（分钟，0=禁用）</span>
+        <input
+          v-model.number="deviceStore.rgbConfig.lightSleepMin"
+          type="number"
+          min="0"
+          max="255"
+          class="rgb-number-input"
+        />
+      </div>
+
+      <div v-if="showSleepConfig" class="rgb-item">
+        <span class="rgb-label">DEEP 延时（在 LIGHT 后，分钟，0=禁用）</span>
+        <input
+          v-model.number="deviceStore.rgbConfig.deepSleepMin"
+          type="number"
+          min="0"
+          max="255"
+          class="rgb-number-input"
+        />
+      </div>
+
       <div v-if="deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552" class="rgb-item">
         <span class="rgb-label">USB 轮询率</span>
         <select v-model.number="pollRateModel" class="rgb-select">
@@ -129,6 +151,10 @@ const showColorPicker = computed(
 );
 
 const showIndicatorBrightness = computed(
+  () => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH592,
+);
+
+const showSleepConfig = computed(
   () => deviceStore.deviceInfo?.protocol === DeviceProtocol.CH592,
 );
 
@@ -214,6 +240,15 @@ async function saveRgb() {
 }
 
 .rgb-select {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-primary);
+  font-size: 0.85rem;
+}
+
+.rgb-number-input {
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid var(--c-border);

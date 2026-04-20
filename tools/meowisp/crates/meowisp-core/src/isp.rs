@@ -226,7 +226,7 @@ where
             progress(&label, stage_progress(done, total, 32, 78));
         })
         .map_err(|e| map_wchisp_error("flash/program", "刷写失败", e))?;
-    sleep(Duration::from_millis(500));
+    sleep(Duration::from_millis(1500));
     debug_line("flash: verify");
     let verify_label = byte_progress_label("校验固件", 0, data.len());
     progress(&verify_label, 80);

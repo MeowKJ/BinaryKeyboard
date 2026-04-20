@@ -85,6 +85,7 @@ def resolve_tool_path(
     *,
     env_name: str | None = None,
     preferred_candidates: Iterable[Path] = (),
+    preferred_before_cache: bool = False,
     candidates: Iterable[Path] = (),
 ) -> Optional[Path]:
     env_path = os.environ.get(env_name, "") if env_name else ""
@@ -93,6 +94,13 @@ def resolve_tool_path(
         if resolved:
             _update_cached_tool(cache_key, resolved)
             return resolved
+
+    if preferred_before_cache:
+        for candidate in preferred_candidates:
+            resolved = _normalize_path(candidate, binary_name)
+            if resolved:
+                _update_cached_tool(cache_key, resolved)
+                return resolved
 
     cached = _read_tool_cache().get(cache_key, "")
     if cached:

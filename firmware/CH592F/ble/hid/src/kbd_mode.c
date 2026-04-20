@@ -24,6 +24,7 @@
 
 #define TAG "MODE"
 #define BLE_BOND_CLEAR_SETTLE_MS 100
+#define BLE_DEEP_SLEEP_DISCONNECT_SETTLE_MS 30u
 #define KBD_LOW_BATTERY_INDICATOR_LEVEL 10u
 #define KBD_SLEEP_ENTRY_FLASH_COUNT 3u
 #define KBD_SLEEP_ENTRY_FLASH_ON_MS 90u
@@ -63,6 +64,8 @@ static void KBD_Mode_BLE_LedCallback(uint8_t leds);
 static uint32_t KBD_Mode_GetNow(void);
 static void KBD_Mode_RecordActivityInternal(void);
 static uint32_t KBD_Mode_GetIdleMs(void);
+static uint32_t KBD_Mode_GetLightSleepTimeoutMs(void);
+static uint32_t KBD_Mode_GetDeepSleepTimeoutMs(void);
 static void KBD_Mode_CancelDeepSleepCheck(void);
 static void KBD_Mode_ArmDeepSleepCheck(void);
 static bool KBD_Mode_IsDeepSleepCheckDue(void);
@@ -154,6 +157,8 @@ void KBD_Mode_Process(void)
 
     if (g_pm_state == KBD_PM_LIGHT)
     {
+        uint32_t deep_timeout_ms = KBD_Mode_GetDeepSleepTimeoutMs();
+
         /*
          * LIGHT 期间由我们主动执行 CPU idle。
          * 这里不能依赖 BLE idleCB 自动 Sleep，否则会在 RGB 活跃期打断 TMR1/DMA，
@@ -165,14 +170,17 @@ void KBD_Mode_Process(void)
             return;
         }
 
-        if (KBD_Mode_CanEnterDeepSleep() &&
-            KBD_Mode_GetIdleMs() >= KBD_DEEP_SLEEP_TIMEOUT_MS)
+        if ((deep_timeout_ms > 0u) &&
+            KBD_Mode_CanEnterDeepSleep() &&
+            (KBD_Mode_GetIdleMs() >= deep_timeout_ms))
         {
             KBD_Mode_EnterDeepSleep();
             /* 不返回（Shutdown 后唤醒等价复位） */
         }
 
-        if (KBD_Mode_IsDeepSleepCheckDue() && KBD_Mode_CanEnterDeepSleep())
+        if ((deep_timeout_ms > 0u) &&
+            KBD_Mode_IsDeepSleepCheckDue() &&
+            KBD_Mode_CanEnterDeepSleep())
         {
             KBD_Mode_EnterDeepSleep();
         }
@@ -182,8 +190,9 @@ void KBD_Mode_Process(void)
     }
 
     /* ACTIVE */
-    if (KBD_Mode_CanEnterLowPower() &&
-        KBD_Mode_GetIdleMs() >= KBD_LIGHT_SLEEP_TIMEOUT_MS)
+    if ((KBD_Mode_GetLightSleepTimeoutMs() > 0u) &&
+        KBD_Mode_CanEnterLowPower() &&
+        (KBD_Mode_GetIdleMs() >= KBD_Mode_GetLightSleepTimeoutMs()))
     {
         KBD_Mode_EnterLightSleep();
         return;
@@ -560,7 +569,7 @@ bool KBD_Mode_CanEnterLowPower(void)
     return true;
 }
 
-/** 进入 DEEP 需要额外条件：不要让深休眠打断已有连接。 */
+/** 进入 DEEP 需要额外条件：BLE 模式允许主动断链后再 Shutdown。 */
 static bool KBD_Mode_CanEnterDeepSleep(void)
 {
     if (!KBD_Mode_CanEnterLowPower())
@@ -568,14 +577,8 @@ static bool KBD_Mode_CanEnterDeepSleep(void)
         return false;
     }
 
-    /* USB 线已插入（即使未枚举）时不 Shutdown，避免用户拔插跟 reset 竞争 */
-    if (KBD_Mode_USB_IsPlugged())
-    {
-        return false;
-    }
-
-    /* BLE 已连接时不 Shutdown，避免无谓的断开重连 */
-    if (g_conn_state == KBD_CONN_CONNECTED)
+    /* 仅在 USB 已真正完成枚举时阻止 Shutdown；单纯供电不再拦休眠。 */
+    if (KBD_Mode_USB_HasProtocolHandshake())
     {
         return false;
     }
@@ -633,15 +636,28 @@ static void KBD_Mode_ExitLightSleep(void)
 
 static void KBD_Mode_EnterDeepSleep(void)
 {
+    if (g_pm_state == KBD_PM_ACTIVE)
+    {
+        KBD_Mode_PlaySleepEntryAnimation();
+        KBD_Mode_ReleaseAllKeys();
+        KBD_RGB_SetSchedulerEnabled(false);
+        KBD_RGB_SetLowPower(true);
+        KBD_Battery_Suspend();
+        Key_EnterSleep();
+    }
+
     LOG_I(TAG, "enter DEEP (shutdown)");
     g_pm_state = KBD_PM_DEEP;
+    g_wake_requested = false;
     KBD_Mode_CancelDeepSleepCheck();
 
-    /* BLE 主动断开 + 停广播（CanEnterDeepSleep 已排除 CONNECTED，这里是兜底） */
+    /* BLE 模式下先主动断开并抑制自动恢复广播，再执行深睡。 */
     if (g_current_mode == KBD_WORK_MODE_BLE)
     {
-        BLE_HID_StopAdvertising();
+        BLE_HID_SetAutoResumeAdvertising(false);
         BLE_HID_Disconnect();
+        BLE_HID_StopAdvertising();
+        mDelaymS(BLE_DEEP_SLEEP_DISCONNECT_SETTLE_MS);
     }
 
     /* 持久化（Shutdown 之后 RAM 不保留） */
@@ -747,6 +763,30 @@ static uint32_t KBD_Mode_GetIdleMs(void)
     return (uint32_t)(((uint64_t)elapsed * 1000u + (KBD_RTC_FREQ_HZ / 2u)) / KBD_RTC_FREQ_HZ);
 }
 
+static uint32_t KBD_Mode_GetLightSleepTimeoutMs(void)
+{
+    const kbd_system_config_t *sys = KBD_GetSystemConfig();
+
+    if (sys->auto_sleep_min == 0u)
+    {
+        return 0u;
+    }
+
+    return (uint32_t)sys->auto_sleep_min * 60000u;
+}
+
+static uint32_t KBD_Mode_GetDeepSleepTimeoutMs(void)
+{
+    const kbd_system_config_t *sys = KBD_GetSystemConfig();
+
+    if ((sys->auto_sleep_min == 0u) || (sys->deep_sleep_min == 0u))
+    {
+        return 0u;
+    }
+
+    return ((uint32_t)sys->auto_sleep_min + (uint32_t)sys->deep_sleep_min) * 60000u;
+}
+
 static void KBD_Mode_CancelDeepSleepCheck(void)
 {
     RTC_ModeFunDisable(RTC_TRIG_MODE);
@@ -757,11 +797,21 @@ static void KBD_Mode_CancelDeepSleepCheck(void)
 
 static void KBD_Mode_ArmDeepSleepCheck(void)
 {
+    uint32_t deep_timeout_ms = KBD_Mode_GetDeepSleepTimeoutMs();
     uint32_t idle_ms = KBD_Mode_GetIdleMs();
-    uint32_t remain_ms = (idle_ms >= KBD_DEEP_SLEEP_TIMEOUT_MS)
-                             ? 1u
-                             : (KBD_DEEP_SLEEP_TIMEOUT_MS - idle_ms);
-    uint32_t rtc_cycles = (uint32_t)(((uint64_t)remain_ms * KBD_RTC_FREQ_HZ + 999u) / 1000u);
+    uint32_t remain_ms;
+    uint32_t rtc_cycles;
+
+    if (deep_timeout_ms == 0u)
+    {
+        KBD_Mode_CancelDeepSleepCheck();
+        return;
+    }
+
+    remain_ms = (idle_ms >= deep_timeout_ms)
+                    ? 1u
+                    : (deep_timeout_ms - idle_ms);
+    rtc_cycles = (uint32_t)(((uint64_t)remain_ms * KBD_RTC_FREQ_HZ + 999u) / 1000u);
 
     if (rtc_cycles == 0u)
     {

@@ -38,7 +38,7 @@ extern "C"
    */
 
 #define KBD_CONFIG_MAGIC 0x4D454F57             /**< 配置魔数 "MEOW" */
-#define KBD_CONFIG_LAYOUT_ID 0x0102             /**< 本地 DataFlash 布局版本 */
+#define KBD_CONFIG_LAYOUT_ID 0x0103             /**< 本地 DataFlash 布局版本 */
 #define KBD_CONFIG_VERSION KBD_CONFIG_LAYOUT_ID /**< 配置版本 */
 
 #define KBD_MAX_LAYERS 5  /**< 配置结构层数组容量上限 */
@@ -400,12 +400,13 @@ extern "C"
    */
   typedef struct __attribute__((packed))
   {
-    uint8_t default_mode;   /**< 默认工作模式 (0=USB, 1=BLE) */
-    uint8_t auto_sleep_min; /**< 自动休眠时间 (分钟, 0=禁用) */
-    uint8_t debounce_ms;    /**< 按键消抖时间 (毫秒) */
+    uint8_t default_mode;    /**< 默认工作模式 (0=USB, 1=BLE) */
+    uint8_t auto_sleep_min;  /**< LIGHT 休眠时间 (分钟, 0=禁用) */
+    uint8_t debounce_ms;     /**< 按键消抖时间 (毫秒) */
     /* HID 日志配置 (v1.2+) */
-    uint8_t log_enabled;  /**< HID 日志开关 (0=关, 非0=开, 默认1) */
-    uint8_t reserved[60]; /**< 保留字段 */
+    uint8_t log_enabled;     /**< HID 日志开关 (0=关, 非0=开, 默认1) */
+    uint8_t deep_sleep_min;  /**< DEEP 延时 (在 LIGHT 后, 分钟, 0=禁用) */
+    uint8_t reserved[59];    /**< 保留字段 */
   } kbd_system_config_t;
 
   /**

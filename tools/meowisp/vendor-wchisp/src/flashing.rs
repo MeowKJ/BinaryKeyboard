@@ -403,8 +403,12 @@ impl<'a> Flashing<'a> {
         let padding = rand::random();
         let cmd = Command::verify(address, padding, xored.collect());
         let resp = self.transport.transfer(cmd)?;
-        anyhow::ensure!(resp.is_ok(), "verify response failed");
-        anyhow::ensure!(resp.payload()[0] == 0x00, "Verify failed, mismatch");
+        anyhow::ensure!(resp.is_ok(), "verify response failed at 0x{address:08x}");
+        anyhow::ensure!(
+            resp.payload()[0] == 0x00,
+            "Verify failed at 0x{address:08x}, mismatch status=0x{:02x}",
+            resp.payload()[0]
+        );
         Ok(())
     }
 

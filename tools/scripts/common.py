@@ -222,9 +222,13 @@ def _candidate_wchisp_paths() -> list[Path]:
 
 def find_wchisp() -> Optional[Path]:
     binary = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
+    meowisp_release = PROJECT_ROOT / "tools" / "meowisp" / "target" / "release" / binary
+    meowisp_debug = PROJECT_ROOT / "tools" / "meowisp" / "target" / "debug" / binary
     local = SCRIPT_DIR / binary
     candidates = _candidate_wchisp_paths()
     return resolve_tool_path(
         "wchisp", binary, env_name="WCHISP_PATH",
-        preferred_candidates=[local], candidates=candidates,
+        preferred_candidates=[meowisp_release, meowisp_debug, local],
+        preferred_before_cache=True,
+        candidates=candidates,
     )

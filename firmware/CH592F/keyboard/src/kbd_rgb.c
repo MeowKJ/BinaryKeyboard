@@ -70,6 +70,9 @@ static uint8_t s_layer_flash_layer = 0; /**< 闪烁的目标按键位置 (层号
 /** @brief 层颜色表 */
 static const uint8_t s_layer_colors[5][3] = KBD_LAYER_COLORS;
 
+/** @brief 层号到提示按键的映射表 */
+static const uint8_t s_layer_to_key[KBD_DEFAULT_LAYERS] = KBD_LAYER_TO_KEY_MAP;
+
 /** @brief 逻辑按键到物理 LED 映射表 */
 static const uint8_t s_logical_to_physical[KBD_NUM_KEYS] = KBD_LOGICAL_TO_PHYSICAL_MAP;
 
@@ -92,6 +95,13 @@ static inline uint8_t KeyToLed(uint8_t key_idx)
     if (key_idx >= KBD_NUM_KEYS)
         return 0;
     return (WS2812_LED_NUM > 1) ? (s_logical_to_physical[key_idx] + 1) : 0;
+}
+
+static inline uint8_t LayerToLed(uint8_t layer_idx)
+{
+    if (layer_idx >= KBD_DEFAULT_LAYERS)
+        return 0;
+    return KeyToLed(s_layer_to_key[layer_idx]);
 }
 
 /*============================================================================*/
@@ -705,7 +715,7 @@ void KBD_RGB_Process(void)
                 {
                     s_layer_flash_is_on = true;
                     WS2812_FillKeys(0, 0, 0);
-                    WS2812_Set(KeyToLed(s_layer_flash_layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+                    WS2812_Set(LayerToLed(s_layer_flash_layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
                     s_layer_flash_wait_ticks = LAYER_FLASH_TICKS_PER_100MS;
                 }
             }
@@ -987,7 +997,7 @@ void KBD_RGB_FlashLayer(uint8_t layer)
 
     /* 仅点亮对应层号位置的按键灯，其余熄灭；指示灯保持独立 */
     WS2812_FillKeys(0, 0, 0);
-    WS2812_Set(KeyToLed(layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
+    WS2812_Set(LayerToLed(layer), s_layer_flash_r, s_layer_flash_g, s_layer_flash_b);
     ProcessIndicatorMode();
     WS2812_Update();
 }
