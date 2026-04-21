@@ -38,6 +38,14 @@ export const CONSUMER_KEYS: { code: number; name: string; icon?: string }[] = [
   { code: 0x70, name: '亮度-', icon: 'pi-sun' },
 ];
 
+export const MAX_MACRO_CONSUMER_CODE = 0xff;
+
+export const MACRO_CONSUMER_KEYS = CONSUMER_KEYS.filter(({ code }) => code <= MAX_MACRO_CONSUMER_CODE);
+
+export function isMacroConsumerCodeSupported(code: number): boolean {
+  return code >= 0 && code <= MAX_MACRO_CONSUMER_CODE;
+}
+
 /** 获取多媒体键名称 */
 export function getConsumerName(code: number): string {
   const key = CONSUMER_KEYS.find(k => k.code === code);

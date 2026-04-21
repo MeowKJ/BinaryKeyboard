@@ -10,10 +10,18 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
 
   protected readonly codec: DeviceCodec<TResponse>;
   protected device: HIDDevice | null = null;
-  private responsePromise: { resolve: (data: TResponse) => void; reject: (err: Error) => void } | null = null;
+  private pendingResponse:
+    | {
+        frame: Uint8Array;
+        resolve: (data: TResponse) => void;
+        reject: (err: Error) => void;
+      }
+    | null = null;
   private responseTimeout: number | null = null;
   private readonly transport: CodecTransport<TResponse>;
   private readonly inputReportHandler = this.handleInputReport.bind(this);
+  private staleResponses: Array<{ frame: Uint8Array; expiresAt: number }> = [];
+  private responseDrainUntil = 0;
 
   /** 命令串行队列：保证同一时刻只有一个 sendAndWait 在等待响应 */
   private sendQueue: Promise<unknown> = Promise.resolve();
@@ -32,6 +40,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   abstract matches(device: HIDDevice): boolean;
   protected abstract get commandReportId(): number;
   protected abstract get responseReportId(): number;
+  protected abstract matchesResponseFrame(requestFrame: Uint8Array, responseFrame: Uint8Array): boolean;
   protected abstract mapResponseData(event: HIDInputReportEvent): TResponse;
   protected abstract responseFrameBytes(event: HIDInputReportEvent): Uint8Array;
 
@@ -41,6 +50,8 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
         this.device.removeEventListener('inputreport', this.inputReportHandler);
       }
       this.clearPendingResponse();
+      this.staleResponses = [];
+      this.responseDrainUntil = 0;
       this.codec.resetState?.();
       if (!device.opened) {
         // device.open() 在某些系统/驱动下会永久挂起（如固件刷写后立即重连），加超时保护
@@ -79,6 +90,8 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       }
       this.device = null;
     }
+    this.staleResponses = [];
+    this.responseDrainUntil = 0;
     this.codec.resetState?.();
     this.clearPendingResponse();
   }
@@ -137,14 +150,24 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       throw new Error('设备未连接');
     }
 
+    const drainDelay = this.responseDrainUntil - Date.now();
+    if (drainDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, drainDelay));
+    }
+
     const timeout = options.timeout ?? 3000;
     const timeoutLabel = options.timeoutLabel ?? '命令响应超时';
+    const pendingFrame = frame.slice();
     const responsePromise = new Promise<TResponse>((resolve, reject) => {
-      this.responsePromise = { resolve, reject };
+      this.pendingResponse = { frame: pendingFrame, resolve, reject };
       this.responseTimeout = window.setTimeout(() => {
         this.responseTimeout = null;
-        this.responsePromise = null;
-        reject(new Error(timeoutLabel));
+        if (this.pendingResponse?.frame === pendingFrame) {
+          this.rememberStaleResponse(pendingFrame);
+          this.responseDrainUntil = Date.now() + 200;
+          this.pendingResponse = null;
+          reject(new Error(timeoutLabel));
+        }
       }, timeout);
     });
 
@@ -174,10 +197,37 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       clearTimeout(this.responseTimeout);
       this.responseTimeout = null;
     }
-    if (error && this.responsePromise) {
-      this.responsePromise.reject(error);
+    if (error && this.pendingResponse) {
+      this.pendingResponse.reject(error);
     }
-    this.responsePromise = null;
+    this.pendingResponse = null;
+  }
+
+  private pruneStaleResponses(now = Date.now()): void {
+    this.staleResponses = this.staleResponses.filter((entry) => entry.expiresAt > now);
+  }
+
+  private rememberStaleResponse(frame: Uint8Array): void {
+    this.pruneStaleResponses();
+    this.staleResponses.push({
+      frame: frame.slice(),
+      expiresAt: Date.now() + 4000,
+    });
+    if (this.staleResponses.length > 8) {
+      this.staleResponses.splice(0, this.staleResponses.length - 8);
+    }
+  }
+
+  private consumeStaleResponse(frame: Uint8Array): boolean {
+    this.pruneStaleResponses();
+    const index = this.staleResponses.findIndex((entry) =>
+      this.matchesResponseFrame(entry.frame, frame),
+    );
+    if (index < 0) {
+      return false;
+    }
+    this.staleResponses.splice(index, 1);
+    return true;
   }
 
   private handleInputReport(event: HIDInputReportEvent): void {
@@ -187,11 +237,22 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     const packet = this.codec.parseIncomingPacket(frame);
     this.addTerminalEntry(packet.entry);
 
-    if (packet.kind !== 'response' || !this.responsePromise) {
+    if (packet.kind !== 'response') {
       return;
     }
 
-    const promise = this.responsePromise;
+    const pending = this.pendingResponse;
+    if (!pending) {
+      this.consumeStaleResponse(frame);
+      return;
+    }
+
+    if (!this.matchesResponseFrame(pending.frame, frame)) {
+      this.consumeStaleResponse(frame);
+      return;
+    }
+
+    const promise = pending;
     this.clearPendingResponse();
     promise.resolve(packet.response ?? this.mapResponseData(event));
   }

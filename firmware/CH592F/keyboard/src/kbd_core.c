@@ -16,6 +16,7 @@
 #include "key.h"
 #include "encoder.h"
 #include "debug.h"
+#include <string.h>
 
 #define TAG "CORE"
 
@@ -27,13 +28,38 @@
 static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
+static uint8_t s_current_mouse_buttons = 0;
 static bool s_boot_key_prev_pressed = false;
+static uint8_t s_keycode_refcount[256] = {0};
+static uint8_t s_modifier_refcount[8] = {0};
+static uint8_t s_mouse_button_refcount[5] = {0};
+static kbd_action_t s_active_actions[KBD_MAX_KEYS];
+static uint8_t s_active_action_valid[KBD_MAX_KEYS] = {0};
+static uint8_t s_momentary_layer_active[KBD_MAX_KEYS] = {0};
+static uint8_t s_momentary_restore_layer[KBD_MAX_KEYS] = {0};
+
+static const uint8_t s_modifier_bits[8] = {
+    0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
+};
+
+static const uint8_t s_mouse_button_bits[5] = {
+    KBD_MOUSE_LEFT,
+    KBD_MOUSE_RIGHT,
+    KBD_MOUSE_MIDDLE,
+    KBD_MOUSE_BACK,
+    KBD_MOUSE_FORWARD,
+};
 
 /*============================================================================*/
 /* 私有函数声明 */
 /*============================================================================*/
 
-static void ExecuteKeyAction(const kbd_action_t *action, bool pressed);
+static void ResetInputState(void);
+static void RebuildKeyboardReport(void);
+static void UpdateModifierMask(uint8_t mask, bool pressed);
+static void UpdateMouseButtons(uint8_t buttons, bool pressed);
+static void SwitchLayer(uint8_t target_layer);
+static void ExecuteKeyAction(uint8_t key_index, const kbd_action_t *action, bool pressed);
 static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param);
 static void OnModeChange(kbd_work_mode_t new_mode);
 static void OnConnStateChange(kbd_conn_state_t state);
@@ -59,15 +85,8 @@ static kbd_mode_callbacks_t s_callbacks = {
  */
 void KBD_Core_Init(void)
 {
-    s_pressed_count = 0;
-    s_current_modifier = 0;
+    ResetInputState();
     s_boot_key_prev_pressed = (BootKey_IsPressed() == 1);
-
-    for (uint8_t i = 0; i < 6; i++)
-    {
-        s_pressed_keys[i] = 0;
-    }
-
     LOG_I(TAG, "Core initialized");
 }
 
@@ -138,6 +157,8 @@ static void KBD_Core_ProcessBootKey(void)
  */
 void KBD_Core_HandleKeyEvent(const key_event_t *evt)
 {
+    const kbd_action_t *action = NULL;
+
     if (evt == NULL || evt->key >= KBD_MAX_KEYS)
         return;
 
@@ -159,11 +180,10 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
 
         if (target_layer < keymap->num_layers)
         {
-            uint8_t old_layer = keymap->current_layer;
-            KBD_SetCurrentLayer(target_layer);
             LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
-            KBD_Log_LayerEvent(old_layer, target_layer);
-            KBD_RGB_FlashLayer(target_layer);
+            SwitchLayer(target_layer);
+            memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
+            s_active_action_valid[evt->key] = 1;
             /* 标记所有按住的 FN 键: 松开时不触发 click/long */
             for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
             {
@@ -174,13 +194,39 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         }
     }
 
-    const kbd_action_t *action = KBD_GetKeyAction(evt->key);
+    if (pressed)
+    {
+        s_active_action_valid[evt->key] = 0;
+        memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
+        action = KBD_GetKeyAction(evt->key);
+        if (action != NULL)
+        {
+            s_active_actions[evt->key] = *action;
+            s_active_action_valid[evt->key] = 1;
+            action = &s_active_actions[evt->key];
+        }
+    }
+    else if (s_active_action_valid[evt->key])
+    {
+        action = &s_active_actions[evt->key];
+    }
+    else
+    {
+        action = KBD_GetKeyAction(evt->key);
+    }
+
     if (action == NULL)
         return;
 
     LOG_D(TAG, "key %d %s", evt->key, pressed ? "press" : "release");
     KBD_Log_KeyEvent(evt->key, pressed ? 1 : 0, action->type, action->param1);
-    ExecuteKeyAction(action, pressed);
+    ExecuteKeyAction(evt->key, action, pressed);
+
+    if (!pressed)
+    {
+        s_active_action_valid[evt->key] = 0;
+        memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
+    }
 }
 
 /**
@@ -215,13 +261,10 @@ void KBD_Core_HandleFnEvent(const fnkey_event_t *evt)
  */
 void KBD_Core_ReleaseAll(void)
 {
-    s_pressed_count = 0;
-    s_current_modifier = 0;
-    for (uint8_t i = 0; i < 6; i++)
-    {
-        s_pressed_keys[i] = 0;
-    }
+    ResetInputState();
     KBD_Mode_ReleaseAllKeys();
+    KBD_Mode_SendMouseReport(0, 0, 0, 0);
+    KBD_Mode_SendConsumerReport(0);
 }
 
 /**
@@ -316,10 +359,136 @@ static void OnLedReport(uint8_t leds)
 /* 私有函数实现 */
 /*============================================================================*/
 
+static void ResetInputState(void)
+{
+    memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
+    memset(s_keycode_refcount, 0, sizeof(s_keycode_refcount));
+    memset(s_modifier_refcount, 0, sizeof(s_modifier_refcount));
+    memset(s_mouse_button_refcount, 0, sizeof(s_mouse_button_refcount));
+    memset(s_active_actions, 0, sizeof(s_active_actions));
+    memset(s_active_action_valid, 0, sizeof(s_active_action_valid));
+    memset(s_momentary_layer_active, 0, sizeof(s_momentary_layer_active));
+    memset(s_momentary_restore_layer, 0, sizeof(s_momentary_restore_layer));
+    s_pressed_count = 0;
+    s_current_modifier = 0;
+    s_current_mouse_buttons = 0;
+}
+
+static void RebuildKeyboardReport(void)
+{
+    s_pressed_count = 0;
+    memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
+
+    for (uint16_t keycode = 0; keycode < sizeof(s_keycode_refcount); keycode++)
+    {
+        if (s_keycode_refcount[keycode] == 0)
+        {
+            continue;
+        }
+        if (s_pressed_count >= sizeof(s_pressed_keys))
+        {
+            break;
+        }
+        s_pressed_keys[s_pressed_count++] = (uint8_t)keycode;
+    }
+
+    if (s_pressed_count > 0 || s_current_modifier != 0)
+    {
+        KBD_Mode_SendKeyboardReport(s_current_modifier, s_pressed_keys, s_pressed_count);
+    }
+    else
+    {
+        KBD_Mode_ReleaseAllKeys();
+    }
+}
+
+static void UpdateModifierMask(uint8_t mask, bool pressed)
+{
+    for (uint8_t i = 0; i < sizeof(s_modifier_bits); i++)
+    {
+        uint8_t bit = s_modifier_bits[i];
+        if ((mask & bit) == 0)
+        {
+            continue;
+        }
+
+        if (pressed)
+        {
+            if (s_modifier_refcount[i] < 0xFF)
+            {
+                s_modifier_refcount[i]++;
+            }
+            s_current_modifier |= bit;
+        }
+        else if (s_modifier_refcount[i] > 0)
+        {
+            s_modifier_refcount[i]--;
+            if (s_modifier_refcount[i] == 0)
+            {
+                s_current_modifier &= (uint8_t)~bit;
+            }
+        }
+    }
+}
+
+static void UpdateMouseButtons(uint8_t buttons, bool pressed)
+{
+    for (uint8_t i = 0; i < sizeof(s_mouse_button_bits); i++)
+    {
+        uint8_t bit = s_mouse_button_bits[i];
+        if ((buttons & bit) == 0)
+        {
+            continue;
+        }
+
+        if (pressed)
+        {
+            if (s_mouse_button_refcount[i] < 0xFF)
+            {
+                s_mouse_button_refcount[i]++;
+            }
+            s_current_mouse_buttons |= bit;
+        }
+        else if (s_mouse_button_refcount[i] > 0)
+        {
+            s_mouse_button_refcount[i]--;
+            if (s_mouse_button_refcount[i] == 0)
+            {
+                s_current_mouse_buttons &= (uint8_t)~bit;
+            }
+        }
+    }
+}
+
+static void SwitchLayer(uint8_t target_layer)
+{
+    uint8_t old_layer = KBD_GetCurrentLayer();
+
+    if (target_layer == old_layer)
+    {
+        return;
+    }
+
+    if (KBD_SetCurrentLayer(target_layer) != 0)
+    {
+        return;
+    }
+
+    LOG_I(TAG, "Layer -> %d", target_layer);
+    KBD_Log_LayerEvent(old_layer, target_layer);
+
+    if (KBD_Macro_IsRunning())
+    {
+        KBD_Macro_Cancel();
+    }
+
+    KBD_RGB_FlashLayer(target_layer);
+}
+
 /**
  * @brief 执行按键动作
  */
-static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
+static void ExecuteKeyAction(uint8_t key_index, const kbd_action_t *action, bool pressed)
 {
     if (action == NULL || action->type == KBD_ACTION_NONE)
         return;
@@ -329,50 +498,26 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
     case KBD_ACTION_KEYBOARD:
         if (pressed)
         {
-            /* 按下：添加按键 */
-            if (s_pressed_count < 6)
+            if (action->param1 != 0 && s_keycode_refcount[action->param1] < 0xFF)
             {
-                s_pressed_keys[s_pressed_count++] = action->param1;
+                s_keycode_refcount[action->param1]++;
             }
-            s_current_modifier |= action->modifier;
-            KBD_Mode_SendKeyboardReport(s_current_modifier, s_pressed_keys, s_pressed_count);
+            UpdateModifierMask(action->modifier, true);
         }
         else
         {
-            /* 释放：移除按键 */
-            for (uint8_t i = 0; i < s_pressed_count; i++)
+            if (action->param1 != 0 && s_keycode_refcount[action->param1] > 0)
             {
-                if (s_pressed_keys[i] == action->param1)
-                {
-                    for (uint8_t j = i; j < s_pressed_count - 1; j++)
-                    {
-                        s_pressed_keys[j] = s_pressed_keys[j + 1];
-                    }
-                    s_pressed_count--;
-                    break;
-                }
+                s_keycode_refcount[action->param1]--;
             }
-            s_current_modifier &= ~action->modifier;
-            if (s_pressed_count > 0)
-            {
-                KBD_Mode_SendKeyboardReport(s_current_modifier, s_pressed_keys, s_pressed_count);
-            }
-            else
-            {
-                KBD_Mode_ReleaseAllKeys();
-            }
+            UpdateModifierMask(action->modifier, false);
         }
+        RebuildKeyboardReport();
         break;
 
     case KBD_ACTION_MOUSE_BTN:
-        if (pressed)
-        {
-            KBD_Mode_SendMouseReport(action->param1, 0, 0, 0);
-        }
-        else
-        {
-            KBD_Mode_SendMouseReport(0, 0, 0, 0);
-        }
+        UpdateMouseButtons(action->param1, pressed);
+        KBD_Mode_SendMouseReport(s_current_mouse_buttons, 0, 0, 0);
         break;
 
     case KBD_ACTION_MOUSE_WHEEL:
@@ -388,14 +533,14 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
                 wheel = -1;
                 break;
             case KBD_WHEEL_CLICK:
-                KBD_Mode_SendMouseReport(KBD_MOUSE_MIDDLE, 0, 0, 0);
+                KBD_Mode_SendMouseReport((uint8_t)(s_current_mouse_buttons | KBD_MOUSE_MIDDLE), 0, 0, 0);
                 mDelaymS(50);
-                KBD_Mode_SendMouseReport(0, 0, 0, 0);
+                KBD_Mode_SendMouseReport(s_current_mouse_buttons, 0, 0, 0);
                 return;
             }
             if (wheel != 0)
             {
-                KBD_Mode_SendMouseReport(0, 0, 0, wheel);
+                KBD_Mode_SendMouseReport(s_current_mouse_buttons, 0, 0, wheel);
             }
         }
         break;
@@ -417,15 +562,35 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
     case KBD_ACTION_LAYER:
         if (pressed)
         {
-            uint8_t old_l = KBD_GetCurrentLayer();
-            KBD_SetCurrentLayer(action->param1);
-            LOG_I(TAG, "Layer -> %d", action->param1);
-            KBD_Log_LayerEvent(old_l, action->param1);
-            /* 切层时停止正在运行的宏 */
-            if (KBD_Macro_IsRunning())
+            switch ((kbd_layer_op_t)action->modifier)
             {
-                KBD_Macro_Cancel();
+            case KBD_LAYER_MOMENTARY:
+                s_momentary_layer_active[key_index] = 1;
+                s_momentary_restore_layer[key_index] = KBD_GetCurrentLayer();
+                SwitchLayer(action->param1);
+                break;
+
+            case KBD_LAYER_TOGGLE:
+            {
+                uint8_t current_layer = KBD_GetCurrentLayer();
+                uint8_t fallback_layer = KBD_GetKeymap()->default_layer;
+                uint8_t target_layer =
+                    (current_layer == action->param1) ? fallback_layer : action->param1;
+                SwitchLayer(target_layer);
+                break;
             }
+
+            case KBD_LAYER_SET:
+            default:
+                SwitchLayer(action->param1);
+                break;
+            }
+        }
+        else if ((kbd_layer_op_t)action->modifier == KBD_LAYER_MOMENTARY &&
+                 s_momentary_layer_active[key_index])
+        {
+            s_momentary_layer_active[key_index] = 0;
+            SwitchLayer(s_momentary_restore_layer[key_index]);
         }
         break;
 
@@ -435,7 +600,7 @@ static void ExecuteKeyAction(const kbd_action_t *action, bool pressed)
             kbd_macro_trigger_t trig = (kbd_macro_trigger_t)action->modifier;
             if (trig == KBD_MACRO_TRIG_TOGGLE && KBD_Macro_IsRunning())
             {
-                KBD_Macro_Cancel(); /* Toggle 模式: 再按 → 停 */
+                KBD_Macro_Cancel(); /* Toggle 模式: 再按 -> 停 */
             }
             else
             {

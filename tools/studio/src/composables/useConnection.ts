@@ -116,7 +116,8 @@ export function useConnection() {
 
   function onDeviceDisconnected(event: HIDConnectionEvent) {
     if (event.device === deviceStore.device) {
-      deviceStore.device = null;
+      void deviceStore.disconnectDevice();
+      viewPhase.value = 'welcome';
       showToast('warn', '设备断开', '键盘连接已丢失');
     }
   }

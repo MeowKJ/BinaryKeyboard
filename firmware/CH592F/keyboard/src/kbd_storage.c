@@ -1084,9 +1084,11 @@ int Kbd_Macro_ErasePage(uint8_t page_index) {
     return -1;
   }
 
-  EEPROM_ERASE(KBD_FLASH_MACRO_BASE +
-                   ((uint32_t)page_index * KBD_FLASH_MACRO_PAGE),
-               KBD_FLASH_MACRO_PAGE);
+  if (EEPROM_ERASE(KBD_FLASH_MACRO_BASE +
+                       ((uint32_t)page_index * KBD_FLASH_MACRO_PAGE),
+                   KBD_FLASH_MACRO_PAGE) != 0) {
+    return -2;
+  }
   return 0;
 }
 

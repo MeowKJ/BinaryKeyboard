@@ -54,6 +54,8 @@ static bool s_cancel_req;
 static uint8_t s_mod_mask;
 static uint8_t s_keys[6];
 static uint8_t s_key_count;
+static uint8_t s_mouse_buttons;
+static bool s_consumer_release_pending;
 
 /*============================================================================*/
 /* 私有函数声明                                                                */
@@ -75,6 +77,8 @@ void KBD_Macro_Init(void)
 {
     s_task_id = TMOS_ProcessEventRegister(KBD_Macro_ProcessEvent);
     s_state = MACRO_IDLE;
+    s_mouse_buttons = 0;
+    s_consumer_release_pending = false;
     LOG_I(TAG, "Macro engine initialized");
 }
 
@@ -105,6 +109,8 @@ int KBD_Macro_Execute(uint8_t slot, kbd_macro_trigger_t trigger)
     s_cancel_req = false;
     s_mod_mask = 0;
     s_key_count = 0;
+    s_mouse_buttons = 0;
+    s_consumer_release_pending = false;
     for (uint8_t i = 0; i < 6; i++) {
         s_keys[i] = 0;
     }
@@ -170,6 +176,11 @@ static void MacroStepActions(void)
     if (s_state != MACRO_RUNNING)
         return;
 
+    if (s_consumer_release_pending) {
+        KBD_Mode_SendConsumerReport(0);
+        s_consumer_release_pending = false;
+    }
+
     while (s_action_idx < s_header.action_count) {
         kbd_macro_action_t action;
         uint16_t offset = s_action_idx * sizeof(kbd_macro_action_t);
@@ -214,19 +225,19 @@ static void MacroStepActions(void)
 
         case KBD_MACRO_CONSUMER:
             KBD_Mode_SendConsumerReport((uint16_t)action.param);
-            /* 短暂延时后释放 */
+            s_consumer_release_pending = true;
             tmos_start_task(s_task_id, MACRO_STEP_EVT,
                             MS1_TO_SYSTEM_TIME(20));
-            /* 发送释放 */
-            KBD_Mode_SendConsumerReport(0);
             return;
 
         case KBD_MACRO_MOUSE_DOWN:
-            KBD_Mode_SendMouseReport(action.param, 0, 0, 0);
+            s_mouse_buttons |= action.param;
+            KBD_Mode_SendMouseReport(s_mouse_buttons, 0, 0, 0);
             break;
 
         case KBD_MACRO_MOUSE_UP:
-            KBD_Mode_SendMouseReport(0, 0, 0, 0);
+            s_mouse_buttons &= (uint8_t)~action.param;
+            KBD_Mode_SendMouseReport(s_mouse_buttons, 0, 0, 0);
             break;
 
         case KBD_MACRO_WHEEL: {
@@ -235,7 +246,7 @@ static void MacroStepActions(void)
                 wheel = 1;
             else if (action.param == KBD_WHEEL_DOWN)
                 wheel = -1;
-            KBD_Mode_SendMouseReport(0, 0, 0, wheel);
+            KBD_Mode_SendMouseReport(s_mouse_buttons, 0, 0, wheel);
             break;
         }
 
@@ -319,6 +330,8 @@ static void MacroReleaseAll(void)
     /* 释放所有键盘键 */
     s_mod_mask = 0;
     s_key_count = 0;
+    s_mouse_buttons = 0;
+    s_consumer_release_pending = false;
     for (uint8_t i = 0; i < 6; i++) {
         s_keys[i] = 0;
     }

@@ -14,6 +14,9 @@ const CH552_FILTER: HIDDeviceFilter = {
   usage: 0x01,
 };
 
+const CH552_READ_LAYER_COMMAND = 0x03;
+const CH552_MACRO_COMMAND = 0x40;
+
 export class Ch552HidAdapter extends BaseHidAdapter<Uint8Array> {
   constructor() {
     super(new Ch552Codec(), [CH552_FILTER]);
@@ -29,6 +32,19 @@ export class Ch552HidAdapter extends BaseHidAdapter<Uint8Array> {
 
   protected get responseReportId(): number {
     return CH552_REPORT_ID_RESPONSE;
+  }
+
+  protected matchesResponseFrame(requestFrame: Uint8Array, responseFrame: Uint8Array): boolean {
+    if ((responseFrame[0] ?? 0) !== (requestFrame[0] ?? 0)) {
+      return false;
+    }
+
+    const command = requestFrame[0] ?? 0;
+    if (command === CH552_READ_LAYER_COMMAND || command === CH552_MACRO_COMMAND) {
+      return (responseFrame[1] ?? 0) === (requestFrame[1] ?? 0);
+    }
+
+    return true;
   }
 
   protected mapResponseData(event: HIDInputReportEvent): Uint8Array {

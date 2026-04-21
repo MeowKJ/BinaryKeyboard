@@ -31,6 +31,13 @@ export class Ch592HidAdapter extends BaseHidAdapter<DataView> {
     return REPORT_ID_RESPONSE;
   }
 
+  protected matchesResponseFrame(requestFrame: Uint8Array, responseFrame: Uint8Array): boolean {
+    return (
+      (responseFrame[0] ?? 0) === (requestFrame[0] ?? 0) &&
+      (responseFrame[1] ?? 0) === (requestFrame[1] ?? 0)
+    );
+  }
+
   protected mapResponseData(event: HIDInputReportEvent): DataView {
     return new DataView(event.data.buffer, event.data.byteOffset, event.data.byteLength);
   }
