@@ -10,6 +10,9 @@ hero:
     alt: BinaryKeyboard Logo
   actions:
     - theme: brand
+      text: 🎹 开始使用
+      link: /usage
+    - theme: alt
       text: ⚡ 经典版
       link: /wired/
     - theme: alt

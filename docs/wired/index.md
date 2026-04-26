@@ -1,6 +1,24 @@
-# ⚡ 经典版快速开始
+# 经典版快速开始
 
 基于 **CH552G** 芯片的 USB 直连版本，即插即用。
+
+::: tip 先看使用方式
+如果你已经有成品键盘，优先阅读 [使用指南：经典版 BASIC / 5KEY / KNOB](../usage.md#经典版-basic)。这页主要覆盖复刻、刷写和首次配置流程。
+:::
+
+## 支持型号
+
+| 型号 | 按键 | 默认动作 | 层数 | 说明 |
+| :--- | :--- | :--- | :--- | :--- |
+| BASIC | 4 键 | `0` / `1` / `Enter` / `Space` | 4 | 最基础的 USB 小键盘 |
+| 5KEY | 5 键 | `1` / `2` / `3` / `4` / `5` | 5 | 多一个实体键，适合快捷键 |
+| KNOB | 4 键 + 旋钮 | `A`~`D`，旋钮为鼠标左键 / 音量 | 4 | 适合媒体控制、滚轮、宏 |
+
+经典版通用操作：
+
+- 短按 `FUNC`：切换 RGB 灯效。
+- 按住 `FUNC` 再按普通键：切换到对应层。
+- 按住 `FUNC` 时普通键和旋钮不会向电脑发送输入。
 
 ## 准备工作
 
@@ -16,9 +34,9 @@
 ### 下载文件
 
 1. **固件** - 从 [GitHub Releases](https://github.com/MeowKJ/BinaryKeyboard/releases) 下载
-   - `ch552_basic_xxx.hex` - 基础款
-   - `ch552_fivekeys_xxx.hex` - 五键款
-   - `ch552_knob_xxx.hex` - 旋钮款
+   - `CH552G-BASIC-<version>.hex` - 基础款
+   - `CH552G-5KEY-<version>.hex` - 五键款
+   - `CH552G-KNOB-<version>.hex` - 旋钮款
 
 2. **外壳 STL** - 从 Releases 或 [OSHWHub](https://oshwhub.com/kjpig/Binary-Keyboard) 下载。
 
@@ -82,6 +100,12 @@ USB-C 接口焊接需要重点检查焊点完整性与引脚连通性。
 ## 完成 🎉
 
 插上 USB，享受你的可爱二进制键盘吧！
+
+下一步可以继续看：
+
+- [完整使用指南](../usage.md)
+- [经典版改键软件](./remap.md)
+- [经典版固件开发](./dev.md)
 
 ::: tip 遇到问题？
 查看 [常见问题](/faq) 或在 GitHub 提交 Issue。

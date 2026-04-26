@@ -148,7 +148,7 @@ python tools/scripts/flash.py flash --file firmware/CH592F/build/release-knob/CH
 ### 目录结构
 
 ```
-Firmware/CH592F/
+firmware/CH592F/
 ├── hal/                # 板级支持包 (BSP)
 │   ├── include/
 │   │   ├── kbd_config.h    # GPIO 引脚配置

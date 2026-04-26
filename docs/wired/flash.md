@@ -9,11 +9,11 @@
 
 | 固件文件                 | 适用外形 |
 | :----------------------- | :------- |
-| `ch552_basic_xxx.hex`    | 基础款   |
-| `ch552_fivekeys_xxx.hex` | 五键款   |
-| `ch552_knob_xxx.hex`     | 旋钮款   |
+| `CH552G-BASIC-<version>.hex` | 基础款 |
+| `CH552G-5KEY-<version>.hex` | 五键款 |
+| `CH552G-KNOB-<version>.hex` | 旋钮款 |
 
-> 以 GitHub Releases 的发布文件为准。注意前缀为`ch552_`，不要下错成无线版的`ch592_`。
+> 以 GitHub Releases 的发布文件为准。注意前缀为 `CH552G-`，不要下错成无线版的 `CH592F-`。
 
 ## 刷写步骤
 
@@ -31,7 +31,7 @@
 7. 松开 BOOT 按钮（此时软件应识别到设备）
 
 ::: tip
-如果没有识别到设备，请检BOOT按钮是否按下，或者检查USB-C接口是否焊接良好。
+如果没有识别到设备，请检查 BOOT 按钮是否按下，或者检查 USB-C 接口是否焊接良好。
 :::
 
 ### 开始烧录

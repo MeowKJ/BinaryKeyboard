@@ -32,6 +32,7 @@ export default defineConfig({
 
     nav: [
       { text: "🏠 首页", link: "/" },
+      { text: "🎹 使用指南", link: "/usage" },
       {
         text: "⚡ 经典版",
         link: "/wired/",
@@ -45,6 +46,7 @@ export default defineConfig({
       {
         text: "🔧 开发",
         items: [
+          { text: "开发总览", link: "/development" },
           { text: "⚡ 经典版开发", link: "/wired/dev" },
           { text: "📡 无线版开发", link: "/wireless/dev" },
         ],
@@ -55,10 +57,19 @@ export default defineConfig({
 
     sidebar: [
       {
+        text: "🎹 开始使用",
+        collapsed: false,
+        items: [
+          { text: "总览与型号选择", link: "/usage" },
+          { text: "常见问题", link: "/faq" },
+        ],
+      },
+      {
         text: "⚡ 经典版",
         collapsed: false,
         items: [
           { text: "快速开始", link: "/wired/" },
+          { text: "使用方式", link: "/usage#经典版-basic" },
           { text: "硬件复刻", link: "/wired/make" },
           { text: "刷写固件", link: "/wired/flash" },
           { text: "改键软件", link: "/wired/remap" },
@@ -70,6 +81,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: "快速开始", link: "/wireless/" },
+          { text: "使用方式", link: "/usage#无线版-5key" },
           { text: "硬件复刻", link: "/wireless/make" },
           { text: "刷写固件", link: "/wireless/flash" },
           { text: "改键软件", link: "/wireless/remap" },
@@ -86,6 +98,7 @@ export default defineConfig({
         text: "📚 其他",
         collapsed: true,
         items: [
+          { text: "开发总览", link: "/development" },
           { text: "MeowFS 宏存储", link: "/meowfs" },
           { text: "MeowMacro 宏语言", link: "/meowmacro" },
           { text: "常见问题", link: "/faq" },
