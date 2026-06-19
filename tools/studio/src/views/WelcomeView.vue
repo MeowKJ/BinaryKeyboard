@@ -15,6 +15,24 @@ const emit = defineEmits<{
 
 const releaseStore = useReleaseStore();
 const { toggleMode, themeMode } = useTheme();
+
+const linkButtons = [
+  {
+    label: 'Bilibili',
+    icon: 'pi pi-video',
+    href: 'https://space.bilibili.com/1676918589',
+  },
+  {
+    label: 'GitHub',
+    icon: 'pi pi-github',
+    href: 'https://github.com/MeowKJ/BinaryKeyboard',
+  },
+  {
+    label: 'OSHWHub',
+    icon: 'pi pi-box',
+    href: 'https://oshwhub.com/kjpig/works',
+  },
+];
 </script>
 
 <template>
@@ -28,7 +46,7 @@ const { toggleMode, themeMode } = useTheme();
       <div class="logo-section">
         <div class="logo-icon"><CatEmoji type="grinning-animated" /></div>
         <h1 class="app-title">BinaryKeyboard</h1>
-        <p class="app-subtitle">开源二进制键盘改键工具</p>
+        <p class="app-subtitle">喵喵的帕斯 - 可爱小键盘改键工具</p>
       </div>
 
       <div class="connect-section">
@@ -116,6 +134,21 @@ const { toggleMode, themeMode } = useTheme();
           <i class="pi pi-external-link"></i>
         </a>
       </div>
+
+      <nav class="welcome-links" aria-label="项目链接">
+        <a
+          v-for="link in linkButtons"
+          :key="link.href"
+          class="welcome-link-button"
+          :href="link.href"
+          target="_blank"
+          rel="noopener"
+        >
+          <i :class="link.icon"></i>
+          <span>{{ link.label }}</span>
+          <i class="pi pi-external-link link-external-icon"></i>
+        </a>
+      </nav>
     </div>
   </div>
 </template>
@@ -128,11 +161,14 @@ const { toggleMode, themeMode } = useTheme();
 }
 
 .welcome-screen {
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  overflow-y: auto;
+  padding: 2rem 0;
   background:
     radial-gradient(ellipse at top, var(--c-accent-soft) 0%, transparent 50%),
     var(--c-bg-primary);
@@ -141,6 +177,7 @@ const { toggleMode, themeMode } = useTheme();
 .welcome-content {
   text-align: center;
   max-width: 600px;
+  width: min(100%, 600px);
   padding: 2rem;
 }
 
@@ -412,6 +449,78 @@ const { toggleMode, themeMode } = useTheme();
 
 .version-release-link .pi-external-link {
   font-size: 0.65rem;
+}
+
+.welcome-links {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.welcome-link-button {
+  min-width: 128px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-secondary);
+  color: var(--c-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.welcome-link-button:hover {
+  transform: translateY(-1px);
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  box-shadow: 0 8px 20px -16px var(--c-accent);
+}
+
+.link-external-icon {
+  font-size: 0.65rem;
+  color: var(--c-text-muted);
+}
+
+@media (max-width: 640px) {
+  .welcome-screen {
+    align-items: flex-start;
+    padding: 1rem 0;
+  }
+
+  .welcome-content {
+    padding: 4.5rem 1rem 1.5rem;
+  }
+
+  .app-title {
+    font-size: 2.1rem;
+  }
+
+  .logo-section,
+  .connect-section {
+    margin-bottom: 2rem;
+  }
+
+  .version-badges {
+    flex-direction: column;
+  }
+
+  .welcome-link-button {
+    flex: 1 1 150px;
+  }
 }
 
 /* 回退动画 */
