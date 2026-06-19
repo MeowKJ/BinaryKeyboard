@@ -29,7 +29,6 @@ static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
 static uint8_t s_current_mouse_buttons = 0;
-static bool s_boot_key_prev_pressed = false;
 static uint8_t s_keycode_refcount[256] = {0};
 static uint8_t s_modifier_refcount[8] = {0};
 static uint8_t s_mouse_button_refcount[5] = {0};
@@ -64,7 +63,6 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param);
 static void OnModeChange(kbd_work_mode_t new_mode);
 static void OnConnStateChange(kbd_conn_state_t state);
 static void OnLedReport(uint8_t leds);
-static void KBD_Core_ProcessBootKey(void);
 
 /*============================================================================*/
 /* 模式管理回调结构 */
@@ -86,7 +84,6 @@ static kbd_mode_callbacks_t s_callbacks = {
 void KBD_Core_Init(void)
 {
     ResetInputState();
-    s_boot_key_prev_pressed = (BootKey_IsPressed() == 1);
     LOG_I(TAG, "Core initialized");
 }
 
@@ -97,8 +94,6 @@ void KBD_Core_Process(void)
 {
     key_event_t key_evt;
     fnkey_event_t fn_evt;
-
-    KBD_Core_ProcessBootKey();
 
     /* 处理普通按键事件 */
     while (Key_GetEvent(&key_evt))
@@ -120,9 +115,9 @@ void KBD_Core_Process(void)
 }
 
 /**
- * @brief 检查是否有 FN 键被按下
+ * @brief 检查是否有层切换修饰键被按下 (FN 或 BOOT)
  */
-static bool IsFnKeyHeld(void)
+static bool IsLayerModifierHeld(void)
 {
     for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
     {
@@ -131,25 +126,7 @@ static bool IsFnKeyHeld(void)
             return true;
         }
     }
-    return false;
-}
-
-static void KBD_Core_ProcessBootKey(void)
-{
-#if KBD_BOOT_KEY_ENTER_BOOTLOADER
-    bool pressed = (BootKey_IsPressed() == 1);
-
-    if (pressed && !s_boot_key_prev_pressed)
-    {
-        LOG_W(TAG, "BOOT: enter IAP");
-        KBD_Core_ReleaseAll();
-        KBD_RGB_Flash(255, 140, 0, 120);
-        mDelaymS(120);
-        Hal_JumpToBootloader();
-    }
-
-    s_boot_key_prev_pressed = pressed;
-#endif
+    return (BootKey_IsPressed() == 1);
 }
 
 /**
@@ -172,15 +149,15 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         KBD_RGB_RegisterKeyPress(evt->key);
     }
 
-    /* FN 组合键：按住 FN + 按键 = 切换到对应层 */
-    if (IsFnKeyHeld() && pressed)
+    /* 层切换组合键：按住 FN/BOOT + 按键 = 切换到对应层 */
+    if (IsLayerModifierHeld() && pressed)
     {
         uint8_t target_layer = evt->key; /* 按键0->层0, 按键1->层1... */
         kbd_keymap_t *keymap = KBD_GetKeymap();
 
         if (target_layer < keymap->num_layers)
         {
-            LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
+            LOG_I(TAG, "Modifier+Key%d -> Layer %d", evt->key, target_layer);
             SwitchLayer(target_layer);
             memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
             s_active_action_valid[evt->key] = 1;

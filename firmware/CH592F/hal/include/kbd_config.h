@@ -129,14 +129,9 @@ typedef struct
 
 #define KBD_FN_NUM_KEYS 2u
 
-/* BOOT 按键: PB22 */
+/* BOOT 按键: PB22 (层切换修饰键: BOOT + K1..Kn -> Layer 1..n) */
 #define KBD_FN_BOOT_PORT GPIO_PORT_B
 #define KBD_FN_BOOT_PIN GPIO_Pin_22
-
-/* 调试入口：单击 BOOT 键后直接进入 IAP bootloader */
-#ifndef KBD_BOOT_KEY_ENTER_BOOTLOADER
-#define KBD_BOOT_KEY_ENTER_BOOTLOADER 1
-#endif
 
 /* FN1: PA4 */
 #define KBD_FN1_PORT GPIO_PORT_A
