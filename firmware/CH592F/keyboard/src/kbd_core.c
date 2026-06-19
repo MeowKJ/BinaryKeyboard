@@ -427,6 +427,7 @@ static void SwitchLayer(uint8_t target_layer)
 
     if (target_layer == old_layer)
     {
+        KBD_RGB_FlashLayer(target_layer);
         return;
     }
 
