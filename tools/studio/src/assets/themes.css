@@ -57,6 +57,22 @@
   background: transparent !important;
 }
 
+[data-theme-id="liuli"] .status-card,
+[data-theme-id="liuli"] .layer-keyboard-mini,
+[data-theme-id="liuli"] .layer-key-mini,
+[data-theme-id="liuli"] .os-mode-btn {
+  background: rgba(18, 12, 34, 0.44) !important;
+  border-color: rgba(190, 150, 255, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+[data-theme-id="liuli"] .status-icon,
+[data-theme-id="liuli"] .macro-slot-idx,
+[data-theme-id="liuli"] .current-layer-badge,
+[data-theme-id="liuli"] .card-layer-badge {
+  background: rgba(190, 150, 255, 0.16) !important;
+}
+
 /* ==============================================
    猫咪主题 — 猫咪元素 + 温暖色调
 ============================================== */
@@ -150,6 +166,22 @@
   background: transparent !important;
 }
 
+[data-theme-id="frog"] .status-card,
+[data-theme-id="frog"] .layer-keyboard-mini,
+[data-theme-id="frog"] .layer-key-mini,
+[data-theme-id="frog"] .os-mode-btn {
+  background: rgba(9, 26, 36, 0.5) !important;
+  border-color: rgba(125, 211, 252, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.04);
+}
+
+[data-theme-id="frog"] .status-icon,
+[data-theme-id="frog"] .macro-slot-idx,
+[data-theme-id="frog"] .current-layer-badge,
+[data-theme-id="frog"] .card-layer-badge {
+  background: rgba(147, 197, 253, 0.16) !important;
+}
+
 /* ==============================================
    安哥拉兔主题 — 天蓝浅色 + 通透 + 视频背景
 ============================================== */
@@ -223,6 +255,22 @@
   background: transparent !important;
 }
 
+[data-theme-id="angora"] .status-card,
+[data-theme-id="angora"] .layer-keyboard-mini,
+[data-theme-id="angora"] .layer-key-mini,
+[data-theme-id="angora"] .os-mode-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(120, 170, 220, 0.16) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+[data-theme-id="angora"] .status-icon,
+[data-theme-id="angora"] .macro-slot-idx,
+[data-theme-id="angora"] .current-layer-badge,
+[data-theme-id="angora"] .card-layer-badge {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
 /* ==============================================
    风暴主题 — 天气循环: 阴云遮月 → 闪电 → 暴雨 → 明月
    动态效果由 StormEffect.vue 组件处理
@@ -291,4 +339,43 @@
 /* 欢迎页透明 */
 [data-theme-id="storm"] .welcome-screen {
   background: transparent !important;
+}
+
+[data-theme-id="storm"] .status-card,
+[data-theme-id="storm"] .layer-keyboard-mini,
+[data-theme-id="storm"] .layer-key-mini,
+[data-theme-id="storm"] .os-mode-btn {
+  background:
+    linear-gradient(135deg, rgba(8, 12, 28, 0.56), rgba(18, 25, 52, 0.32)) !important;
+  border-color: rgba(125, 211, 252, 0.16) !important;
+  box-shadow:
+    0 0 18px rgba(14, 165, 233, 0.06),
+    inset 0 0 0 1px rgba(186, 230, 253, 0.04);
+}
+
+[data-theme-id="storm"] .status-card:hover,
+[data-theme-id="storm"] .layer-key-mini:hover:not(.disabled):not(.readonly),
+[data-theme-id="storm"] .os-mode-btn:hover:not(:disabled) {
+  border-color: rgba(186, 230, 253, 0.44) !important;
+  box-shadow:
+    0 0 24px rgba(56, 189, 248, 0.12),
+    inset 0 0 0 1px rgba(186, 230, 253, 0.07) !important;
+}
+
+[data-theme-id="storm"] .status-icon,
+[data-theme-id="storm"] .macro-slot-idx,
+[data-theme-id="storm"] .current-layer-badge,
+[data-theme-id="storm"] .card-layer-badge {
+  background: rgba(14, 116, 144, 0.22) !important;
+  color: #bae6fd !important;
+}
+
+[data-theme-id="storm"] .layer-key-mini.current-layer {
+  border-color: rgba(45, 212, 191, 0.72) !important;
+  background: rgba(20, 184, 166, 0.14) !important;
+}
+
+[data-theme-id="storm"] .layer-key-mini.edit-layer {
+  border-color: rgba(125, 211, 252, 0.78) !important;
+  background: rgba(14, 165, 233, 0.16) !important;
 }

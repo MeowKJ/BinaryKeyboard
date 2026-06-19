@@ -14,6 +14,8 @@ import {
   type RgbConfig,
   type FnKeyConfig,
   type KeyAction,
+  OsMode,
+  type OsModeConfig,
   KeyboardTypeInfo,
   createEmptyKeymap,
   createEmptyFnKeyConfig,
@@ -28,6 +30,7 @@ export const useDeviceStore = defineStore("device", () => {
     rgb: false,
     rgbOverlay: false,
     fnKeys: false,
+    osMode: false,
     macroActions: false,
     wheelClickAction: false,
     battery: false,
@@ -62,6 +65,9 @@ export const useDeviceStore = defineStore("device", () => {
 
   /** FN 键配置 */
   const fnKeyConfig = ref<FnKeyConfig>(createEmptyFnKeyConfig());
+
+  /** Win/Mac 系统模式 */
+  const osModeConfig = ref<OsModeConfig>({ mode: OsMode.WIN });
 
   /** 当前编辑的层索引 */
   const currentEditLayer = ref(0);
@@ -127,9 +133,7 @@ export const useDeviceStore = defineStore("device", () => {
   // ========================================
 
   /** 是否已连接 */
-  const isConnected = computed(
-    () => device.value !== null && device.value.opened,
-  );
+  const isConnected = computed(() => device.value !== null && device.value.opened);
 
   /** 当前设备能力 */
   const capabilities = computed<DeviceCapabilities>(() => {
@@ -143,6 +147,7 @@ export const useDeviceStore = defineStore("device", () => {
   const supportsRgb = computed(() => capabilities.value.rgb);
   const supportsRgbOverlay = computed(() => capabilities.value.rgbOverlay);
   const supportsFnKeys = computed(() => capabilities.value.fnKeys);
+  const supportsOsMode = computed(() => capabilities.value.osMode);
   const supportsMacroActions = computed(() => capabilities.value.macroActions);
   const supportsWheelClickAction = computed(
     () => capabilities.value.wheelClickAction,
@@ -245,6 +250,7 @@ export const useDeviceStore = defineStore("device", () => {
     keymapOriginal.value = createEmptyKeymap();
     rgbConfig.value = createDefaultRgbConfig();
     fnKeyConfig.value = createEmptyFnKeyConfig();
+    osModeConfig.value = { mode: OsMode.WIN };
     currentEditLayer.value = 0;
     useMacroStore().reset();
   }
@@ -261,7 +267,7 @@ export const useDeviceStore = defineStore("device", () => {
         throw new Error("无法打开设备");
       }
 
-      device.value = hidDevice;
+      device.value = hidService.getDevice() ?? hidDevice;
       return true;
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "连接失败";
@@ -275,6 +281,7 @@ export const useDeviceStore = defineStore("device", () => {
       return false;
     }
   }
+
 
   async function initializeConnectedDevice(): Promise<void> {
     if (!device.value) {
@@ -296,6 +303,11 @@ export const useDeviceStore = defineStore("device", () => {
         await refreshFnKeyConfig();
       } else {
         fnKeyConfig.value = createEmptyFnKeyConfig();
+      }
+      if (supportsOsMode.value) {
+        await refreshOsMode();
+      } else {
+        osModeConfig.value = { mode: OsMode.WIN };
       }
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : "连接失败";
@@ -359,6 +371,14 @@ export const useDeviceStore = defineStore("device", () => {
     fnKeyConfig.value = await hidService.getFnKeyConfig();
   }
 
+  async function refreshOsMode(): Promise<void> {
+    if (!supportsOsMode.value) {
+      osModeConfig.value = { mode: OsMode.WIN };
+      return;
+    }
+    osModeConfig.value = await hidService.getOsMode();
+  }
+
   /** 保存按键映射到设备 */
   async function saveKeymap(): Promise<void> {
     isLoading.value = true;
@@ -420,6 +440,28 @@ export const useDeviceStore = defineStore("device", () => {
     }
   }
 
+  async function saveOsMode(mode: OsMode): Promise<void> {
+    if (!supportsOsMode.value) {
+      throw new Error("当前设备不支持 Win/Mac 模式切换");
+    }
+    isLoading.value = true;
+    errorMessage.value = null;
+
+    try {
+      const next = { mode };
+      await hidService.setOsMode(next);
+      if (supportsExplicitSave.value) {
+        await hidService.saveConfig();
+      }
+      osModeConfig.value = next;
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : "系统模式保存失败";
+      throw error;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   /** 重置为出厂设置 */
   async function resetToFactory(): Promise<void> {
     if (!supportsFactoryReset.value) {
@@ -439,6 +481,9 @@ export const useDeviceStore = defineStore("device", () => {
       }
       if (supportsFnKeys.value) {
         await refreshFnKeyConfig();
+      }
+      if (supportsOsMode.value) {
+        await refreshOsMode();
       }
       if (supportsMacroActions.value) {
         await macroStore.refreshOverview().catch(() => {});
@@ -592,6 +637,7 @@ export const useDeviceStore = defineStore("device", () => {
     keymapOriginal,
     rgbConfig,
     fnKeyConfig,
+    osModeConfig,
     currentEditLayer,
     batteryVoltage,
     iapInProgress,
@@ -606,6 +652,7 @@ export const useDeviceStore = defineStore("device", () => {
     supportsRgb,
     supportsRgbOverlay,
     supportsFnKeys,
+    supportsOsMode,
     supportsMacroActions,
     supportsWheelClickAction,
     supportsBattery,
@@ -631,10 +678,12 @@ export const useDeviceStore = defineStore("device", () => {
     refreshKeymap,
     refreshRgbConfig,
     refreshFnKeyConfig,
+    refreshOsMode,
     refreshMacroOverview,
     saveKeymap,
     saveRgbConfig,
     saveFnKeyConfig,
+    saveOsMode,
     resetToFactory,
     setKeyAction,
     getKeyAction,

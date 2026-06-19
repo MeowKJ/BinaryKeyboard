@@ -75,7 +75,7 @@ export function useConnection() {
           ]);
           deviceStore.startStatusPolling();
           void deviceStore.refreshMacroOverview().catch(() => {});
-          showToast("success", successTitle, `已连接到 ${device.productName}`);
+          showToast("success", successTitle, `已连接到 ${deviceLabel(device)}`);
           onConnectionResult(true);
           return true;
         } catch (error) {
@@ -148,6 +148,9 @@ export function useConnection() {
       if (deviceStore.supportsFnKeys) {
         await deviceStore.refreshFnKeyConfig();
       }
+      if (deviceStore.supportsOsMode) {
+        await deviceStore.refreshOsMode();
+      }
       showToast("success", "刷新成功", "配置已从设备重新加载");
     } catch (error) {
       showToast(
@@ -178,6 +181,10 @@ export function useConnection() {
     } catch {
       // 连接事件里的失败由连接流程统一提示，这里避免未捕获 Promise
     }
+  }
+
+  function deviceLabel(device: HIDDevice): string {
+    return device.productName;
   }
 
   function setupHidListeners() {

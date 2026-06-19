@@ -70,7 +70,7 @@ const linkButtons = [
             <Button label="连接键盘" icon="pi pi-usb" size="large" @click="emit('connect')" class="connect-button" />
             <p class="connect-hint">
               <i class="pi pi-info-circle"></i>
-              请确保键盘已通过 USB 连接
+              无线款可保持蓝牙模式，插入 USB 后直接配置
             </p>
           </template>
         </div>
@@ -210,13 +210,16 @@ const linkButtons = [
 
 .connect-section {
   margin-bottom: 3rem;
+  display: flex;
+  justify-content: center;
 }
 
 .connect-card {
+  width: min(100%, 360px);
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-xl);
-  padding: 2rem;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.625rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   position: relative;
 }
@@ -245,7 +248,8 @@ const linkButtons = [
 }
 
 .connect-button {
-  width: min(100%, var(--keyboard-preview-width));
+  width: calc(100% - 2rem);
+  margin-inline: 1rem;
   font-size: 1.1rem !important;
   font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;

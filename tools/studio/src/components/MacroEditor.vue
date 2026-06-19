@@ -272,13 +272,14 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { VueDraggable, type MoveEvent } from "vue-draggable-plus";
 import { parseActions, useMacroStore, type MacroCard } from "@/stores/macroStore";
+import { useDeviceStore } from "@/stores/deviceStore";
 import { showToast } from "@/services/toastService";
 import {
   MacroActionType,
   type MacroAction,
 } from "@/types/protocol";
 import { MACRO_CONSUMER_KEYS, getConsumerName } from "@/utils/consumer";
-import { getHidFromEvent, KEYCODE_NAMES } from "@/utils/keycodes";
+import { getHidFromEvent, getModifierLabel, getModifierOptions, KEYCODE_NAMES } from "@/utils/keycodes";
 import {
   compileMacroCards,
   compileMacroDsl,
@@ -299,6 +300,7 @@ const emit = defineEmits<{
 }>();
 
 const macroStore = useMacroStore();
+const deviceStore = useDeviceStore();
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -408,27 +410,16 @@ const mouseOptions = [
   { label: "前进", param: 0x10 },
 ];
 
-const modifierOptions = [
-  { label: "Ctrl", param: 0x01 },
-  { label: "Shift", param: 0x02 },
-  { label: "Alt", param: 0x04 },
-  { label: "Win", param: 0x08 },
-  { label: "RCtrl", param: 0x10 },
-  { label: "RShift", param: 0x20 },
-  { label: "RAlt", param: 0x40 },
-  { label: "RWin", param: 0x80 },
-];
+const modifierOptions = computed(() =>
+  getModifierOptions(deviceStore.osModeConfig.mode).map((option) => ({
+    label: option.label,
+    param: option.mask,
+  })),
+);
 
-const MOD_NAMES: Record<number, string> = {
-  0x01: "Ctrl",
-  0x02: "Shift",
-  0x04: "Alt",
-  0x08: "Win",
-  0x10: "RCtrl",
-  0x20: "RShift",
-  0x40: "RAlt",
-  0x80: "RWin",
-};
+function modifierName(modifier: number): string {
+  return getModifierLabel(modifier, deviceStore.osModeConfig.mode);
+}
 
 const MOUSE_BTN_NAMES: Record<number, string> = {
   0x01: "左键",
@@ -609,7 +600,11 @@ async function refreshCodeCompletions(): Promise<void> {
     return;
   }
 
-  const suggestions = getMacroDslCompletions(codeText.value, codeCaretIndex.value).slice(0, 10);
+  const suggestions = getMacroDslCompletions(
+    codeText.value,
+    codeCaretIndex.value,
+    deviceStore.osModeConfig.mode,
+  ).slice(0, 10);
   codeCompletions.value = suggestions;
   if (codeCompletionIndex.value >= suggestions.length) {
     codeCompletionIndex.value = 0;
@@ -756,7 +751,10 @@ function handleCodeKeyUp(event: KeyboardEvent): void {
 }
 
 function syncCodeFromCards(): void {
-  codeText.value = formatMacroDslFromCards(macroStore.editingCards);
+  codeText.value = formatMacroDslFromCards(
+    macroStore.editingCards,
+    deviceStore.osModeConfig.mode,
+  );
   requestAnimationFrame(syncCodeEditorDecorations);
   requestAnimationFrame(() => {
     updateCodeCaretFromTextarea();
@@ -768,7 +766,7 @@ function compileAndSimplify(): void {
   const compiled = codeCompileState.value;
   if (compiled.diagnostics.length > 0) return;
   const cards = parseActions(compiled.actions);
-  codeText.value = formatMacroDslFromCards(cards);
+  codeText.value = formatMacroDslFromCards(cards, deviceStore.osModeConfig.mode);
   requestAnimationFrame(syncCodeEditorDecorations);
 }
 
@@ -963,9 +961,9 @@ function actionDescription(action: MacroAction): string {
         ? "释放 未设置"
         : `释放 ${KEYCODE_NAMES[action.param] || `0x${action.param.toString(16)}`}`;
     case MacroActionType.MOD_DOWN:
-      return `按下 ${MOD_NAMES[action.param] || `Mod(0x${action.param.toString(16)})`}`;
+      return `按下 ${modifierName(action.param)}`;
     case MacroActionType.MOD_UP:
-      return `释放 ${MOD_NAMES[action.param] || `Mod(0x${action.param.toString(16)})`}`;
+      return `释放 ${modifierName(action.param)}`;
     case MacroActionType.MOUSE_DOWN:
       return `按下 ${MOUSE_BTN_NAMES[action.param] || "鼠标键"}`;
     case MacroActionType.MOUSE_UP:

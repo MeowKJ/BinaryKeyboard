@@ -23,10 +23,13 @@
 #include "kbd_log.h"
 #include "kbd_storage.h"
 #include "iap_config.h"
+#include "CH59x_common.h"
 #include <string.h>
 
 /** @brief 模块日志标签 */
 #define TAG "CMD"
+
+static kbd_command_response_sender_t s_response_sender = NULL;
 
 /*============================================================================*/
 /*                              外部函数声明 */
@@ -47,6 +50,8 @@ static void HandleSysStatus(const kbd_cmd_frame_t *frame);
 static void HandleCfgSave(const kbd_cmd_frame_t *frame);
 static void HandleCfgLoad(const kbd_cmd_frame_t *frame);
 static void HandleCfgReset(const kbd_cmd_frame_t *frame);
+static void HandleCfgOsGet(const kbd_cmd_frame_t *frame);
+static void HandleCfgOsSet(const kbd_cmd_frame_t *frame);
 static void HandleKeymapGet(const kbd_cmd_frame_t *frame);
 static void HandleKeymapSet(const kbd_cmd_frame_t *frame);
 static void HandleLayerGet(const kbd_cmd_frame_t *frame);
@@ -62,12 +67,20 @@ static void HandleFnkeySet(const kbd_cmd_frame_t *frame);
 static void HandleBattery(const kbd_cmd_frame_t *frame);
 static void HandleLogGet(const kbd_cmd_frame_t *frame);
 static void HandleLogSet(const kbd_cmd_frame_t *frame);
+static void HandleDataFlashInfo(const kbd_cmd_frame_t *frame);
+static void HandleDataFlashRead(const kbd_cmd_frame_t *frame);
+static void HandleDataFlashWrite(const kbd_cmd_frame_t *frame);
 
 /*============================================================================*/
 /*                              公共函数实现 */
 /*============================================================================*/
 
 void KBD_Command_Init(void) { LOG_I(TAG, "Command handler init"); }
+
+void KBD_Command_SetResponseSender(kbd_command_response_sender_t sender)
+{
+  s_response_sender = sender;
+}
 
 int KBD_Command_Process(const kbd_cmd_frame_t *frame)
 {
@@ -90,6 +103,12 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
     break;
   case KBD_CMD_CFG_RESET:
     HandleCfgReset(frame);
+    break;
+  case KBD_CMD_CFG_OS_GET:
+    HandleCfgOsGet(frame);
+    break;
+  case KBD_CMD_CFG_OS_SET:
+    HandleCfgOsSet(frame);
     break;
 
   /* 按键映射 */
@@ -149,6 +168,17 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
     HandleLogSet(frame);
     break;
 
+  /* DataFlash 调试 */
+  case KBD_CMD_DATAFLASH_INFO:
+    HandleDataFlashInfo(frame);
+    break;
+  case KBD_CMD_DATAFLASH_READ:
+    HandleDataFlashRead(frame);
+    break;
+  case KBD_CMD_DATAFLASH_WRITE:
+    HandleDataFlashWrite(frame);
+    break;
+
   /* IAP 固件更新 */
   case KBD_CMD_IAP_INFO:
   case KBD_CMD_IAP_PREPARE:
@@ -173,20 +203,26 @@ int KBD_Command_Process(const kbd_cmd_frame_t *frame)
 void KBD_Command_SendResponse(uint8_t cmd, uint8_t sub, const uint8_t *data,
                               uint8_t len)
 {
-  /* USB_ConfigReport_t 格式: [CMD:1][DATA:63]
-   * 我们把 [SUB][LEN][actual_data] 放入 DATA 部分
-   * 最终格式: [CMD][SUB][LEN][actual_data...]
-   */
-  uint8_t buf[63];
+  uint8_t frame[64];
   uint8_t copy_len = 0;
-  buf[0] = sub;
-  buf[1] = len;
+  memset(frame, 0, sizeof(frame));
+  frame[0] = cmd;
+  frame[1] = sub;
+  frame[2] = len;
   if (data && len > 0)
   {
     copy_len = (len > 61) ? 61 : len;
-    memcpy(&buf[2], data, copy_len);
+    memcpy(&frame[3], data, copy_len);
   }
-  USB_Config_SendResponse(cmd, buf, copy_len + 2);
+
+  if (s_response_sender)
+  {
+    s_response_sender(frame, sizeof(frame));
+    return;
+  }
+
+  /* USB_ConfigReport_t 格式: [CMD:1][DATA:63] */
+  USB_Config_SendResponse(cmd, &frame[1], copy_len + 2);
 }
 
 /*============================================================================*/
@@ -289,6 +325,25 @@ static void HandleCfgReset(const kbd_cmd_frame_t *frame)
   uint8_t resp[1] = {(ret == 0) ? KBD_RESP_OK : KBD_RESP_ERR_FLASH};
   KBD_Command_SendResponse(KBD_CMD_CFG_RESET, 0, resp, 1);
   LOG_I(TAG, "Config reset: %d", ret);
+}
+
+static void HandleCfgOsGet(const kbd_cmd_frame_t *frame)
+{
+  uint8_t resp[2] = {KBD_RESP_OK, KBD_GetOsMode()};
+  KBD_Command_SendResponse(KBD_CMD_CFG_OS_GET, 0, resp, 2);
+}
+
+static void HandleCfgOsSet(const kbd_cmd_frame_t *frame)
+{
+  uint8_t resp[1] = {KBD_RESP_OK};
+  uint8_t mode = (frame->len >= 1) ? frame->data[0] : 0xFF;
+
+  if (frame->len < 1 || KBD_SetOsMode(mode) != 0) {
+    resp[0] = KBD_RESP_ERR_PARAM;
+  }
+
+  KBD_Command_SendResponse(KBD_CMD_CFG_OS_SET, 0, resp, 1);
+  LOG_I(TAG, "OS mode set: %d status=%d", mode, resp[0]);
 }
 
 /**
@@ -688,4 +743,154 @@ static void HandleLogSet(const kbd_cmd_frame_t *frame)
 
   uint8_t resp[1] = {KBD_RESP_OK};
   KBD_Command_SendResponse(KBD_CMD_LOG_SET, 0, resp, 1);
+}
+
+/**
+ * @brief 获取 DataFlash 布局信息
+ *
+ * 响应格式:
+ * [0]  OK
+ * [1..2]  DataFlash 总容量
+ * [3..4]  页大小
+ * [5..6]  配置槽区结束
+ * [7..8]  runtime 热数据区起始
+ * [9..10] 宏区起始
+ * [11..12] 宏区大小
+ * [13..14] BLE SNV 起始
+ * [15..16] BLE SNV 大小
+ */
+static void HandleDataFlashInfo(const kbd_cmd_frame_t *frame)
+{
+  const uint16_t total = 0x8000u;
+  const uint16_t page = EEPROM_PAGE_SIZE;
+  const uint16_t config_end = 0x0C00u;
+  const uint16_t runtime_base = 0x0C00u;
+  const uint16_t ble_snv_base = 0x7E00u;
+  const uint16_t ble_snv_size = 0x0100u;
+  uint8_t resp[17];
+
+  resp[0] = KBD_RESP_OK;
+  resp[1] = (uint8_t)(total >> 8);
+  resp[2] = (uint8_t)(total & 0xFF);
+  resp[3] = (uint8_t)(page >> 8);
+  resp[4] = (uint8_t)(page & 0xFF);
+  resp[5] = (uint8_t)(config_end >> 8);
+  resp[6] = (uint8_t)(config_end & 0xFF);
+  resp[7] = (uint8_t)(runtime_base >> 8);
+  resp[8] = (uint8_t)(runtime_base & 0xFF);
+  resp[9] = (uint8_t)(KBD_FLASH_MACRO_BASE >> 8);
+  resp[10] = (uint8_t)(KBD_FLASH_MACRO_BASE & 0xFF);
+  resp[11] = (uint8_t)(KBD_FLASH_MACRO_SIZE >> 8);
+  resp[12] = (uint8_t)(KBD_FLASH_MACRO_SIZE & 0xFF);
+  resp[13] = (uint8_t)(ble_snv_base >> 8);
+  resp[14] = (uint8_t)(ble_snv_base & 0xFF);
+  resp[15] = (uint8_t)(ble_snv_size >> 8);
+  resp[16] = (uint8_t)(ble_snv_size & 0xFF);
+
+  KBD_Command_SendResponse(KBD_CMD_DATAFLASH_INFO, 0, resp, sizeof(resp));
+}
+
+/**
+ * @brief 读取 DataFlash 原始字节
+ *
+ * 请求格式: [offset_hi][offset_lo][len]，单帧最多 58 字节。
+ * 响应格式: [OK][read_len][data...]
+ */
+static void HandleDataFlashRead(const kbd_cmd_frame_t *frame)
+{
+  const uint16_t total = 0x8000u;
+  uint8_t resp[61];
+  uint16_t offset;
+  uint8_t req_len;
+
+  if (frame->len < 3)
+  {
+    resp[0] = KBD_RESP_ERR_PARAM;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_READ, frame->sub, resp, 1);
+    return;
+  }
+
+  offset = ((uint16_t)frame->data[0] << 8) | frame->data[1];
+  req_len = frame->data[2];
+  if (req_len > 58)
+  {
+    req_len = 58;
+  }
+
+  if (req_len == 0 || offset >= total || ((uint32_t)offset + req_len) > total)
+  {
+    resp[0] = KBD_RESP_ERR_PARAM;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_READ, frame->sub, resp, 1);
+    return;
+  }
+
+  if (EEPROM_READ(offset, &resp[2], req_len) != 0)
+  {
+    resp[0] = KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_READ, frame->sub, resp, 1);
+    return;
+  }
+
+  resp[0] = KBD_RESP_OK;
+  resp[1] = req_len;
+  KBD_Command_SendResponse(KBD_CMD_DATAFLASH_READ, frame->sub, resp,
+                           (uint8_t)(2 + req_len));
+}
+
+/**
+ * @brief 写入 DataFlash 单字节（危险）
+ *
+ * 请求格式: [offset_hi][offset_lo][value]
+ * 响应格式: [OK][offset_hi][offset_lo][value]
+ */
+static void HandleDataFlashWrite(const kbd_cmd_frame_t *frame)
+{
+  const uint16_t total = 0x8000u;
+  uint8_t resp[4];
+  uint16_t offset;
+  uint16_t page_addr;
+  uint16_t page_off;
+  __attribute__((aligned(4))) uint8_t page[EEPROM_PAGE_SIZE];
+
+  if (frame->len < 3)
+  {
+    resp[0] = KBD_RESP_ERR_PARAM;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_WRITE, frame->sub, resp, 1);
+    return;
+  }
+
+  offset = ((uint16_t)frame->data[0] << 8) | frame->data[1];
+  if (offset >= total)
+  {
+    resp[0] = KBD_RESP_ERR_PARAM;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_WRITE, frame->sub, resp, 1);
+    return;
+  }
+
+  page_addr = (uint16_t)(offset & ~(EEPROM_PAGE_SIZE - 1u));
+  page_off = (uint16_t)(offset - page_addr);
+
+  if (EEPROM_READ(page_addr, page, sizeof(page)) != 0)
+  {
+    resp[0] = KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_WRITE, frame->sub, resp, 1);
+    return;
+  }
+
+  page[page_off] = frame->data[2];
+
+  if (EEPROM_ERASE(page_addr, EEPROM_PAGE_SIZE) != 0 ||
+      EEPROM_WRITE(page_addr, page, sizeof(page)) != 0)
+  {
+    resp[0] = KBD_RESP_ERR_FLASH;
+    KBD_Command_SendResponse(KBD_CMD_DATAFLASH_WRITE, frame->sub, resp, 1);
+    return;
+  }
+
+  resp[0] = KBD_RESP_OK;
+  resp[1] = (uint8_t)(offset >> 8);
+  resp[2] = (uint8_t)(offset & 0xFF);
+  resp[3] = frame->data[2];
+  KBD_Command_SendResponse(KBD_CMD_DATAFLASH_WRITE, frame->sub, resp,
+                           sizeof(resp));
 }

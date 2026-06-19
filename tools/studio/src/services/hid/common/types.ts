@@ -5,6 +5,7 @@ import type {
   RgbConfig,
   FnKeyConfig,
   LogConfig,
+  OsModeConfig,
   DeviceProtocol,
   MacroOverview,
   MacroHeader,
@@ -32,6 +33,8 @@ export interface HidOptionalOperations {
   setRgbConfig?: (config: RgbConfig) => Promise<void>;
   getFnKeyConfig?: () => Promise<FnKeyConfig>;
   setFnKeyConfig?: (config: FnKeyConfig) => Promise<void>;
+  getOsMode?: () => Promise<OsModeConfig>;
+  setOsMode?: (config: OsModeConfig) => Promise<void>;
   saveConfig?: () => Promise<void>;
   loadConfig?: () => Promise<void>;
   resetConfig?: () => Promise<void>;
@@ -50,6 +53,8 @@ export const OPTIONAL_OPERATION_LABELS: Record<keyof HidOptionalOperations, stri
   setRgbConfig: 'RGB 配置写入',
   getFnKeyConfig: 'FN 键配置读取',
   setFnKeyConfig: 'FN 键配置写入',
+  getOsMode: '系统模式读取',
+  setOsMode: '系统模式写入',
   saveConfig: '配置保存',
   loadConfig: '配置加载',
   resetConfig: '恢复出厂设置',

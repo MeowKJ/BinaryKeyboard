@@ -56,6 +56,7 @@ export interface DeviceCapabilities {
   rgb: boolean;
   rgbOverlay: boolean;
   fnKeys: boolean;
+  osMode: boolean;
   macroActions: boolean;
   wheelClickAction: boolean;
   battery: boolean;
@@ -75,6 +76,7 @@ export function createDeviceCapabilities(
     rgb: true,
     rgbOverlay: false,
     fnKeys: true,
+    osMode: true,
     macroActions: true,
     wheelClickAction: true,
     battery: true,
@@ -94,6 +96,7 @@ export const CH552_CAPABILITIES = createDeviceCapabilities({
   rgb: true,
   rgbOverlay: true,
   fnKeys: false,
+  osMode: false,
   macroActions: true,
   wheelClickAction: false,
   battery: false,
@@ -117,6 +120,8 @@ export enum Command {
   CFG_SAVE = 0x10,
   CFG_LOAD = 0x11,
   CFG_RESET = 0x12,
+  CFG_OS_GET = 0x13,
+  CFG_OS_SET = 0x14,
 
   // 按键映射 0x20-0x2F
   KEYMAP_GET = 0x20,
@@ -152,6 +157,11 @@ export enum Command {
   IAP_WRITE = 0x82,
   IAP_VERIFY = 0x83,
   IAP_ACTIVATE = 0x84,
+
+  // DataFlash 调试 0x90-0x9F
+  DATAFLASH_INFO = 0x90,
+  DATAFLASH_READ = 0x91,
+  DATAFLASH_WRITE = 0x92,
 }
 
 // ============================================================================
@@ -252,6 +262,15 @@ export enum Modifier {
   RSHIFT = 0x20,
   RALT = 0x40,
   RGUI = 0x80,
+}
+
+export enum OsMode {
+  WIN = 0,
+  MAC = 1,
+}
+
+export interface OsModeConfig {
+  mode: OsMode;
 }
 
 // ============================================================================

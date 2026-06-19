@@ -27,7 +27,7 @@
 #define WS2812_T0H (uint32_t)(0.35 * WS2812_CLK_FREQ)
 #define WS2812_T1H (uint32_t)(0.85 * WS2812_CLK_FREQ)
 #define WS2812_BIT_CYCLE (uint32_t)(1.25 * WS2812_CLK_FREQ)
-#define WS2812_RESET_CYCLES 300 /**< 复位信号周期数 (≈300μs @ 1.25μs/cycle) */
+#define WS2812_RESET_CYCLES 80 /**< 复位信号周期数 (≈100μs @ 1.25μs/cycle) */
 #define WS2812_POWER_ON_US 300 /**< RGB 上电后的稳定时间 */
 
 /** 缓冲区长度：LED数据(每个LED 24bit) + 复位信号 */

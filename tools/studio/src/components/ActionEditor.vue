@@ -229,7 +229,6 @@ import {
   ActionType,
   KeyboardType,
   KeyboardTypeInfo,
-  Modifier,
   MouseButton,
   WheelDirection,
   LayerOp,
@@ -239,7 +238,7 @@ import {
 } from '@/types/protocol';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useMacroStore } from '@/stores/macroStore';
-import { getKeycodeName, getHidFromEvent } from '@/utils/keycodes';
+import { getKeycodeName, getHidFromEvent, getModifierOptions } from '@/utils/keycodes';
 import { CONSUMER_KEYS } from '@/utils/consumer';
 
 const props = defineProps<{
@@ -296,16 +295,8 @@ const macroTriggerOptions = [
   { value: MacroTrigger.TOGGLE, label: '切换循环' },
 ];
 
-const modifierOptions = [
-  { label: 'LCtrl', mask: Modifier.LCTRL },
-  { label: 'LShift', mask: Modifier.LSHIFT },
-  { label: 'LAlt', mask: Modifier.LALT },
-  { label: 'LWin', mask: Modifier.LGUI },
-  { label: 'RCtrl', mask: Modifier.RCTRL },
-  { label: 'RShift', mask: Modifier.RSHIFT },
-  { label: 'RAlt', mask: Modifier.RALT },
-  { label: 'RWin', mask: Modifier.RGUI },
-];
+const osMode = computed(() => deviceStore.osModeConfig.mode);
+const modifierOptions = computed(() => getModifierOptions(osMode.value));
 const layerOptions = computed(() =>
   Array.from({ length: Math.max(1, deviceStore.keymap.numLayers) }, (_, index) => ({
     label: `层 ${index + 1}`,
@@ -316,7 +307,7 @@ const layerOptions = computed(() =>
 // 预览
 const previewKeyName = computed(() => {
   if (activeTab.value !== 'keyboard') return '';
-  return getKeycodeName(keycode.value, modifierMask.value) || '未设置';
+  return getKeycodeName(keycode.value, modifierMask.value, osMode.value) || '未设置';
 });
 
 // 数据

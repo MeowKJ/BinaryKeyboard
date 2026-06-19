@@ -3,10 +3,11 @@ import {
   MACRO_MAX_DATA_SIZE,
   MacroActionType,
   Modifier,
+  OsMode,
   type MacroAction,
 } from "@/types/protocol";
 import { CONSUMER_KEYS, isMacroConsumerCodeSupported } from "@/utils/consumer";
-import { KEYCODE_NAMES } from "@/utils/keycodes";
+import { getModifierLabel, KEYCODE_NAMES } from "@/utils/keycodes";
 
 const DELAY_ACTION_MAX_MS = 2550;
 
@@ -141,24 +142,33 @@ const MODIFIER_ALIASES: Record<string, number> = {
   CTRL: Modifier.LCTRL,
   CONTROL: Modifier.LCTRL,
   LCTRL: Modifier.LCTRL,
+  LCONTROL: Modifier.LCTRL,
   SHIFT: Modifier.LSHIFT,
   LSHIFT: Modifier.LSHIFT,
   ALT: Modifier.LALT,
   LALT: Modifier.LALT,
+  OPTION: Modifier.LALT,
+  LOPTION: Modifier.LALT,
   WIN: Modifier.LGUI,
   GUI: Modifier.LGUI,
   META: Modifier.LGUI,
   CMD: Modifier.LGUI,
+  COMMAND: Modifier.LGUI,
   SUPER: Modifier.LGUI,
   LWIN: Modifier.LGUI,
   LGUI: Modifier.LGUI,
+  LCMD: Modifier.LGUI,
+  LCOMMAND: Modifier.LGUI,
   RCTRL: Modifier.RCTRL,
   RCONTROL: Modifier.RCTRL,
   RSHIFT: Modifier.RSHIFT,
   RALT: Modifier.RALT,
+  ROPTION: Modifier.RALT,
   RWIN: Modifier.RGUI,
   RGUI: Modifier.RGUI,
   RMETA: Modifier.RGUI,
+  RCMD: Modifier.RGUI,
+  RCOMMAND: Modifier.RGUI,
 };
 
 const MOUSE_ALIASES: Record<string, number> = {
@@ -402,9 +412,9 @@ function splitModifierMask(mask: number): number[] {
   return MODIFIER_ORDER.filter((bit) => (mask & bit) !== 0);
 }
 
-function formatModifierMask(mask: number): string {
+function formatModifierMask(mask: number, osMode: OsMode = OsMode.WIN): string {
   return splitModifierMask(mask)
-    .map((bit) => MODIFIER_TOKEN_MAP[bit])
+    .map((bit) => getModifierLabel(bit, osMode))
     .join("+");
 }
 
@@ -417,15 +427,19 @@ function formatKeycode(keycode: number): string {
   return keyName || `0x${keycode.toString(16).toUpperCase()}`;
 }
 
-function formatCombo(modifier: number, keycodes: readonly number[]): string {
+function formatCombo(modifier: number, keycodes: readonly number[], osMode: OsMode = OsMode.WIN): string {
   const parts: string[] = [];
   if (modifier) {
     parts.push(
-      ...splitModifierMask(modifier).map((bit) => MODIFIER_TOKEN_MAP[bit]),
+      ...splitModifierMask(modifier).map((bit) => getModifierLabel(bit, osMode)),
     );
   }
   parts.push(...keycodes.map((keycode) => formatKeycode(keycode)));
   return parts.join("+");
+}
+
+function getModifierCompletionLabels(osMode: OsMode = OsMode.WIN): string[] {
+  return MODIFIER_ORDER.map((bit) => getModifierLabel(bit, osMode));
 }
 
 function makeCodeSource(line: number, column: number): MacroSourceRef {
@@ -1050,6 +1064,7 @@ function completeTapOperand(
   source: string,
   cursor: number,
   commandStart: number,
+  osMode: OsMode = OsMode.WIN,
 ): MacroDslCompletionItem[] {
   const { beforeCursor } = getLineRange(source, cursor);
   const textAfterCommand = beforeCursor
@@ -1181,7 +1196,7 @@ function completeTapOperand(
   const replaceTo = cursor;
 
   const modifierItems = buildCompletionItems(
-    Object.values(MODIFIER_TOKEN_MAP).map((label) => ({
+    getModifierCompletionLabels(osMode).map((label) => ({
       label,
       detail: "修饰键",
       kind: "symbol" as const,
@@ -1216,6 +1231,7 @@ function completeDownUpOperand(
   source: string,
   cursor: number,
   commandStart: number,
+  osMode: OsMode = OsMode.WIN,
 ): MacroDslCompletionItem[] {
   const { beforeCursor } = getLineRange(source, cursor);
   const operandText = beforeCursor
@@ -1230,7 +1246,7 @@ function completeDownUpOperand(
   const snippetItems: MacroDslCompletionItem[] = [];
 
   const modItems = buildCompletionItems(
-    Object.values(MODIFIER_TOKEN_MAP).map((label) => ({
+    getModifierCompletionLabels(osMode).map((label) => ({
       label,
       detail: "修饰键",
       kind: "symbol" as const,
@@ -1330,6 +1346,7 @@ function completeSimpleValue(
 export function getMacroDslCompletions(
   source: string,
   cursor: number,
+  osMode: OsMode = OsMode.WIN,
 ): MacroDslCompletionItem[] {
   const { beforeCursor } = getLineRange(source, cursor);
   const commentIndex = beforeCursor.indexOf("#");
@@ -1356,10 +1373,10 @@ export function getMacroDslCompletions(
 
   switch (command) {
     case "tap":
-      return completeTapOperand(source, cursor, commandStart);
+      return completeTapOperand(source, cursor, commandStart, osMode);
     case "down":
     case "up":
-      return completeDownUpOperand(source, cursor, commandStart);
+      return completeDownUpOperand(source, cursor, commandStart, osMode);
     case "delay":
     case "mouse":
     case "wheel":
@@ -1887,6 +1904,7 @@ function tryFoldMouseClick(
 function tryFoldTap(
   cards: readonly MacroCardLike[],
   startIndex: number,
+  osMode: OsMode = OsMode.WIN,
 ): {
   line: string;
   delayMs: number;
@@ -1918,7 +1936,7 @@ function tryFoldTap(
     second.action.param === first.action.param
   ) {
     return {
-      line: `tap ${formatModifierMask(first.action.param)}${formatTapSuffix(first.delayMs, second.delayMs)}`,
+      line: `tap ${formatModifierMask(first.action.param, osMode)}${formatTapSuffix(first.delayMs, second.delayMs)}`,
       delayMs: 0,
       nextIndex: startIndex + 2,
     };
@@ -1979,7 +1997,7 @@ function tryFoldTap(
   if (modifierBits.length === 0) {
     const waitMs = cards[cursor - 1]?.delayMs ?? 0;
     return {
-      line: `tap ${formatCombo(0, keycodes)}${formatTapSuffix(holdMs, waitMs)}`,
+      line: `tap ${formatCombo(0, keycodes, osMode)}${formatTapSuffix(holdMs, waitMs)}`,
       delayMs: 0,
       nextIndex: cursor,
     };
@@ -2027,7 +2045,7 @@ function tryFoldTap(
   const waitMs = cards[cursor - 1]?.delayMs ?? 0;
 
   return {
-    line: `tap ${formatCombo(mask, keycodes)}${formatTapSuffix(holdMs, waitMs)}`,
+    line: `tap ${formatCombo(mask, keycodes, osMode)}${formatTapSuffix(holdMs, waitMs)}`,
     delayMs: 0,
     nextIndex: cursor,
   };
@@ -2037,6 +2055,7 @@ function tryFoldTap(
 function tryFoldGroup(
   cards: readonly MacroCardLike[],
   startIndex: number,
+  osMode: OsMode = OsMode.WIN,
 ): { line: string; delayMs: number; nextIndex: number } | null {
   const first = cards[startIndex];
   if (!first) return null;
@@ -2078,22 +2097,22 @@ function tryFoldGroup(
   const trailingDelay = cards[cursor - 1]?.delayMs ?? 0;
 
   return {
-    line: `${direction} ${formatCombo(mask, keycodes)}`,
+    line: `${direction} ${formatCombo(mask, keycodes, osMode)}`,
     delayMs: trailingDelay,
     nextIndex: cursor,
   };
 }
 
-function formatActionCard(card: MacroCardLike): string {
+function formatActionCard(card: MacroCardLike, osMode: OsMode = OsMode.WIN): string {
   switch (card.action.type) {
     case MacroActionType.KEY_DOWN:
       return `down ${formatKeycode(card.action.param)}`;
     case MacroActionType.KEY_UP:
       return `up ${formatKeycode(card.action.param)}`;
     case MacroActionType.MOD_DOWN:
-      return `down ${formatModifierMask(card.action.param)}`;
+      return `down ${formatModifierMask(card.action.param, osMode)}`;
     case MacroActionType.MOD_UP:
-      return `up ${formatModifierMask(card.action.param)}`;
+      return `up ${formatModifierMask(card.action.param, osMode)}`;
     case MacroActionType.MOUSE_DOWN:
       return `down mouse:${MOUSE_TOKEN_MAP[card.action.param] || card.action.param}`;
     case MacroActionType.MOUSE_UP:
@@ -2142,6 +2161,7 @@ function compressComboRuns(combos: string[]): string {
 
 export function formatMacroDslFromCards(
   cards: readonly MacroCardLike[],
+  osMode: OsMode = OsMode.WIN,
 ): string {
   // Phase 1: fold individual patterns into line+delay pairs
   const segments: { line: string; delayMs: number }[] = [];
@@ -2157,7 +2177,7 @@ export function formatMacroDslFromCards(
     }
 
     // Try tap fold (key/mod combos)
-    const tap = tryFoldTap(cards, index);
+    const tap = tryFoldTap(cards, index, osMode);
     if (tap) {
       segments.push({ line: tap.line, delayMs: tap.delayMs });
       index = tap.nextIndex;
@@ -2165,7 +2185,7 @@ export function formatMacroDslFromCards(
     }
 
     // Try group fold (down Mod+Key / up Mod+Key)
-    const group = tryFoldGroup(cards, index);
+    const group = tryFoldGroup(cards, index, osMode);
     if (group) {
       segments.push({ line: group.line, delayMs: group.delayMs });
       index = group.nextIndex;
@@ -2174,7 +2194,7 @@ export function formatMacroDslFromCards(
 
     // Fallback: single card
     const card = cards[index];
-    const line = formatActionCard(card);
+    const line = formatActionCard(card, osMode);
     if (line) {
       segments.push({ line, delayMs: card.delayMs });
     }

@@ -28,6 +28,8 @@
 extern "C" {
 #endif
 
+typedef void (*kbd_command_response_sender_t)(const uint8_t *frame, uint8_t len);
+
 /*============================================================================*/
 /**
  * @defgroup KBD_CMD_API 命令处理接口
@@ -39,6 +41,14 @@ extern "C" {
  * @brief 初始化命令处理器
  */
 void KBD_Command_Init(void);
+
+/**
+ * @brief 临时覆盖命令响应发送通道
+ *
+ * 传入 NULL 时恢复默认 USB HID 配置端点。BLE 配置服务在处理一帧
+ * 命令前设置发送器，处理完成后恢复 NULL。
+ */
+void KBD_Command_SetResponseSender(kbd_command_response_sender_t sender);
 
 /**
  * @brief 处理 HID 配置命令

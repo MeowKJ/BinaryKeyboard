@@ -6,7 +6,7 @@ import { useMacroStore } from '@/stores/macroStore';
 import { useTerminalStore } from '@/stores/terminalStore';
 import { showToast } from '@/services/toastService';
 import type { KeyAction } from '@/types/protocol';
-import { createEmptyAction, KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
+import { createEmptyAction, DeviceProtocol, KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
 import { createDeviceUiDefinition, hasUiSection } from '@/types/deviceUi';
 import { getHidDevicePlugin } from '@/services/hid/registry';
 
@@ -23,11 +23,12 @@ import FnPanel from '@/components/FnPanel.vue';
 import RgbPanel from '@/components/RgbPanel.vue';
 import ActionsPanel from '@/components/ActionsPanel.vue';
 import MacroPanel from '@/components/MacroPanel.vue';
+import StormDataFlashEntry from '@/components/StormDataFlashEntry.vue';
+import StormDataFlashPanel from '@/components/StormDataFlashPanel.vue';
 import ThemeConfigurator from '@/components/ThemeConfigurator.vue';
 import FallingEffect from '@/components/FallingEffect.vue';
 import CatEars from '@/components/CatEars.vue';
 import VideoBackground from '@/components/VideoBackground.vue';
-import KeyTestPanel from '@/components/KeyTestPanel.vue';
 import { useTheme } from '@/composables/useTheme';
 
 const props = defineProps<{
@@ -50,11 +51,9 @@ const editorVisible = ref(false);
 const selectedKeyIndex = ref(-1);
 const macroEditorVisible = ref(false);
 const macroEditorSlot = ref(0);
+const dataFlashVisible = ref(false);
 const kbCardRef = ref<HTMLElement | null>(null);
 const earStyle = ref<Record<string, string>>({});
-const testActiveKeys = ref<number[]>([]);
-const testPulseKey = ref<number | null>(null);
-let testPulseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function updateEarPosition() {
   if (!kbCardRef.value) return;
@@ -75,7 +74,6 @@ function earLoop() {
 onMounted(() => { if (themeId.value === 'neko') earLoop(); });
 onUnmounted(() => {
   cancelAnimationFrame(earRaf);
-  resetKeyTestState();
 });
 
 watch(themeId, (id) => {
@@ -127,16 +125,13 @@ const showRgbPanel = computed(() => previewKeyboardType.value < 0 && hasUiSectio
 const showMacroPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsMacroActions);
 const showResetButton = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFactoryReset);
 const showLayerBadge = computed(() => previewKeyboardType.value >= 0 || deviceStore.supportsMultiLayer);
+const showStormDataFlashPanel = computed(
+  () =>
+    themeId.value === 'storm' &&
+    previewKeyboardType.value < 0 &&
+    deviceStore.deviceInfo?.protocol === DeviceProtocol.CH592,
+);
 const saveKeymapLabel = computed(() => deviceStore.supportsExplicitSave ? '保存配置' : '写入键位');
-
-const keyboardCardSubtitle = computed(() => {
-  if (previewKeyboardType.value >= 0) return '预览布局模式';
-  if (deviceStore.supportsMultiLayer) {
-    const modifierLabel = deviceStore.deviceInfo?.protocol === 'ch552' ? 'FUNC' : 'BOOT';
-    return `点击按键进行编辑 · 按住 ${modifierLabel} + 按键N 切换到层N`;
-  }
-  return '点击按键进行编辑 · 当前设备仅支持单层键位映射';
-});
 
 const currentLayerKeysForDisplay = computed(() => {
   if (previewKeyboardType.value >= 0) {
@@ -192,32 +187,6 @@ function onActionSave(action: KeyAction) {
   editorVisible.value = false;
 }
 
-function updateTestActiveKey(keyIndex: number, pressed: boolean) {
-  const next = new Set(testActiveKeys.value);
-  if (pressed) {
-    next.add(keyIndex);
-  } else {
-    next.delete(keyIndex);
-  }
-  testActiveKeys.value = Array.from(next);
-
-  testPulseKey.value = keyIndex;
-  if (testPulseTimer) clearTimeout(testPulseTimer);
-  testPulseTimer = setTimeout(() => {
-    testPulseKey.value = null;
-    testPulseTimer = null;
-  }, 560);
-}
-
-function resetKeyTestState() {
-  testActiveKeys.value = [];
-  testPulseKey.value = null;
-  if (testPulseTimer) {
-    clearTimeout(testPulseTimer);
-    testPulseTimer = null;
-  }
-}
-
 function onCatAction(action: string) {
   switch (action) {
     case 'refresh': props.onRefresh(); break;
@@ -253,8 +222,8 @@ function onCatAction(action: string) {
         <FnPanel v-if="showFnPanel" />
         <RgbPanel v-if="showRgbPanel" />
         <MacroPanel v-if="showMacroPanel" @edit="openMacroEditor" />
-        <ActionsPanel :show-reset-button="showResetButton" :save-label="saveKeymapLabel" @save="saveConfig"
-          @discard="discardChanges" @reset="confirmReset" />
+        <StormDataFlashEntry v-if="showStormDataFlashPanel" @open="dataFlashVisible = true" />
+        <ActionsPanel v-if="showResetButton" :show-reset-button="showResetButton" @reset="confirmReset" />
       </aside>
 
       <div class="keyboard-spacer"></div>
@@ -270,24 +239,43 @@ function onCatAction(action: string) {
 
         <div ref="kbCardRef" class="keyboard-card">
           <div class="card-header">
-            <div class="card-title-section">
-              <span class="card-title">🎹 键盘布局</span>
-              <span v-if="showLayerBadge" class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
+            <div class="card-header-row">
+              <div class="card-title-wrap">
+                <div class="card-title-section">
+                  <span class="card-title">🎹 键盘布局</span>
+                  <span v-if="showLayerBadge" class="card-layer-badge">层 {{ deviceStore.currentEditLayer + 1 }}</span>
+                </div>
+              </div>
+              <div v-if="previewKeyboardType < 0" class="keyboard-actions">
+                <button
+                  type="button"
+                  class="keyboard-action-btn save"
+                  :disabled="!deviceStore.hasChanges"
+                  :title="saveKeymapLabel"
+                  @click="saveConfig"
+                >
+                  <i class="pi pi-save"></i>
+                  <span>{{ saveKeymapLabel }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="keyboard-action-btn"
+                  :disabled="!deviceStore.hasChanges"
+                  title="放弃更改"
+                  @click="discardChanges"
+                >
+                  <i class="pi pi-undo"></i>
+                  <span>放弃</span>
+                </button>
+              </div>
             </div>
-            <span class="card-subtitle">{{ keyboardCardSubtitle }}</span>
           </div>
           <div class="keyboard-container">
             <KeyboardLayout :keyboard-type="currentKeyboardType" :keys="currentLayerKeysForDisplay"
               :selected-index="selectedKeyIndex" :disabled="previewKeyboardType >= 0"
-              :test-active-indices="testActiveKeys" :test-pulse-index="testPulseKey" @select="onKeySelect" />
+              @select="onKeySelect" />
           </div>
         </div>
-
-        <KeyTestPanel
-          v-if="previewKeyboardType < 0 && deviceStore.supportsLogs"
-          @key-event="updateTestActiveKey($event.keyIndex, $event.pressed)"
-          @reset="resetKeyTestState"
-        />
 
         <div v-if="deviceStore.hasChanges" class="changes-indicator">
           <i class="pi pi-exclamation-circle"></i>
@@ -299,6 +287,7 @@ function onCatAction(action: string) {
     <ActionEditor v-model:visible="editorVisible" :key-index="selectedKeyIndex" :action="selectedAction"
       @save="onActionSave" />
     <MacroEditor v-model:visible="macroEditorVisible" :slot="macroEditorSlot" />
+    <StormDataFlashPanel v-if="showStormDataFlashPanel" v-model:visible="dataFlashVisible" />
     <ThemeConfigurator />
   </div>
 </template>
@@ -317,7 +306,7 @@ function onCatAction(action: string) {
   padding: 1.5rem;
   padding-top: calc(var(--header-height) + 1.5rem);
   padding-bottom: 50px;
-  gap: 1.5rem;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
   overflow: hidden;
   transition: padding-bottom 0.3s ease;
 }
@@ -330,7 +319,7 @@ function onCatAction(action: string) {
   width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   flex-shrink: 0;
   height: calc(100vh - var(--header-height) - 3rem);
   overflow-y: auto;
@@ -350,7 +339,7 @@ function onCatAction(action: string) {
 
 .keyboard-section {
   position: fixed;
-  left: calc(var(--sidebar-width) + 3rem);
+  left: calc(var(--sidebar-width) + clamp(2rem, 3vw, 3rem));
   right: 0;
   top: var(--header-height);
   bottom: 0;
@@ -380,9 +369,20 @@ function onCatAction(action: string) {
   background: var(--c-bg-tertiary);
   border-bottom: 1px solid var(--c-border);
   padding: 1rem 1.5rem;
+}
+
+.card-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-title-wrap {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .card-title-section {
@@ -407,10 +407,51 @@ function onCatAction(action: string) {
   border: 1px solid var(--c-accent);
 }
 
-.card-subtitle {
+.keyboard-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.keyboard-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-secondary);
+  color: var(--c-text-secondary);
+  font: inherit;
   font-size: 0.75rem;
-  color: var(--c-text-muted);
-  line-height: 1.4;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.keyboard-action-btn .pi {
+  font-size: 0.78rem;
+}
+
+.keyboard-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--c-accent);
+  color: var(--c-text-primary);
+  background: var(--c-bg-hover);
+}
+
+.keyboard-action-btn.save {
+  border-color: color-mix(in srgb, var(--c-accent) 62%, var(--c-border));
+  color: var(--c-accent-light);
+  background: var(--c-accent-soft);
+}
+
+.keyboard-action-btn:disabled {
+  opacity: 0.42;
+  cursor: default;
 }
 
 .keyboard-container {
@@ -437,5 +478,25 @@ function onCatAction(action: string) {
   position: fixed;
   z-index: 2;
   pointer-events: none;
+}
+
+@media (min-width: 1440px) {
+  .sidebar {
+    gap: 0.55rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .card-header-row {
+    flex-direction: column;
+  }
+
+  .keyboard-actions {
+    width: 100%;
+  }
+
+  .keyboard-action-btn {
+    flex: 1;
+  }
 }
 </style>

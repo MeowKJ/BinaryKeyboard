@@ -22,6 +22,16 @@ const currentKeyboardType = computed(() => {
   return deviceStore.deviceInfo?.keyboardType ?? 0;
 });
 
+const deviceDisplayName = computed(() => {
+  const device = deviceStore.device;
+  if (!device) return '未连接';
+  return device.productName;
+});
+
+const workMode = computed(() => deviceStore.deviceStatus?.workMode ?? 0);
+const workModeLabel = computed(() => (workMode.value === 1 ? 'BLE 模式' : 'USB 模式'));
+const workModeIcon = computed(() => (workMode.value === 1 ? 'pi pi-wifi' : 'pi pi-usb'));
+
 function onPreviewTypeChange() {
   if (previewKeyboardType.value >= 0) {
     deviceStore.setEditLayer(0);
@@ -48,7 +58,11 @@ function onPreviewTypeChange() {
           预览模式 - {{ KeyboardTypeInfo[currentKeyboardType as KeyboardType]?.name || '未知型号' }}
         </span>
         <span v-else>
-          {{ deviceStore.device?.productName }} - {{ deviceStore.keyboardTypeName }}
+          {{ deviceDisplayName }} - {{ deviceStore.keyboardTypeName }}
+        </span>
+        <span v-if="previewKeyboardType < 0" class="mode-pill" :class="{ ble: workMode === 1 }">
+          <i :class="workModeIcon"></i>
+          {{ workModeLabel }}
         </span>
       </div>
     </div>
@@ -124,6 +138,26 @@ function onPreviewTypeChange() {
   font-weight: 600;
   color: var(--c-text-secondary);
   background: var(--c-bg-primary);
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c-accent) 34%, transparent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+  font-size: 0.72rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mode-pill.ble {
+  border-color: color-mix(in srgb, #38bdf8 38%, transparent);
+  background: color-mix(in srgb, #38bdf8 14%, transparent);
+  color: #38bdf8;
 }
 
 .device-badge.preview-mode {

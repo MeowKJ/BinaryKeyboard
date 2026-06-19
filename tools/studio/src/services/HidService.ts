@@ -3,7 +3,7 @@
  * 统一管理已注册的设备适配器插件
  */
 
-import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData } from '@/types/protocol';
+import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData, OsModeConfig } from '@/types/protocol';
 import { showToast } from '@/services/toastService';
 import { createHidAdapters } from './hid/registry';
 import type { BatteryInfo, HidAdapter, HidDeviceEventHandler, HidOptionalOperations } from './hid/common/types';
@@ -133,6 +133,14 @@ export class HidService {
 
   async setFnKeyConfig(config: FnKeyConfig): Promise<void> {
     await this.requireOptionalOperation('setFnKeyConfig')(config);
+  }
+
+  async getOsMode(): Promise<OsModeConfig> {
+    return this.requireOptionalOperation('getOsMode')();
+  }
+
+  async setOsMode(config: OsModeConfig): Promise<void> {
+    await this.requireOptionalOperation('setOsMode')(config);
   }
 
   async saveConfig(): Promise<void> {

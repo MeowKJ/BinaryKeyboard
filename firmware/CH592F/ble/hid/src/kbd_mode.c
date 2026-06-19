@@ -389,6 +389,22 @@ int KBD_Mode_USB_Wakeup(void)
 /* HID 报告发送实现 */
 /*============================================================================*/
 
+static uint8_t KBD_Mode_ApplyOsModeModifier(uint8_t modifier)
+{
+    if (KBD_GetOsMode() != KBD_OS_MODE_MAC)
+    {
+        return modifier;
+    }
+
+    uint8_t mapped = modifier;
+    mapped &= (uint8_t)~(KBD_MOD_LCTRL | KBD_MOD_LGUI | KBD_MOD_RCTRL | KBD_MOD_RGUI);
+    if (modifier & KBD_MOD_LCTRL) mapped |= KBD_MOD_LGUI;
+    if (modifier & KBD_MOD_LGUI)  mapped |= KBD_MOD_LCTRL;
+    if (modifier & KBD_MOD_RCTRL) mapped |= KBD_MOD_RGUI;
+    if (modifier & KBD_MOD_RGUI)  mapped |= KBD_MOD_RCTRL;
+    return mapped;
+}
+
 int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_count)
 {
     if (!KBD_Mode_IsConnected())
@@ -397,10 +413,11 @@ int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_cou
     }
 
     KBD_Mode_RecordActivityInternal();
+    uint8_t report_modifier = KBD_Mode_ApplyOsModeModifier(modifier);
 
     /* 构建报告 */
     memset(g_kbd_report, 0, sizeof(g_kbd_report));
-    g_kbd_report[0] = modifier;
+    g_kbd_report[0] = report_modifier;
     g_kbd_report[1] = 0; /* Reserved */
 
     uint8_t count = (key_count > 6) ? 6 : key_count;
@@ -411,12 +428,12 @@ int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_cou
 
     if (g_current_mode == KBD_WORK_MODE_USB)
     {
-        USB_Keyboard_Press(modifier, keys, key_count);
+        USB_Keyboard_Press(report_modifier, keys, key_count);
         return 0;
     }
     else
     {
-        return BLE_HID_SendKeyboardReport(modifier, keys, key_count);
+        return BLE_HID_SendKeyboardReport(report_modifier, keys, key_count);
     }
 }
 

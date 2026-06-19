@@ -1,7 +1,7 @@
 <template>
   <button 
     class="key-button" 
-    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction, disabled, 'test-active': testActive, 'test-pulse': testPulse }]"
+    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction, disabled }]"
     :style="gridStyle"
     :disabled="disabled"
     @click="!disabled && emit('click')"
@@ -17,6 +17,7 @@ import type { KeyDef, KeySize } from '@/config/layouts';
 import { ActionType, type KeyAction } from '@/types/protocol';
 import { getKeycodeName } from '@/utils/keycodes';
 import { getConsumerName } from '@/utils/consumer';
+import { useDeviceStore } from '@/stores/deviceStore';
 
 const props = defineProps<{
   /** 按键定义 */
@@ -27,15 +28,13 @@ const props = defineProps<{
   selected: boolean;
   /** 是否禁用 */
   disabled?: boolean;
-  /** 测试模式: 当前按下 */
-  testActive?: boolean;
-  /** 测试模式: 最近触发 */
-  testPulse?: boolean;
 }>();
 
 const emit = defineEmits<{
   click: [];
 }>();
+
+const deviceStore = useDeviceStore();
 
 /** 网格定位样式 */
 const gridStyle = computed(() => {
@@ -77,7 +76,7 @@ const displayLabel = computed(() => {
 
   switch (action.type) {
     case ActionType.KEYBOARD:
-      return getKeycodeName(action.param1, action.modifier) || `0x${action.param1.toString(16).toUpperCase()}`;
+      return getKeycodeName(action.param1, action.modifier, deviceStore.osModeConfig.mode) || `0x${action.param1.toString(16).toUpperCase()}`;
     case ActionType.MOUSE_BTN:
       return getMouseButtonName(action.param1);
     case ActionType.MOUSE_WHEEL:
@@ -180,17 +179,6 @@ function getWheelName(dir: number): string {
   box-shadow: 0 0 0 3px var(--c-accent-soft), 0 8px 24px var(--c-key-shadow);
 }
 
-.key-button.test-active {
-  background: color-mix(in srgb, var(--c-success) 24%, var(--c-key-bg));
-  border-color: var(--c-success);
-  color: var(--c-text-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-success) 30%, transparent), 0 8px 24px rgba(74, 222, 128, 0.24);
-}
-
-.key-button.test-pulse:not(.test-active) {
-  animation: key-test-pulse 520ms ease-out;
-}
-
 .key-button.has-action {
   color: var(--c-text-primary);
 }
@@ -282,17 +270,4 @@ function getWheelName(dir: number): string {
 .badge-layer { color: var(--c-accent); }
 .badge-macro { color: var(--c-danger); }
 
-@keyframes key-test-pulse {
-  0% {
-    border-color: var(--c-success);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-success) 42%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 10px transparent;
-  }
-  100% {
-    border-color: var(--c-key-border);
-    box-shadow: none;
-  }
-}
 </style>

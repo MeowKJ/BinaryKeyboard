@@ -137,7 +137,7 @@ const cssVars = computed(() => ({
           </linearGradient>
           <!-- 充电能量流渐变 -->
           <linearGradient id="energy-flow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" v:stop-color="batColor" stop-opacity="0" />
+            <stop offset="0%" :stop-color="batColor" stop-opacity="0" />
             <stop offset="50%" :stop-color="batColor" stop-opacity="1" />
             <stop offset="100%" :stop-color="batColor" stop-opacity="0" />
           </linearGradient>

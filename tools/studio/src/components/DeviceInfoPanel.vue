@@ -154,8 +154,8 @@ function hueColor(hue: number) {
 
 <style scoped>
 .info-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 6px;
 }
 
@@ -316,5 +316,26 @@ function hueColor(hue: number) {
 
 .firmware-update-btn .pi {
   font-size: 0.72rem;
+}
+
+@media (min-width: 1440px) {
+  .info-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 0.75rem;
+    row-gap: 5px;
+  }
+
+  .info-item {
+    min-width: 0;
+  }
+
+  .info-label,
+  .info-value {
+    min-width: 0;
+  }
+
+  .version-divider {
+    margin: 0.65rem 0;
+  }
 }
 </style>

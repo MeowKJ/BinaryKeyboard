@@ -29,7 +29,8 @@ static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
 static uint8_t s_current_mouse_buttons = 0;
-static uint8_t s_keycode_refcount[256] = {0};
+static uint8_t s_keycode_slots[KBD_MAX_KEYS] = {0};
+static uint8_t s_keycode_refcount[KBD_MAX_KEYS] = {0};
 static uint8_t s_modifier_refcount[8] = {0};
 static uint8_t s_mouse_button_refcount[5] = {0};
 static kbd_action_t s_active_actions[KBD_MAX_KEYS];
@@ -55,6 +56,7 @@ static const uint8_t s_mouse_button_bits[5] = {
 
 static void ResetInputState(void);
 static void RebuildKeyboardReport(void);
+static void UpdateKeycodeRefcount(uint8_t keycode, bool pressed);
 static void UpdateModifierMask(uint8_t mask, bool pressed);
 static void UpdateMouseButtons(uint8_t buttons, bool pressed);
 static void SwitchLayer(uint8_t target_layer);
@@ -323,6 +325,7 @@ static void OnLedReport(uint8_t leds)
 static void ResetInputState(void)
 {
     memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
+    memset(s_keycode_slots, 0, sizeof(s_keycode_slots));
     memset(s_keycode_refcount, 0, sizeof(s_keycode_refcount));
     memset(s_modifier_refcount, 0, sizeof(s_modifier_refcount));
     memset(s_mouse_button_refcount, 0, sizeof(s_mouse_button_refcount));
@@ -340,9 +343,9 @@ static void RebuildKeyboardReport(void)
     s_pressed_count = 0;
     memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
 
-    for (uint16_t keycode = 0; keycode < sizeof(s_keycode_refcount); keycode++)
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
     {
-        if (s_keycode_refcount[keycode] == 0)
+        if (s_keycode_refcount[i] == 0 || s_keycode_slots[i] == 0)
         {
             continue;
         }
@@ -350,7 +353,7 @@ static void RebuildKeyboardReport(void)
         {
             break;
         }
-        s_pressed_keys[s_pressed_count++] = (uint8_t)keycode;
+        s_pressed_keys[s_pressed_count++] = s_keycode_slots[i];
     }
 
     if (s_pressed_count > 0 || s_current_modifier != 0)
@@ -360,6 +363,57 @@ static void RebuildKeyboardReport(void)
     else
     {
         KBD_Mode_ReleaseAllKeys();
+    }
+}
+
+static void UpdateKeycodeRefcount(uint8_t keycode, bool pressed)
+{
+    if (keycode == 0)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
+    {
+        if (s_keycode_slots[i] != keycode)
+        {
+            continue;
+        }
+
+        if (pressed)
+        {
+            if (s_keycode_refcount[i] < 0xFF)
+            {
+                s_keycode_refcount[i]++;
+            }
+            return;
+        }
+
+        if (s_keycode_refcount[i] > 0)
+        {
+            s_keycode_refcount[i]--;
+            if (s_keycode_refcount[i] == 0)
+            {
+                s_keycode_slots[i] = 0;
+            }
+        }
+        return;
+    }
+
+    if (!pressed)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
+    {
+        if (s_keycode_refcount[i] != 0)
+        {
+            continue;
+        }
+        s_keycode_slots[i] = keycode;
+        s_keycode_refcount[i] = 1;
+        return;
     }
 }
 
@@ -460,18 +514,12 @@ static void ExecuteKeyAction(uint8_t key_index, const kbd_action_t *action, bool
     case KBD_ACTION_KEYBOARD:
         if (pressed)
         {
-            if (action->param1 != 0 && s_keycode_refcount[action->param1] < 0xFF)
-            {
-                s_keycode_refcount[action->param1]++;
-            }
+            UpdateKeycodeRefcount(action->param1, true);
             UpdateModifierMask(action->modifier, true);
         }
         else
         {
-            if (action->param1 != 0 && s_keycode_refcount[action->param1] > 0)
-            {
-                s_keycode_refcount[action->param1]--;
-            }
+            UpdateKeycodeRefcount(action->param1, false);
             UpdateModifierMask(action->modifier, false);
         }
         RebuildKeyboardReport();

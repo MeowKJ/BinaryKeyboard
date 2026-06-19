@@ -9,29 +9,30 @@
         <span class="fn-group-title">FN{{ idx + 1 }}</span>
         <div class="fn-item">
           <span class="fn-label">单击</span>
-          <select v-model="deviceStore.fnKeyConfig.fnKeys[idx].clickAction" class="fn-select">
+          <select v-model="deviceStore.fnKeyConfig.fnKeys[idx].clickAction" class="fn-select" @change="autoSaveFn">
             <option v-for="opt in fnActionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
           </select>
         </div>
         <div class="fn-item">
           <span class="fn-label">长按</span>
-          <select v-model="deviceStore.fnKeyConfig.fnKeys[idx].longAction" class="fn-select">
+          <select v-model="deviceStore.fnKeyConfig.fnKeys[idx].longAction" class="fn-select" @change="autoSaveFn">
             <option v-for="opt in fnActionOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
           </select>
         </div>
       </div>
-      <Button label="保存 FN" icon="pi pi-check" size="small" @click="saveFn"
-        class="fn-save-btn btn-primary" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { showToast } from '@/services/toastService';
 import { FnAction } from '@/types/protocol';
 
 const deviceStore = useDeviceStore();
+const isAutoSaving = ref(false);
+const hasPendingSave = ref(false);
 
 const fnActionOptions = [
   { value: FnAction.NONE, label: '无动作' },
@@ -47,12 +48,23 @@ const fnActionOptions = [
   { value: FnAction.SLEEP, label: '休眠' },
 ];
 
-async function saveFn() {
+async function autoSaveFn() {
+  if (isAutoSaving.value) {
+    hasPendingSave.value = true;
+    return;
+  }
+
+  isAutoSaving.value = true;
   try {
     await deviceStore.saveFnKeyConfig();
-    showToast('success', 'FN 键已保存', 'FN 键配置已保存到设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
+  } finally {
+    isAutoSaving.value = false;
+    if (hasPendingSave.value) {
+      hasPendingSave.value = false;
+      void autoSaveFn();
+    }
   }
 }
 </script>
@@ -101,7 +113,11 @@ async function saveFn() {
   font-size: 0.8rem;
 }
 
-.fn-save-btn {
-  margin-top: 4px;
+@media (min-width: 1440px) {
+  .fn-config {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
 }
 </style>

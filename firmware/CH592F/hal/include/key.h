@@ -94,7 +94,7 @@ extern "C" {
  * @brief 普通按键事件队列容量（必须为 2 的幂）。
  */
 #ifndef KEY_QUEUE_SIZE
-#define KEY_QUEUE_SIZE 32
+#define KEY_QUEUE_SIZE 16
 #endif
 
 /**
@@ -102,7 +102,7 @@ extern "C" {
  * @brief FN 按键事件队列容量（必须为 2 的幂）。
  */
 #ifndef FNKEY_QUEUE_SIZE
-#define FNKEY_QUEUE_SIZE 16
+#define FNKEY_QUEUE_SIZE 8
 #endif
 
 /**

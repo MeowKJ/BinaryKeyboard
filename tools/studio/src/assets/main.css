@@ -49,7 +49,7 @@
   
   /* 尺寸 */
   --header-height: 60px;
-  --sidebar-width: 280px;
+  --sidebar-width: 320px;
   --key-unit: 90px;
   --key-gap: 12px;
   --radius-sm: 8px;
@@ -488,6 +488,19 @@ body {
 /* ============================================
    响应式设计
 ============================================ */
+
+/* 宽屏：左侧控制区承载更多内容，减少垂直翻页 */
+@media (min-width: 1440px) {
+  :root {
+    --sidebar-width: 380px;
+  }
+}
+
+@media (min-width: 1720px) {
+  :root {
+    --sidebar-width: 420px;
+  }
+}
 
 /* 平板 (768px - 1024px) */
 @media (max-width: 1024px) {

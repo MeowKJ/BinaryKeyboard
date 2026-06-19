@@ -406,8 +406,15 @@ extern "C"
     /* HID 日志配置 (v1.2+) */
     uint8_t log_enabled;     /**< HID 日志开关 (0=关, 非0=开, 默认1) */
     uint8_t deep_sleep_min;  /**< DEEP 延时 (在 LIGHT 后, 分钟, 0=禁用) */
-    uint8_t reserved[59];    /**< 保留字段 */
+    uint8_t os_mode;         /**< 系统模式 (0=Win, 1=Mac) */
+    uint8_t reserved[58];    /**< 保留字段 */
   } kbd_system_config_t;
+
+  typedef enum
+  {
+    KBD_OS_MODE_WIN = 0,
+    KBD_OS_MODE_MAC = 1,
+  } kbd_os_mode_t;
 
   /**
    * @brief 配置头部结构 (32 字节)
@@ -446,6 +453,8 @@ extern "C"
     KBD_CMD_CFG_SAVE = 0x10,  /**< 保存配置到 Flash */
     KBD_CMD_CFG_LOAD = 0x11,  /**< 从 Flash 加载配置 */
     KBD_CMD_CFG_RESET = 0x12, /**< 恢复出厂设置 */
+    KBD_CMD_CFG_OS_GET = 0x13, /**< 获取系统模式 */
+    KBD_CMD_CFG_OS_SET = 0x14, /**< 设置系统模式 */
 
     /* 按键映射 0x20-0x2F */
     KBD_CMD_KEYMAP_GET = 0x20, /**< 获取按键映射 */
@@ -474,6 +483,11 @@ extern "C"
     KBD_CMD_LOG = 0x70,     /**< 设备日志推送 (设备 → 主机, 异步) */
     KBD_CMD_LOG_GET = 0x71, /**< 获取日志配置 */
     KBD_CMD_LOG_SET = 0x72, /**< 设置日志配置 */
+
+    /* DataFlash 调试 0x90-0x9F */
+    KBD_CMD_DATAFLASH_INFO = 0x90, /**< 获取 DataFlash 布局信息 */
+    KBD_CMD_DATAFLASH_READ = 0x91, /**< 读取 DataFlash 原始字节 */
+    KBD_CMD_DATAFLASH_WRITE = 0x92, /**< 写入 DataFlash 单字节（危险） */
   } kbd_cmd_t;
 
   /**
