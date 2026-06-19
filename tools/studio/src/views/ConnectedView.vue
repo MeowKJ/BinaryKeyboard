@@ -27,6 +27,7 @@ import ThemeConfigurator from '@/components/ThemeConfigurator.vue';
 import FallingEffect from '@/components/FallingEffect.vue';
 import CatEars from '@/components/CatEars.vue';
 import VideoBackground from '@/components/VideoBackground.vue';
+import KeyTestPanel from '@/components/KeyTestPanel.vue';
 import { useTheme } from '@/composables/useTheme';
 
 const props = defineProps<{
@@ -51,6 +52,9 @@ const macroEditorVisible = ref(false);
 const macroEditorSlot = ref(0);
 const kbCardRef = ref<HTMLElement | null>(null);
 const earStyle = ref<Record<string, string>>({});
+const testActiveKeys = ref<number[]>([]);
+const testPulseKey = ref<number | null>(null);
+let testPulseTimer: ReturnType<typeof setTimeout> | null = null;
 
 function updateEarPosition() {
   if (!kbCardRef.value) return;
@@ -69,7 +73,10 @@ function earLoop() {
 }
 
 onMounted(() => { if (themeId.value === 'neko') earLoop(); });
-onUnmounted(() => cancelAnimationFrame(earRaf));
+onUnmounted(() => {
+  cancelAnimationFrame(earRaf);
+  resetKeyTestState();
+});
 
 watch(themeId, (id) => {
   if (id === 'neko') { earLoop(); } else { cancelAnimationFrame(earRaf); }
@@ -185,6 +192,32 @@ function onActionSave(action: KeyAction) {
   editorVisible.value = false;
 }
 
+function updateTestActiveKey(keyIndex: number, pressed: boolean) {
+  const next = new Set(testActiveKeys.value);
+  if (pressed) {
+    next.add(keyIndex);
+  } else {
+    next.delete(keyIndex);
+  }
+  testActiveKeys.value = Array.from(next);
+
+  testPulseKey.value = keyIndex;
+  if (testPulseTimer) clearTimeout(testPulseTimer);
+  testPulseTimer = setTimeout(() => {
+    testPulseKey.value = null;
+    testPulseTimer = null;
+  }, 560);
+}
+
+function resetKeyTestState() {
+  testActiveKeys.value = [];
+  testPulseKey.value = null;
+  if (testPulseTimer) {
+    clearTimeout(testPulseTimer);
+    testPulseTimer = null;
+  }
+}
+
 function onCatAction(action: string) {
   switch (action) {
     case 'refresh': props.onRefresh(); break;
@@ -245,9 +278,16 @@ function onCatAction(action: string) {
           </div>
           <div class="keyboard-container">
             <KeyboardLayout :keyboard-type="currentKeyboardType" :keys="currentLayerKeysForDisplay"
-              :selected-index="selectedKeyIndex" :disabled="previewKeyboardType >= 0" @select="onKeySelect" />
+              :selected-index="selectedKeyIndex" :disabled="previewKeyboardType >= 0"
+              :test-active-indices="testActiveKeys" :test-pulse-index="testPulseKey" @select="onKeySelect" />
           </div>
         </div>
+
+        <KeyTestPanel
+          v-if="previewKeyboardType < 0 && deviceStore.supportsLogs"
+          @key-event="updateTestActiveKey($event.keyIndex, $event.pressed)"
+          @reset="resetKeyTestState"
+        />
 
         <div v-if="deviceStore.hasChanges" class="changes-indicator">
           <i class="pi pi-exclamation-circle"></i>

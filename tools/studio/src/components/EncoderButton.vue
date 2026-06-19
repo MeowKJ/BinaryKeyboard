@@ -9,13 +9,13 @@
 
             <!-- 3个扇形区域（作为可点击的 path） -->
             <path v-for="(part, idx) in encoderParts" :key="`sector-${idx}`" :d="getSectorPath(idx)"
-                :class="['encoder-sector', `encoder-sector-${idx}`, { selected: selectedIndex === part.index }]"
+                :class="['encoder-sector', `encoder-sector-${idx}`, { selected: selectedIndex === part.index, 'test-active': testActiveSet.has(part.index), 'test-pulse': testPulseIndex === part.index }]"
                 @click.stop="!disabled && handlePartClick(part.index)" />
         </svg>
 
         <!-- 标签和徽章（在 SVG 上方） -->
         <div v-for="(part, idx) in encoderParts" :key="`label-${idx}`" class="encoder-label-container"
-            :class="{ selected: selectedIndex === part.index }" :style="getLabelContainerStyle(idx)"
+            :class="{ selected: selectedIndex === part.index, 'test-active': testActiveSet.has(part.index), 'test-pulse': testPulseIndex === part.index }" :style="getLabelContainerStyle(idx)"
             @click.stop="!disabled && handlePartClick(part.index)">
             <span class="encoder-part-label">{{ part.label }}</span>
             <span v-if="part.actionBadge" class="encoder-part-badge">{{ part.actionBadge }}</span>
@@ -49,6 +49,10 @@ const props = defineProps<{
     };
     /** 是否禁用 */
     disabled?: boolean;
+    /** 测试模式: 当前按下的旋钮虚拟键索引 */
+    testActiveIndices?: number[];
+    /** 测试模式: 最近触发的旋钮虚拟键索引 */
+    testPulseIndex?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -73,6 +77,8 @@ const anySelected = computed(() => {
         props.selectedIndex === props.encoderIndices.press ||
         props.selectedIndex === props.encoderIndices.ccw;
 });
+
+const testActiveSet = computed(() => new Set(props.testActiveIndices ?? []));
 
 /** 旋钮的3个部分 */
 const encoderParts = computed(() => {
@@ -282,6 +288,15 @@ function getActionBadge(action: KeyAction): string | null {
     opacity: 1;
 }
 
+.encoder-sector.test-active {
+    fill: rgba(74, 222, 128, 0.38);
+    opacity: 1;
+}
+
+.encoder-sector.test-pulse:not(.test-active) {
+    animation: encoder-test-pulse 520ms ease-out;
+}
+
 .encoder-label-container {
     display: flex;
     flex-direction: column;
@@ -297,6 +312,11 @@ function getActionBadge(action: KeyAction): string | null {
 .encoder-label-container.selected {
     color: var(--c-accent);
     text-shadow: 0 1px 3px rgba(59, 130, 246, 0.5);
+}
+
+.encoder-label-container.test-active {
+    color: var(--c-success);
+    text-shadow: 0 1px 4px rgba(74, 222, 128, 0.45);
 }
 
 .encoder-label-container:hover {
@@ -316,5 +336,10 @@ function getActionBadge(action: KeyAction): string | null {
     opacity: 0.9;
     user-select: none;
     font-weight: 600;
+}
+
+@keyframes encoder-test-pulse {
+    0% { fill: rgba(74, 222, 128, 0.45); }
+    100% { fill: rgba(255, 255, 255, 0.05); }
 }
 </style>

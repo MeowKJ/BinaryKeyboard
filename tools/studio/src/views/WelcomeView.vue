@@ -19,17 +19,17 @@ const { toggleMode, themeMode } = useTheme();
 const linkButtons = [
   {
     label: 'Bilibili',
-    icon: 'pi pi-video',
+    iconSrc: 'https://www.bilibili.com/favicon.ico',
     href: 'https://space.bilibili.com/1676918589',
   },
   {
     label: 'GitHub',
-    icon: 'pi pi-github',
+    iconSrc: 'https://github.githubassets.com/favicons/favicon.svg',
     href: 'https://github.com/MeowKJ/BinaryKeyboard',
   },
   {
     label: 'OSHWHub',
-    icon: 'pi pi-box',
+    iconSrc: 'https://oshwhub.com/favicon.ico',
     href: 'https://oshwhub.com/kjpig/works',
   },
 ];
@@ -144,7 +144,7 @@ const linkButtons = [
           target="_blank"
           rel="noopener"
         >
-          <i :class="link.icon"></i>
+          <img class="welcome-link-icon" :src="link.iconSrc" :alt="`${link.label} 图标`" loading="lazy" />
           <span>{{ link.label }}</span>
           <i class="pi pi-external-link link-external-icon"></i>
         </a>
@@ -175,6 +175,7 @@ const linkButtons = [
 }
 
 .welcome-content {
+  --keyboard-preview-width: 166px;
   text-align: center;
   max-width: 600px;
   width: min(100%, 600px);
@@ -244,10 +245,11 @@ const linkButtons = [
 }
 
 .connect-button {
-  width: 100%;
+  width: min(100%, var(--keyboard-preview-width));
   font-size: 1.1rem !important;
   font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;
+  justify-content: center;
 }
 
 .connect-hint {
@@ -488,6 +490,13 @@ const linkButtons = [
   border-color: var(--c-accent);
   background: var(--c-accent-soft);
   box-shadow: 0 8px 20px -16px var(--c-accent);
+}
+
+.welcome-link-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .link-external-icon {

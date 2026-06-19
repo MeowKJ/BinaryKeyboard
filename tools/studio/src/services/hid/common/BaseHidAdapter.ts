@@ -5,7 +5,7 @@ import type {
   CodecCommandOptions,
   CodecTransport,
 } from "./codecTypes";
-import type { HidAdapter, HidOptionalOperations } from "./types";
+import type { HidAdapter, HidDeviceEventHandler, HidOptionalOperations } from "./types";
 
 export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   readonly protocol: DeviceProtocol;
@@ -24,6 +24,7 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   private responseTimeout: number | null = null;
   private readonly transport: CodecTransport<TResponse>;
   private readonly inputReportHandler = this.handleInputReport.bind(this);
+  private readonly eventHandlers = new Set<HidDeviceEventHandler>();
   private staleResponses: Array<{ frame: Uint8Array; expiresAt: number }> = [];
   private responseDrainUntil = 0;
 
@@ -121,6 +122,13 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
 
   isConnected(): boolean {
     return this.device !== null && this.device.opened;
+  }
+
+  onDeviceEvent(handler: HidDeviceEventHandler): () => void {
+    this.eventHandlers.add(handler);
+    return () => {
+      this.eventHandlers.delete(handler);
+    };
   }
 
   async getSysInfo() {
@@ -283,6 +291,16 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
     const frame = this.responseFrameBytes(event);
     const packet = this.codec.parseIncomingPacket(frame);
     this.addTerminalEntry(packet.entry);
+
+    if (packet.kind === "event") {
+      const deviceEvent = {
+        protocol: this.protocol,
+        frame: frame.slice(),
+        entry: packet.entry,
+      };
+      this.eventHandlers.forEach((handler) => handler(deviceEvent));
+      return;
+    }
 
     if (packet.kind !== "response") {
       return;

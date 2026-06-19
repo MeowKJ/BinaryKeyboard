@@ -6,7 +6,7 @@
 import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData } from '@/types/protocol';
 import { showToast } from '@/services/toastService';
 import { createHidAdapters } from './hid/registry';
-import type { BatteryInfo, HidAdapter, HidOptionalOperations } from './hid/common/types';
+import type { BatteryInfo, HidAdapter, HidDeviceEventHandler, HidOptionalOperations } from './hid/common/types';
 import { OPTIONAL_OPERATION_LABELS } from './hid/common/types';
 
 const ADAPTERS: HidAdapter[] = createHidAdapters();
@@ -96,6 +96,11 @@ export class HidService {
 
   isConnected(): boolean {
     return this.activeAdapter?.isConnected() ?? false;
+  }
+
+  onDeviceEvent(handler: HidDeviceEventHandler): () => void {
+    const adapter = this.requireAdapter();
+    return adapter.onDeviceEvent(handler);
   }
 
   async getSysInfo(): Promise<DeviceInfo> {

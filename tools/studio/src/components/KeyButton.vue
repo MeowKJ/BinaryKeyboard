@@ -1,7 +1,7 @@
 <template>
   <button 
     class="key-button" 
-    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction, disabled }]"
+    :class="[sizeClass, typeClass, { selected, 'has-action': hasAction, disabled, 'test-active': testActive, 'test-pulse': testPulse }]"
     :style="gridStyle"
     :disabled="disabled"
     @click="!disabled && emit('click')"
@@ -27,6 +27,10 @@ const props = defineProps<{
   selected: boolean;
   /** 是否禁用 */
   disabled?: boolean;
+  /** 测试模式: 当前按下 */
+  testActive?: boolean;
+  /** 测试模式: 最近触发 */
+  testPulse?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -176,6 +180,17 @@ function getWheelName(dir: number): string {
   box-shadow: 0 0 0 3px var(--c-accent-soft), 0 8px 24px var(--c-key-shadow);
 }
 
+.key-button.test-active {
+  background: color-mix(in srgb, var(--c-success) 24%, var(--c-key-bg));
+  border-color: var(--c-success);
+  color: var(--c-text-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-success) 30%, transparent), 0 8px 24px rgba(74, 222, 128, 0.24);
+}
+
+.key-button.test-pulse:not(.test-active) {
+  animation: key-test-pulse 520ms ease-out;
+}
+
 .key-button.has-action {
   color: var(--c-text-primary);
 }
@@ -266,4 +281,18 @@ function getWheelName(dir: number): string {
 .badge-mouse { color: var(--c-warning); }
 .badge-layer { color: var(--c-accent); }
 .badge-macro { color: var(--c-danger); }
+
+@keyframes key-test-pulse {
+  0% {
+    border-color: var(--c-success);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-success) 42%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+  100% {
+    border-color: var(--c-key-border);
+    box-shadow: none;
+  }
+}
 </style>

@@ -11,12 +11,21 @@ import type {
   MacroData,
 } from '@/types/protocol';
 import type { DeviceUiProvider } from '@/types/deviceUi';
+import type { TerminalEntryDraft } from './codecTypes';
 
 export interface BatteryInfo {
   level: number;
   voltage: number;
   isCharging: boolean;
 }
+
+export interface HidDeviceEvent {
+  protocol: DeviceProtocol;
+  frame: Uint8Array;
+  entry: TerminalEntryDraft;
+}
+
+export type HidDeviceEventHandler = (event: HidDeviceEvent) => void;
 
 export interface HidOptionalOperations {
   getRgbConfig?: () => Promise<RgbConfig>;
@@ -64,6 +73,7 @@ export interface HidAdapter {
   disconnect(): Promise<void>;
   getDevice(): HIDDevice | null;
   isConnected(): boolean;
+  onDeviceEvent(handler: HidDeviceEventHandler): () => void;
 
   getSysInfo(): Promise<DeviceInfo>;
   getSysStatus(): Promise<DeviceStatus>;

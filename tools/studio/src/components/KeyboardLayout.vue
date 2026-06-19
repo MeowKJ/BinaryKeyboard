@@ -9,10 +9,12 @@
           press: getAction(encoderIndices.press),
           ccw: getAction(encoderIndices.ccw),
         }" :selected-index="selectedIndex" :encoder-indices="encoderIndices" :disabled="disabled"
+          :test-active-indices="testActiveIndices" :test-pulse-index="testPulseIndex"
           @select="!disabled && emit('select', $event)" />
         <!-- 普通按键 -->
         <KeyButton v-else-if="key.type !== 'encoder-cw' && key.type !== 'encoder-ccw'" :key-def="key"
           :action="getAction(key.index)" :selected="selectedIndex === key.index" :disabled="disabled"
+          :test-active="testActiveSet.has(key.index)" :test-pulse="testPulseIndex === key.index"
           @click="!disabled && emit('select', key.index)" />
       </template>
     </div>
@@ -31,6 +33,8 @@ const props = defineProps<{
   keys: KeyAction[];
   selectedIndex: number;
   disabled?: boolean; // 预览模式下禁用点击
+  testActiveIndices?: number[];
+  testPulseIndex?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -51,6 +55,8 @@ const displayKeys = computed(() => {
     key.type !== 'encoder-cw' && key.type !== 'encoder-ccw'
   );
 });
+
+const testActiveSet = computed(() => new Set(props.testActiveIndices ?? []));
 
 /** 旋钮的3个按键索引 */
 const encoderIndices = computed(() => {
