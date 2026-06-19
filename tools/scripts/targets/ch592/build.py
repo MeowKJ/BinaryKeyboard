@@ -97,7 +97,7 @@ def _size_row_from_artifact(build_dir: Path) -> Optional[tuple[int, int, int]]:
     try:
         res = subprocess.run(
             [cross_size, "--format=berkeley", str(elf_file)],
-            capture_output=True, text=True, check=True
+            capture_output=True, text=True, check=True, timeout=3
         )
     except Exception:
         return None
@@ -127,7 +127,7 @@ def _artifact_region_usage_from_objdump(build_dir: Path) -> Optional[dict[str, i
     try:
         res = subprocess.run(
             [cross_objdump, "-h", str(elf_file)],
-            capture_output=True, text=True, check=True
+            capture_output=True, text=True, check=True, timeout=3
         )
     except Exception:
         return None
@@ -303,6 +303,10 @@ def _generator_configure_args() -> list[str]:
     return args
 
 
+def _ninja_build_files_ready(build_dir: Path) -> bool:
+    return (build_dir / "CMakeCache.txt").is_file() and (build_dir / "build.ninja").is_file()
+
+
 def cmake_configure_args(cmake: Path, keyboard: str, profile: str, build_dir: Path) -> list[str]:
     build_type = {"release": "MinSizeRel", "debug": "Debug"}[profile]
     return [
@@ -423,7 +427,7 @@ def build(keyboard: str, profile: str) -> Path:
     cached_keyboard = _parse_cmake_cache_var(cache_file, "KEYBOARD")
     cached_model = _parse_cmake_cache_var(cache_file, "KBD_MODEL")
     if (
-        not cache_file.is_file()
+        not _ninja_build_files_ready(build_dir)
         or (cached_keyboard and _normalize_keyboard(cached_keyboard) != keyboard)
         or (cached_model and _normalize_keyboard(cached_model) != keyboard)
     ):
@@ -573,7 +577,7 @@ def bootloader_build() -> Path:
 
     build_dir = IAP_BUILD_DIR
     cache_file = build_dir / "CMakeCache.txt"
-    if not cache_file.is_file():
+    if not _ninja_build_files_ready(build_dir):
         bootloader_configure()
 
     sep()
@@ -632,7 +636,7 @@ def jumpiap_build() -> Path:
 
     build_dir = JUMPIAP_BUILD_DIR
     cache_file = build_dir / "CMakeCache.txt"
-    if not cache_file.is_file():
+    if not _ninja_build_files_ready(build_dir):
         jumpiap_configure()
 
     sep()

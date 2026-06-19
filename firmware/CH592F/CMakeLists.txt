@@ -208,9 +208,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 else()
     list(APPEND CH592_COMPILE_DEFINITIONS
-        DEBUG=Debug_UART1
-        UART_LOG_ENABLE=1
-        KBD_DEBUG_BUILD=1
+        UART_LOG_ENABLE=0
+        KBD_DEBUG_BUILD=0
         KBD_USB_LOG_ENABLE=0
     )
 endif()
