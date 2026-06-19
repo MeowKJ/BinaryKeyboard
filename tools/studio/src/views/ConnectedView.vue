@@ -132,7 +132,7 @@ const saveKeymapLabel = computed(() => deviceStore.supportsExplicitSave ? '保�
 const keyboardCardSubtitle = computed(() => {
   if (previewKeyboardType.value >= 0) return '预览布局模式';
   if (deviceStore.supportsMultiLayer) {
-    const modifierLabel = deviceStore.deviceInfo?.protocol === 'ch552' ? 'FUNC' : 'FN';
+    const modifierLabel = deviceStore.deviceInfo?.protocol === 'ch552' ? 'FUNC' : 'BOOT';
     return `点击按键进行编辑 · 按住 ${modifierLabel} + 按键N 切换到层N`;
   }
   return '点击按键进行编辑 · 当前设备仅支持单层键位映射';

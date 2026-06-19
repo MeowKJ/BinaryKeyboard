@@ -115,19 +115,9 @@ void KBD_Core_Process(void)
 }
 
 /**
- * @brief 检查是否有层切换修饰键被按下 (FN 或 BOOT)
+ * @brief 检查 BOOT 层切换修饰键是否被按下
  */
-static bool IsLayerModifierHeld(void)
-{
-    for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
-    {
-        if (FnKey_IsDown(i) == 1)
-        {
-            return true;
-        }
-    }
-    return (BootKey_IsPressed() == 1);
-}
+static bool IsBootLayerModifierHeld(void) { return (BootKey_IsPressed() == 1); }
 
 /**
  * @brief 处理普通按键事件
@@ -149,24 +139,18 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         KBD_RGB_RegisterKeyPress(evt->key);
     }
 
-    /* 层切换组合键：按住 FN/BOOT + 按键 = 切换到对应层 */
-    if (IsLayerModifierHeld() && pressed)
+    /* 层切换组合键：按住 BOOT + 按键 = 切换到对应层 */
+    if (IsBootLayerModifierHeld() && pressed)
     {
         uint8_t target_layer = evt->key; /* 按键0->层0, 按键1->层1... */
         kbd_keymap_t *keymap = KBD_GetKeymap();
 
         if (target_layer < keymap->num_layers)
         {
-            LOG_I(TAG, "Modifier+Key%d -> Layer %d", evt->key, target_layer);
+            LOG_I(TAG, "BOOT+Key%d -> Layer %d", evt->key, target_layer);
             SwitchLayer(target_layer);
             memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
             s_active_action_valid[evt->key] = 1;
-            /* 标记所有按住的 FN 键: 松开时不触发 click/long */
-            for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
-            {
-                if (FnKey_IsDown(i) == 1)
-                    FnKey_MarkComboUsed(i);
-            }
             return; /* 不执行按键原本的动作 */
         }
     }
