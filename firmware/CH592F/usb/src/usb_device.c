@@ -8,6 +8,7 @@
 
 #include "usb_device.h"
 #include "debug.h"
+#include "kbd_mode.h"
 #include <string.h>
 
 #define TAG "USB"
@@ -21,7 +22,7 @@ uint8_t g_USB_SleepStatus = 0;
 uint8_t g_SetupReqCode = 0;
 uint16_t g_SetupReqLen = 0;
 const uint8_t *g_pDescriptor = NULL;
-static uint8_t g_SetupReqInterface = 0;  // 保存当前请求的接口号
+static uint8_t g_SetupReqInterface = 0; // 保存当前请求的接口号
 
 uint8_t g_IdleValue[4] = {0};
 uint8_t g_ProtocolValue[4] = {0};
@@ -346,10 +347,10 @@ void USB_Device_Deinit(void)
 {
     PFIC_DisableIRQ(USB_IRQn);
     R16_PIN_ANALOG_IE &= ~(RB_PIN_USB_IE | RB_PIN_USB_DP_PU); /* 移除 D+ 上拉与 USB 模拟使能 */
-    R8_UDEV_CTRL = 0;                                          /* 关闭 USB 端口 */
-    R8_USB_CTRL = 0;                                            /* 关闭 USB 模块 */
-    R8_USB_INT_EN = 0;                                          /* 清除中断使能 */
-    GPIOB_ModeCfg(GPIO_Pin_10 | GPIO_Pin_11, GPIO_ModeIN_PD);  /* USB D-/D+ 下拉，避免浮空干扰 */
+    R8_UDEV_CTRL = 0;                                         /* 关闭 USB 端口 */
+    R8_USB_CTRL = 0;                                          /* 关闭 USB 模块 */
+    R8_USB_INT_EN = 0;                                        /* 清除中断使能 */
+    GPIOB_ModeCfg(GPIO_Pin_10 | GPIO_Pin_11, GPIO_ModeIN_PD); /* USB D-/D+ 下拉，避免浮空干扰 */
     g_USB_DeviceState = USB_STATE_DETACHED;
 }
 
@@ -363,6 +364,11 @@ void USB_Device_TransferProcess(void)
 
     if (intflag & RB_UIF_TRANSFER)
     {
+        if (KBD_Mode_IsInSleep())
+        {
+            KBD_Mode_RequestWake();
+        }
+
         if ((R8_USB_INT_ST & MASK_UIS_TOKEN) != MASK_UIS_TOKEN)
         {
             switch (R8_USB_INT_ST & (MASK_UIS_TOKEN | MASK_UIS_ENDP))
@@ -445,6 +451,10 @@ void USB_Device_TransferProcess(void)
 
         if (R8_USB_INT_ST & RB_UIS_SETUP_ACT)
         {
+            if (KBD_Mode_IsInSleep())
+            {
+                KBD_Mode_RequestWake();
+            }
             USB_HandleSetupPacket();
             R8_USB_INT_FG = RB_UIF_TRANSFER;
         }
@@ -459,6 +469,10 @@ void USB_Device_TransferProcess(void)
         R8_UEP4_CTRL = UEP_R_RES_ACK | UEP_T_RES_NAK;
         R8_USB_INT_FG = RB_UIF_BUS_RST;
         g_USB_DeviceState = USB_STATE_DEFAULT;
+        if (KBD_Mode_IsInSleep())
+        {
+            KBD_Mode_RequestWake();
+        }
     }
     else if (intflag & RB_UIF_SUSPEND)
     {

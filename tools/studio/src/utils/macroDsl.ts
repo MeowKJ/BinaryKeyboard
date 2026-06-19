@@ -5,7 +5,7 @@ import {
   Modifier,
   type MacroAction,
 } from "@/types/protocol";
-import { CONSUMER_KEYS } from "@/utils/consumer";
+import { CONSUMER_KEYS, isMacroConsumerCodeSupported } from "@/utils/consumer";
 import { KEYCODE_NAMES } from "@/utils/keycodes";
 
 const DELAY_ACTION_MAX_MS = 2550;
@@ -367,13 +367,13 @@ function buildDslKeyCompletionItems(): Array<{
 function buildConsumerTokenMap(): Record<number, string> {
   const tokens: Record<number, string> = {};
   for (const [token, code] of Object.entries(CONSUMER_ALIASES)) {
-    if (!(code in tokens)) {
+    if (isMacroConsumerCodeSupported(code) && !(code in tokens)) {
       tokens[code] = token.toLowerCase();
     }
   }
 
   for (const item of CONSUMER_KEYS) {
-    if (!(item.code in tokens)) {
+    if (isMacroConsumerCodeSupported(item.code) && !(item.code in tokens)) {
       tokens[item.code] = `consumer_${item.code.toString(16)}`;
     }
   }
@@ -449,7 +449,11 @@ function parseConsumerToken(token: string): number | null {
     .trim()
     .replace(/[\s-]+/g, "_")
     .toUpperCase();
-  return CONSUMER_ALIASES[normalized] ?? null;
+  const code = CONSUMER_ALIASES[normalized];
+  if (!isMacroConsumerCodeSupported(code ?? -1)) {
+    return null;
+  }
+  return code;
 }
 
 /**

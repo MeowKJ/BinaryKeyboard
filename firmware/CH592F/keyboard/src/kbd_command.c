@@ -422,8 +422,9 @@ static void HandleLayerSet(const kbd_cmd_frame_t *frame)
 static void HandleRgbGet(const kbd_cmd_frame_t *frame)
 {
   kbd_rgb_config_t *rgb = KBD_GetRgbConfig();
+  kbd_system_config_t *sys = KBD_GetSystemConfig();
 
-  uint8_t resp[12];
+  uint8_t resp[13];
   resp[0] = KBD_RESP_OK;
   resp[1] = rgb->enabled;
   resp[2] = rgb->mode;
@@ -435,8 +436,10 @@ static void HandleRgbGet(const kbd_cmd_frame_t *frame)
   resp[8] = rgb->indicator_enabled;
   resp[9] = rgb->indicator_brightness;
   resp[10] = rgb->press_effect;
+  resp[11] = sys->auto_sleep_min;
+  resp[12] = sys->deep_sleep_min;
 
-  KBD_Command_SendResponse(KBD_CMD_RGB_GET, 0, resp, 11);
+  KBD_Command_SendResponse(KBD_CMD_RGB_GET, 0, resp, 13);
 }
 
 /**
@@ -445,37 +448,45 @@ static void HandleRgbGet(const kbd_cmd_frame_t *frame)
 static void HandleRgbSet(const kbd_cmd_frame_t *frame)
 {
   kbd_rgb_config_t *rgb = KBD_GetRgbConfig();
+  kbd_system_config_t *sys = KBD_GetSystemConfig();
+  const uint8_t expected_len = 12;
 
-  if (frame->len >= 8)
+  if (frame->len != expected_len)
   {
-    rgb->enabled = frame->data[0];
-    rgb->mode = frame->data[1];
-    rgb->brightness = frame->data[2];
-    rgb->speed = frame->data[3];
-    rgb->color_r = frame->data[4];
-    rgb->color_g = frame->data[5];
-    rgb->color_b = frame->data[6];
-    rgb->indicator_enabled = 1; /* 指示灯始终启用，不允许用户关闭 */
-    /* indicator_brightness: 兼容旧协议，若 data[8] 存在则使用，低于最低值则提升
-     */
-    if (frame->len >= 9)
-    {
-      uint8_t v = frame->data[8];
-      rgb->indicator_brightness =
-          (v < KBD_INDICATOR_MIN_BRIGHTNESS) ? KBD_INDICATOR_MIN_BRIGHTNESS : v;
-    }
-    if (frame->len >= 10)
-    {
-      uint8_t pe = frame->data[9];
-      rgb->press_effect = (pe <= 2) ? pe : 0;
-    }
-
-    KBD_RGB_SetMode((kbd_rgb_mode_t)rgb->mode);
-    KBD_RGB_SetBrightness(rgb->brightness);
-    KBD_RGB_SetIndicatorBrightness(rgb->indicator_brightness);
-
-    KBD_Config_Save();
+    uint8_t resp[1] = {KBD_RESP_ERR_PARAM};
+    LOG_W(TAG, "RGB set data invalid: len=%d need=%d", frame->len, expected_len);
+    KBD_Command_SendResponse(KBD_CMD_RGB_SET, 0, resp, 1);
+    return;
   }
+
+  rgb->enabled = frame->data[0];
+  rgb->mode = frame->data[1];
+  rgb->brightness = frame->data[2];
+  rgb->speed = frame->data[3];
+  rgb->color_r = frame->data[4];
+  rgb->color_g = frame->data[5];
+  rgb->color_b = frame->data[6];
+  rgb->indicator_enabled = 1; /* 指示灯始终启用，不允许用户关闭 */
+
+  {
+    uint8_t v = frame->data[8];
+    rgb->indicator_brightness =
+        (v < KBD_INDICATOR_MIN_BRIGHTNESS) ? KBD_INDICATOR_MIN_BRIGHTNESS : v;
+  }
+
+  {
+    uint8_t pe = frame->data[9];
+    rgb->press_effect = (pe <= 2) ? pe : 0;
+  }
+
+  sys->auto_sleep_min = frame->data[10];
+  sys->deep_sleep_min = frame->data[11];
+
+  KBD_RGB_SetMode((kbd_rgb_mode_t)rgb->mode);
+  KBD_RGB_SetBrightness(rgb->brightness);
+  KBD_RGB_SetIndicatorBrightness(rgb->indicator_brightness);
+
+  KBD_Config_Save();
 
   uint8_t resp[1] = {KBD_RESP_OK};
   KBD_Command_SendResponse(KBD_CMD_RGB_SET, 0, resp, 1);

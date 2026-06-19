@@ -23,7 +23,8 @@
 #include "kbd_types.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 /*============================================================================*/
@@ -34,175 +35,202 @@ extern "C" {
  */
 
 /** @name 蓝牙未连接 - 红色 */
-#define KBD_IND_BLE_DISCONN_R   255
-#define KBD_IND_BLE_DISCONN_G   0
-#define KBD_IND_BLE_DISCONN_B   0
+#define KBD_IND_BLE_DISCONN_R 255
+#define KBD_IND_BLE_DISCONN_G 0
+#define KBD_IND_BLE_DISCONN_B 0
 
 /** @name 蓝牙广播中 - 蓝色 */
-#define KBD_IND_BLE_ADV_R       0
-#define KBD_IND_BLE_ADV_G       0
-#define KBD_IND_BLE_ADV_B       255
+#define KBD_IND_BLE_ADV_R 0
+#define KBD_IND_BLE_ADV_G 0
+#define KBD_IND_BLE_ADV_B 255
 
 /** @name 蓝牙已连接 - 绿色 */
-#define KBD_IND_BLE_CONN_R      0
-#define KBD_IND_BLE_CONN_G      255
-#define KBD_IND_BLE_CONN_B      0
+#define KBD_IND_BLE_CONN_R 0
+#define KBD_IND_BLE_CONN_G 255
+#define KBD_IND_BLE_CONN_B 0
 
 /** @name USB 已连接 - 白色 */
-#define KBD_IND_USB_CONN_R      255
-#define KBD_IND_USB_CONN_G      255
-#define KBD_IND_USB_CONN_B      255
+#define KBD_IND_USB_CONN_R 255
+#define KBD_IND_USB_CONN_G 255
+#define KBD_IND_USB_CONN_B 255
 
 /** @name 低电量 - 琥珀橙 (区别于 BLE 断连红色) */
-#define KBD_IND_LOW_BATT_R      255
-#define KBD_IND_LOW_BATT_G      80
-#define KBD_IND_LOW_BATT_B      0
+#define KBD_IND_LOW_BATT_R 255
+#define KBD_IND_LOW_BATT_G 80
+#define KBD_IND_LOW_BATT_B 0
 
-/** @} */ /* end of KBD_RGB_Colors */
+/** @name 充电中 - 琥珀金 */
+#define KBD_IND_CHARGING_R 255
+#define KBD_IND_CHARGING_G 140
+#define KBD_IND_CHARGING_B 16
 
-/*============================================================================*/
-/**
- * @defgroup KBD_RGB_API RGB 控制接口
- * @{
- */
+/** @name 低功耗待机 - 蓝青 */
+#define KBD_IND_SLEEP_READY_R 0
+#define KBD_IND_SLEEP_READY_G 160
+#define KBD_IND_SLEEP_READY_B 255
 
-/**
- * @brief 初始化 RGB 灯效引擎
- *
- * 初始化 WS2812 驱动并加载 RGB 配置
- */
-void KBD_RGB_Init(void);
+/** @name 低功耗中 - 深蓝 */
+#define KBD_IND_SLEEPING_R 0
+#define KBD_IND_SLEEPING_G 48
+#define KBD_IND_SLEEPING_B 255
 
-/**
- * @brief RGB 效果处理函数
- *
- * 根据当前模式更新 LED 状态
- *
- * @note 由 TMOS 定时事件驱动，约每 20ms 调用一次
- */
-void KBD_RGB_Process(void);
+    /** @} */ /* end of KBD_RGB_Colors */
 
-/**
- * @brief 设置 RGB 模式
- *
- * @param[in] mode 目标模式 @ref kbd_rgb_mode_t
- */
-void KBD_RGB_SetMode(kbd_rgb_mode_t mode);
+    /*============================================================================*/
+    /**
+     * @defgroup KBD_RGB_API RGB 控制接口
+     * @{
+     */
 
-/**
- * @brief 获取当前 RGB 模式
- *
- * @return 当前模式 @ref kbd_rgb_mode_t
- */
-kbd_rgb_mode_t KBD_RGB_GetMode(void);
+    /**
+     * @brief 初始化 RGB 灯效引擎
+     *
+     * 初始化 WS2812 驱动并加载 RGB 配置
+     */
+    void KBD_RGB_Init(void);
 
-/**
- * @brief 切换到下一个模式
- */
-void KBD_RGB_NextMode(void);
+    /**
+     * @brief RGB 效果处理函数
+     *
+     * 根据当前模式更新 LED 状态
+     *
+     * @note 由 TMOS 定时事件驱动，约每 20ms 调用一次
+     */
+    void KBD_RGB_Process(void);
 
-/**
- * @brief 切换到上一个模式
- */
-void KBD_RGB_PrevMode(void);
+    /**
+     * @brief 设置 RGB 模式
+     *
+     * @param[in] mode 目标模式 @ref kbd_rgb_mode_t
+     */
+    void KBD_RGB_SetMode(kbd_rgb_mode_t mode);
 
-/**
- * @brief 开关 RGB
- *
- * 切换 RGB 总开关状态
- */
-void KBD_RGB_Toggle(void);
+    /**
+     * @brief 获取当前 RGB 模式
+     *
+     * @return 当前模式 @ref kbd_rgb_mode_t
+     */
+    kbd_rgb_mode_t KBD_RGB_GetMode(void);
 
-/**
- * @brief 设置 RGB/按键灯亮度
- *
- * @param[in] brightness 亮度值 (0-255)
- */
-void KBD_RGB_SetBrightness(uint8_t brightness);
+    /**
+     * @brief 切换到下一个模式
+     */
+    void KBD_RGB_NextMode(void);
 
-/**
- * @brief 设置指示灯亮度
- *
- * @param[in] brightness 亮度值 (0-255)
- */
-void KBD_RGB_SetIndicatorBrightness(uint8_t brightness);
+    /**
+     * @brief 切换到上一个模式
+     */
+    void KBD_RGB_PrevMode(void);
 
-/**
- * @brief 增加亮度
- *
- * @param[in] step 增量 (建议 16)
- */
-void KBD_RGB_BrightnessUp(uint8_t step);
+    /**
+     * @brief 开关 RGB
+     *
+     * 切换 RGB 总开关状态
+     */
+    void KBD_RGB_Toggle(void);
 
-/**
- * @brief 降低亮度
- *
- * @param[in] step 减量 (建议 16)
- */
-void KBD_RGB_BrightnessDown(uint8_t step);
+    /**
+     * @brief 设置 RGB/按键灯亮度
+     *
+     * @param[in] brightness 亮度值 (0-255)
+     */
+    void KBD_RGB_SetBrightness(uint8_t brightness);
 
-/**
- * @brief 设置静态颜色
- *
- * @param[in] r 红色分量 (0-255)
- * @param[in] g 绿色分量 (0-255)
- * @param[in] b 蓝色分量 (0-255)
- */
-void KBD_RGB_SetColor(uint8_t r, uint8_t g, uint8_t b);
+    /**
+     * @brief 设置指示灯亮度
+     *
+     * @param[in] brightness 亮度值 (0-255)
+     */
+    void KBD_RGB_SetIndicatorBrightness(uint8_t brightness);
 
-/**
- * @brief 设置动画速度
- *
- * @param[in] speed 速度值 (0=最慢, 255=最快)
- */
-void KBD_RGB_SetSpeed(uint8_t speed);
+    /**
+     * @brief 增加亮度
+     *
+     * @param[in] step 增量 (建议 16)
+     */
+    void KBD_RGB_BrightnessUp(uint8_t step);
 
-/**
- * @brief 设置状态指示
- *
- * 根据键盘当前状态设置指示灯颜色和效果
- *
- * @param[in] state 当前状态 @ref kbd_state_t
- */
-void KBD_RGB_SetState(kbd_state_t state);
+    /**
+     * @brief 降低亮度
+     *
+     * @param[in] step 减量 (建议 16)
+     */
+    void KBD_RGB_BrightnessDown(uint8_t step);
 
-/**
- * @brief 启用/禁用状态指示
- *
- * @param[in] enable true=启用, false=禁用
- */
-void KBD_RGB_EnableIndicator(bool enable);
+    /**
+     * @brief 设置静态颜色
+     *
+     * @param[in] r 红色分量 (0-255)
+     * @param[in] g 绿色分量 (0-255)
+     * @param[in] b 蓝色分量 (0-255)
+     */
+    void KBD_RGB_SetColor(uint8_t r, uint8_t g, uint8_t b);
 
-/**
- * @brief 临时闪烁指示
- *
- * 用于按键反馈或提示，闪烁后自动恢复原状态
- *
- * @param[in] r           红色分量
- * @param[in] g           绿色分量
- * @param[in] b           蓝色分量
- * @param[in] duration_ms 闪烁持续时间 (毫秒)
- */
-void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms);
+    /**
+     * @brief 设置动画速度
+     *
+     * @param[in] speed 速度值 (0=最慢, 255=最快)
+     */
+    void KBD_RGB_SetSpeed(uint8_t speed);
 
-/**
- * @brief 层切换指示闪烁
- *
- * 切换层时，对应按键 LED 与指示灯同步闪烁 3 次（颜色为该层颜色）。
- * 闪烁结束后，按键灯恢复正常灯效，指示灯恢复状态显示。
- *
- * @param[in] layer 层号 (0-4)
- */
-void KBD_RGB_FlashLayer(uint8_t layer);
+    /**
+     * @brief 设置状态指示
+     *
+     * 根据键盘当前状态设置指示灯颜色和效果
+     *
+     * @param[in] state 当前状态 @ref kbd_state_t
+     */
+    void KBD_RGB_SetState(kbd_state_t state);
 
-/**
- * @brief 注册按键按下事件（用于按下效果）
- *
- * @param[in] key_index 按键索引 (0 ~ KBD_NUM_KEYS-1)
- */
-void KBD_RGB_RegisterKeyPress(uint8_t key_index);
+    /**
+     * @brief 启用/禁用状态指示
+     *
+     * @param[in] enable true=启用, false=禁用
+     */
+    void KBD_RGB_EnableIndicator(bool enable);
 
-/** @} */ /* end of KBD_RGB_API */
+    /**
+     * @brief 设置是否进入低功耗指示灯模式。
+     * @param enable true=仅保留指示灯动画，关闭按键灯；false=恢复正常 RGB 处理
+     */
+    void KBD_RGB_SetLowPower(bool enable);
+
+    /**
+     * @brief 暂停或恢复 RGB 周期任务。
+     * @param enable false=暂停周期刷新，true=恢复周期刷新
+     */
+    void KBD_RGB_SetSchedulerEnabled(bool enable);
+
+    /**
+     * @brief 临时闪烁指示
+     *
+     * 用于按键反馈或提示，闪烁后自动恢复原状态
+     *
+     * @param[in] r           红色分量
+     * @param[in] g           绿色分量
+     * @param[in] b           蓝色分量
+     * @param[in] duration_ms 闪烁持续时间 (毫秒)
+     */
+    void KBD_RGB_Flash(uint8_t r, uint8_t g, uint8_t b, uint16_t duration_ms);
+
+    /**
+     * @brief 层切换指示闪烁
+     *
+     * 切换层时，对应按键 LED 与指示灯同步闪烁 3 次（颜色为该层颜色）。
+     * 闪烁结束后，按键灯恢复正常灯效，指示灯恢复状态显示。
+     *
+     * @param[in] layer 层号 (0-4)
+     */
+    void KBD_RGB_FlashLayer(uint8_t layer);
+
+    /**
+     * @brief 注册按键按下事件（用于按下效果）
+     *
+     * @param[in] key_index 按键索引 (0 ~ KBD_NUM_KEYS-1)
+     */
+    void KBD_RGB_RegisterKeyPress(uint8_t key_index);
+
+    /** @} */ /* end of KBD_RGB_API */
 
 #ifdef __cplusplus
 }

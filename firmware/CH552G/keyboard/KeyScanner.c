@@ -91,6 +91,8 @@ void KeyScanner_process(void)
     Keyboard_releaseAll();
     Consumer_releaseAll();
     Mouse_releaseAll();
+    memset(prevKeyReportBuffer, 0, sizeof(prevKeyReportBuffer));
+    prevModReport = 0;
     return;
   }
 

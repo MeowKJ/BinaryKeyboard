@@ -7,7 +7,7 @@ set(CMAKE_SYSTEM_PROCESSOR riscv)
 #
 # This file auto-detects the MounRiver Studio (MRS) RISC-V GCC toolchain.
 # Supported compiler prefixes:
-#   riscv-none-embed-  |  riscv-wch-elf-  |  riscv-none-elf-
+#   riscv32-wch-elf-  |  riscv-wch-elf-  |  riscv-none-embed-  |  riscv-none-elf-
 #
 # Detection order:
 #   1. MRS_TOOLCHAIN_ROOT  — cmake -D / env var / console cache
@@ -51,7 +51,7 @@ endif()
 
 # --- MRS_TOOLCHAIN_ROOT → TOOLCHAIN_DIR ------------------------------------
 if(NOT DEFINED TOOLCHAIN_DIR AND DEFINED MRS_TOOLCHAIN_ROOT)
-    foreach(_sub IN ITEMS "RISC-V Embedded GCC/bin" "RISC-V Embedded GCC12/bin")
+    foreach(_sub IN ITEMS "RISC-V Embedded GCC15/bin" "RISC-V Embedded GCC12/bin" "RISC-V Embedded GCC/bin")
         if(EXISTS "${MRS_TOOLCHAIN_ROOT}/${_sub}")
             set(TOOLCHAIN_DIR "${MRS_TOOLCHAIN_ROOT}/${_sub}"
                 CACHE PATH "RISC-V toolchain bin directory" FORCE)
@@ -93,7 +93,7 @@ foreach(_pass IN ITEMS "hint" "path")
         set(_find_args "")
     endif()
 
-    foreach(_prefix IN ITEMS "riscv-none-embed-" "riscv-wch-elf-" "riscv-none-elf-")
+    foreach(_prefix IN ITEMS "riscv32-wch-elf-" "riscv-wch-elf-" "riscv-none-embed-" "riscv-none-elf-")
         find_program(_probe_gcc "${_prefix}gcc" ${_find_args})
         if(_probe_gcc)
             get_filename_component(_bin_dir "${_probe_gcc}" DIRECTORY)
@@ -114,7 +114,7 @@ if(NOT DEFINED TOOLCHAIN_PREFIX)
         "  CH592F RISC-V cross-compiler not found.\n"
         "  未找到 CH592F RISC-V 交叉编译器。\n"
         "\n"
-        "  Searched: riscv-none-embed-gcc / riscv-wch-elf-gcc / riscv-none-elf-gcc\n"
+        "  Searched: riscv32-wch-elf-gcc / riscv-wch-elf-gcc / riscv-none-embed-gcc / riscv-none-elf-gcc\n"
         "\n"
         "  Fix (choose one):\n"
         "\n"

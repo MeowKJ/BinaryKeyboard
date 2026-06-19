@@ -2,6 +2,13 @@
 
 set -euo pipefail
 
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  echo "[run] Do not run this script with sudo/root." >&2
+  echo "[run] It creates root-owned build artifacts and breaks later CMake builds." >&2
+  echo "[run] Use: ./run.sh" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 VENV_DIR="$PROJECT_ROOT/.venv"

@@ -202,7 +202,7 @@
 
           <div v-if="editorMode === 'visual' && showConsumerMenu" class="sub-menu">
             <div class="sub-menu-grid cols-3">
-              <button v-for="key in CONSUMER_KEYS" :key="key.code" class="sub-menu-item"
+              <button v-for="key in MACRO_CONSUMER_KEYS" :key="key.code" class="sub-menu-item"
                 @click="addConsumer(key.code); showConsumerMenu = false">
                 {{ key.name }}
               </button>
@@ -277,7 +277,7 @@ import {
   MacroActionType,
   type MacroAction,
 } from "@/types/protocol";
-import { CONSUMER_KEYS, getConsumerName } from "@/utils/consumer";
+import { MACRO_CONSUMER_KEYS, getConsumerName } from "@/utils/consumer";
 import { getHidFromEvent, KEYCODE_NAMES } from "@/utils/keycodes";
 import {
   compileMacroCards,

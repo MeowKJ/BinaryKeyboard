@@ -406,6 +406,8 @@ export interface RgbConfig {
   indicatorEnabled: boolean;
   indicatorBrightness: number; /**< 指示灯亮度 (0-255) */
   pressEffect: PressEffect;
+  lightSleepMin?: number; /**< LIGHT 休眠时间（分钟，0=禁用） */
+  deepSleepMin?: number; /**< DEEP 延时（在 LIGHT 后，分钟，0=禁用） */
   pollRate?: number; /**< USB HID 轮询率 bInterval (1=1000Hz, 2=500Hz, 5=200Hz, 10=100Hz) */
 }
 
@@ -621,6 +623,8 @@ export function createDefaultRgbConfig(): RgbConfig {
     indicatorEnabled: true,
     indicatorBrightness: RGB_DEFAULT_BRIGHTNESS,
     pressEffect: PressEffect.NONE,
+    lightSleepMin: 1,
+    deepSleepMin: 1,
     pollRate: 10,
   };
 }

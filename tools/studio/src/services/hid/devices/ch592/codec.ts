@@ -235,13 +235,15 @@ export class Ch592Codec implements DeviceCodec<DataView> {
       colorG: resp.getUint8(d + 6),
       colorB: resp.getUint8(d + 7),
       indicatorEnabled: resp.getUint8(d + 8) !== 0,
-      indicatorBrightness: resp.byteLength >= d + 10 ? resp.getUint8(d + 9) : resp.getUint8(d + 3),
-      pressEffect: resp.byteLength >= d + 11 ? resp.getUint8(d + 10) : PressEffect.NONE,
+      indicatorBrightness: resp.getUint8(d + 9),
+      pressEffect: resp.getUint8(d + 10),
+      lightSleepMin: resp.getUint8(d + 11),
+      deepSleepMin: resp.getUint8(d + 12),
     };
   }
 
   buildSetRgbPayload(config: RgbConfig): Uint8Array {
-    const data = new Uint8Array(10);
+    const data = new Uint8Array(12);
     data[0] = config.enabled ? 1 : 0;
     data[1] = config.mode;
     data[2] = config.brightness;
@@ -250,8 +252,10 @@ export class Ch592Codec implements DeviceCodec<DataView> {
     data[5] = config.colorG;
     data[6] = config.colorB;
     data[7] = config.indicatorEnabled ? 1 : 0;
-    data[8] = config.indicatorBrightness ?? config.brightness;
-    data[9] = config.pressEffect ?? PressEffect.NONE;
+    data[8] = config.indicatorBrightness;
+    data[9] = config.pressEffect;
+    data[10] = config.lightSleepMin!;
+    data[11] = config.deepSleepMin!;
     return data;
   }
 

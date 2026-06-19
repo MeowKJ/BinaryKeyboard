@@ -71,6 +71,12 @@ int BLE_HID_StartAdvertising(void);
 int BLE_HID_StopAdvertising(void);
 
 /**
+ * @brief 设置断链后是否自动恢复广播
+ * @param enable true=自动恢复广播，false=保持静默
+ */
+void BLE_HID_SetAutoResumeAdvertising(bool enable);
+
+/**
  * @brief 断开连接
  * @return 0 成功，其他失败
  */

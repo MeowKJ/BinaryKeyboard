@@ -16,6 +16,8 @@
 #include "kbd_battery.h"
 #include <string.h>
 
+#define TAG "BLE"
+
 /* ==================== 常量定义 ==================== */
 
 // 参数更新延迟（625us 单位）
@@ -38,6 +40,7 @@ static gapRole_States_t g_ble_state = GAPROLE_INIT;
 static uint16_t g_conn_handle = GAP_CONNHANDLE_INIT;
 static ble_hid_callbacks_t *g_pCallbacks = NULL;
 static uint8_t g_keyboard_leds = 0;
+static bool g_auto_resume_advertising = true;
 // HID 配置
 static hidDevCfg_t g_hidDevCfg = {
     BLE_HID_IDLE_TIMEOUT,  // 空闲超时
@@ -74,6 +77,7 @@ static void BLE_HID_EvtCallback (uint8_t evt);
 static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pEvent);
 static void BLE_HID_BuildDeviceNameData (void);
 static uint8_t BLE_HID_ReadBatteryLevel (void);
+static void BLE_HID_ApplyAdvertisingParams (void);
 
 // HID 设备回调
 static hidDevCB_t g_hidDevCallbacks = {
@@ -136,10 +140,17 @@ static uint8_t BLE_HID_ReadBatteryLevel (void) {
     return KBD_Battery_GetLevel();
 }
 
+static void BLE_HID_ApplyAdvertisingParams (void) {
+    GAP_SetParamValue (TGAP_DISC_ADV_INT_MIN, BLE_ADV_INT_MIN);
+    GAP_SetParamValue (TGAP_DISC_ADV_INT_MAX, BLE_ADV_INT_MAX);
+    GAP_SetParamValue (TGAP_LIM_ADV_TIMEOUT, BLE_ADV_TIMEOUT);
+}
+
 /* ==================== 初始化实现 ==================== */
 
 int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     g_pCallbacks = pCBs;
+    g_auto_resume_advertising = true;
     BLE_HID_BuildDeviceNameData();
 
     // 注册 TMOS 任务
@@ -148,6 +159,7 @@ int BLE_HID_Init (ble_hid_callbacks_t *pCBs) {
     // 设置 GAP 角色参数
     {
         uint8_t enable = TRUE;  // BLE 模式自动开始广播（WCH Application 示例方式）
+        BLE_HID_ApplyAdvertisingParams();
         GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
         GAPRole_SetParameter (GAPROLE_ADVERT_DATA, sizeof (g_advertData), g_advertData);
         GAPRole_SetParameter (GAPROLE_SCAN_RSP_DATA, g_scanRspDataLen, g_scanRspData);
@@ -266,10 +278,8 @@ static void BLE_HID_ProcessTMOSMsg (tmos_event_hdr_t *pMsg) {
 /* ==================== 连接管理实现 ==================== */
 
 int BLE_HID_StartAdvertising (void) {
-    // 设置广播参数
-    GAP_SetParamValue (TGAP_DISC_ADV_INT_MIN, BLE_ADV_INT_MIN);
-    GAP_SetParamValue (TGAP_DISC_ADV_INT_MAX, BLE_ADV_INT_MAX);
-    GAP_SetParamValue (TGAP_LIM_ADV_TIMEOUT, BLE_ADV_TIMEOUT);
+    g_auto_resume_advertising = true;
+    BLE_HID_ApplyAdvertisingParams();
 
     // 开始广播
     uint8_t enable = TRUE;
@@ -290,6 +300,11 @@ int BLE_HID_StopAdvertising (void) {
 
     LOG_I (TAG, "Stop advertising");
     return 0;
+}
+
+void BLE_HID_SetAutoResumeAdvertising (bool enable) {
+    g_auto_resume_advertising = enable;
+    LOG_I (TAG, "Auto advertising=%d", enable ? 1 : 0);
 }
 
 int BLE_HID_Disconnect (void) {
@@ -479,10 +494,11 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
                    pEvent->linkTerminate.reason);
         }
 
-        // 自动恢复广播
-        {
+        if (g_auto_resume_advertising) {
             uint8_t enable = TRUE;
             GAPRole_SetParameter (GAPROLE_ADVERT_ENABLED, sizeof (uint8_t), &enable);
+        } else {
+            LOG_I (TAG, "Advertising restart suppressed");
         }
         break;
 
@@ -499,4 +515,3 @@ static void BLE_HID_StateCallback (gapRole_States_t newState, gapRoleEvent_t *pE
         g_pCallbacks->onStateChange (newState);
     }
 }
-

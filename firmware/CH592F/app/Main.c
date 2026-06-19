@@ -52,15 +52,16 @@ int main(void)
     /* 设置系统时钟 */
     SetSysClock(CLK_SOURCE_PLL_60MHz);
 
-#if (defined(HAL_SLEEP)) && (HAL_SLEEP == TRUE)
-    /* 低功耗模式：配置所有GPIO为上拉输入 */
-    GPIOA_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
-    GPIOB_ModeCfg(GPIO_Pin_All, GPIO_ModeIN_PU);
+#if (defined(DCDC_ENABLE)) && (DCDC_ENABLE == TRUE)
+    /* 启用内部 DCDC，节省核心功耗（约 30%） */
+    PWR_DCDCCfg(ENABLE);
 #endif
 
 #ifdef DEBUG
     /* 调试串口初始化 */
     Debug_Init();
+    /* 最早期串口探活：用于确认 UART1(PB13 TX) 链路正常 */
+    Log_Output("I", "BOOT", "UART alive");
 #endif
 
     /* BLE 库初始化（提供 TMOS 调度器，USB/BLE 模式都需要） */

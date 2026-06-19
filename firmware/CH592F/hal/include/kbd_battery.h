@@ -76,6 +76,16 @@ kbd_charge_state_t KBD_Battery_GetChargeState(void);
  */
 uint8_t KBD_Battery_GetVoltage_dV(void);
 
+/**
+ * @brief 进入低功耗：停止周期性采样，确保 VBAT 分压关闭
+ */
+void KBD_Battery_Suspend(void);
+
+/**
+ * @brief 退出低功耗：立即刷新一次电量并重新启动周期性采样
+ */
+void KBD_Battery_Resume(void);
+
 /** @} */
 
 #endif /* KBD_BATTERY_H */

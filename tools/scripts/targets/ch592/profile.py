@@ -14,8 +14,12 @@ from tool_cache import get_cached_tool_path
 
 
 FIRMWARE_DIR = PROJECT_ROOT / "firmware" / "CH592F"
-_MRS_TOOLCHAIN_BIN_DIRS = ("RISC-V Embedded GCC/bin", "RISC-V Embedded GCC12/bin")
-_RISCV_GCC_PREFIXES = ("riscv-none-embed-", "riscv-wch-elf-", "riscv-none-elf-")
+_MRS_TOOLCHAIN_BIN_DIRS = (
+    "RISC-V Embedded GCC15/bin",
+    "RISC-V Embedded GCC12/bin",
+    "RISC-V Embedded GCC/bin",
+)
+_RISCV_GCC_PREFIXES = ("riscv32-wch-elf-", "riscv-wch-elf-", "riscv-none-embed-", "riscv-none-elf-")
 
 
 def _base_preset(state: dict) -> str:

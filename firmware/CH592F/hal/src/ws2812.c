@@ -344,3 +344,30 @@ void WS2812_Set_Indicator(uint8_t r, uint8_t g, uint8_t b) {
  * @brief 清除指示灯
  */
 void WS2812_Clear_Indicator(void) { WS2812_Set(0, 0, 0, 0); }
+
+/**
+ * @brief 进入超低功耗
+ * @note  停 PWM/DMA，拉低使能脚切断 LED 供电；数据脚置高阻，
+ *        避免 MCU 还在驱动已掉电的 LED 导致的 ESD 二极管漏流。
+ */
+void WS2812_Sleep(void) {
+  TMR1_Disable();
+  TMR1_PWMDisable();
+  TMR1_DMACfg(DISABLE, 0, 0, Mode_Single);
+
+  WS2812_DisablePower();
+  s_rgb_powered = 0;
+
+  /* 数据线置高阻：LED 掉电后仍维持推挽输出会通过 DIN ESD 二极管漏流 */
+  GPIOA_ModeCfg(WS2812_PIN, GPIO_ModeIN_Floating);
+
+  memset(ws2812_buf, 0, sizeof(ws2812_buf));
+}
+
+/**
+ * @brief 退出低功耗，恢复数据脚为推挽输出
+ * @note  LED 电源将在下一次 WS2812_Update() 根据像素内容按需自动打开
+ */
+void WS2812_Wakeup(void) {
+  GPIOA_ModeCfg(WS2812_PIN, GPIO_ModeOut_PP_5mA);
+}

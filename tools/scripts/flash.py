@@ -8,12 +8,74 @@ Supports: flash, verify, erase, reset, info, probe, eeprom, config
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 from common import colorize as _c, die, find_wchisp, info, ok, sep, warn
 from versioning import ch552_filename_for_keyboard, ch592_filename_for_keyboard
+
+
+KNOWN_BAD_CH59X_USER_CFG = "0x4FFF0FD5"
+
+
+def _run_capture(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(c) for c in cmd],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _extract_chip_name(output: str) -> str | None:
+    match = re.search(r"Chip:\s+([A-Za-z0-9]+)", output)
+    return match.group(1) if match else None
+
+
+def _extract_user_cfg(output: str) -> str | None:
+    match = re.search(r"USER_CFG:\s*(0x[0-9A-Fa-f]+)", output)
+    return match.group(1).upper() if match else None
+
+
+def _print_device_summary(output: str) -> None:
+    for line in output.splitlines():
+        if any(key in line for key in ("Chip:", "BTVER", "UID", "USER_CFG:")):
+            print(f"  {_c('2', line.strip())}")
+
+
+def _read_device_info(wchisp: Path, extra: list[str]) -> subprocess.CompletedProcess[str]:
+    return _run_capture([str(wchisp), "info"] + extra)
+
+
+def _repair_known_ch59x_verify_cfg(
+    wchisp: Path, extra: list[str], info_output: str
+) -> str:
+    chip_name = _extract_chip_name(info_output)
+    user_cfg = _extract_user_cfg(info_output)
+    if not chip_name or user_cfg != KNOWN_BAD_CH59X_USER_CFG:
+        return info_output
+    if not chip_name.startswith("CH59"):
+        return info_output
+
+    warn(
+        "Detected CH59x USER_CFG 0x4FFF0FD5, a known state that causes ISP verify to fail "
+        "after a successful write. Resetting config registers before flashing."
+    )
+    run([str(wchisp), "config", "reset"] + extra)
+
+    repaired = _read_device_info(wchisp, extra)
+    if repaired.returncode != 0:
+        die("Config reset succeeded, but the device could not be re-identified afterward.")
+
+    repaired_cfg = _extract_user_cfg(repaired.stdout)
+    if repaired_cfg == KNOWN_BAD_CH59X_USER_CFG:
+        die("Config reset did not clear the known-bad CH59x USER_CFG state.")
+
+    info("Config repair applied:")
+    _print_device_summary(repaired.stdout)
+    return repaired.stdout
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -27,23 +89,17 @@ def resolve_file(file_arg: str) -> Path:
     return path
 
 
-def check_device(wchisp: Path, extra: list[str]) -> None:
+def check_device(wchisp: Path, extra: list[str]) -> str:
     info("Checking for ISP device...")
-    result = subprocess.run(
-        [str(wchisp), "info"] + extra,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    result = _read_device_info(wchisp, extra)
     if result.returncode != 0:
         die(
             "No WCH ISP device found.\n\n"
             f"  {_c('33', 'Hint: Hold BOOT button, then connect USB')}\n"
             f"        (or press RESET while holding BOOT)"
         )
-    for line in result.stdout.splitlines():
-        if any(key in line for key in ("Chip:", "BTVER", "UID")):
-            print(f"  {_c('2', line.strip())}")
+    _print_device_summary(result.stdout)
+    return result.stdout
 
 
 def confirm(prompt: str) -> None:
@@ -60,7 +116,8 @@ def confirm(prompt: str) -> None:
 def cmd_flash(args, wchisp: Path, extra: list[str]) -> None:
     file_path = resolve_file(args.file)
     sep()
-    check_device(wchisp, extra)
+    device_info = check_device(wchisp, extra)
+    _repair_known_ch59x_verify_cfg(wchisp, extra, device_info)
 
     flash_args: list[str] = []
     if args.skip_erase:
@@ -81,7 +138,12 @@ def cmd_flash(args, wchisp: Path, extra: list[str]) -> None:
 def cmd_verify(args, wchisp: Path, extra: list[str]) -> None:
     file_path = resolve_file(args.file)
     sep()
-    check_device(wchisp, extra)
+    device_info = check_device(wchisp, extra)
+    if _extract_chip_name(device_info or "") and _extract_user_cfg(device_info or "") == KNOWN_BAD_CH59X_USER_CFG:
+        warn(
+            "Detected CH59x USER_CFG 0x4FFF0FD5. This state is known to make ISP verify fail "
+            "even after a successful flash. Run flash once without --skip-verify to auto-repair it."
+        )
     sep()
     info(f"Verifying: {_c('1', file_path.name)}")
     run([str(wchisp), "verify"] + extra + [str(file_path)])
