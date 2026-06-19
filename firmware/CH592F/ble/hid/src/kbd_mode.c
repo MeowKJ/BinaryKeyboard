@@ -113,10 +113,12 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
     LOG_I(TAG, "init mode=%d", initial_mode);
 
     /*
-     * WCH Application 示例思路：每种模式只初始化对应协议栈
-     * - USB 模式：仅 USB，不初始化 BLE HID
-     * - BLE 模式：仅 BLE HID，不初始化 USB
-     * 模式切换通过 SYS_ResetExecute() 全系统复位实现
+     * 工作模式只决定按键报告发送到哪里：
+     * - USB 模式：按键报告走 USB
+     * - BLE 模式：按键报告走 BLE
+     *
+     * BLE 模式也初始化 USB Device。这样无线使用时插上 USB，Studio 仍可通过
+     * USB HID 配置接口读写当前键盘配置，不需要先切换到 USB 工作模式。
      */
     if (initial_mode == KBD_WORK_MODE_BLE)
     {
@@ -127,6 +129,7 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
             LOG_E(TAG, "BLE init failed %d", ret);
             return ret;
         }
+        USB_Device_Init();
     }
     else
     {
