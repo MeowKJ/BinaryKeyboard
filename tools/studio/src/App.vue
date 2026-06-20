@@ -44,11 +44,12 @@
 
     <!-- 调试终端 -->
     <DebugTerminal />
+    <StormDataFlashPanel v-if="stormDataFlashTestVisible" v-model:visible="stormDataFlashTestVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { useRegisterSW } from 'virtual:pwa-register/vue';
@@ -65,6 +66,7 @@ import WelcomeView from '@/views/WelcomeView.vue';
 import ConnectedView from '@/views/ConnectedView.vue';
 import DebugTerminal from '@/components/DebugTerminal.vue';
 import StormEffect from '@/components/StormEffect.vue';
+import StormDataFlashPanel from '@/components/StormDataFlashPanel.vue';
 
 // 初始化服务
 const toast = useToast();
@@ -72,6 +74,7 @@ initToastService(toast);
 const deviceStore = useDeviceStore();
 const releaseStore = useReleaseStore();
 const isElectron = navigator.userAgent.includes('Electron');
+const stormDataFlashTestVisible = ref(new URLSearchParams(window.location.search).has('stormDataFlashTest'));
 
 // 连接状态
 const {
