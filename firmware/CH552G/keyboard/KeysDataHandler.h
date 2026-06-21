@@ -38,8 +38,13 @@ extern "C"
 #define HOST_CMD_READ_RGB 0x06
 #define HOST_CMD_WRITE_RGB 0x07
 #define HOST_CMD_FACTORY_RESET 0x08
+#define HOST_CMD_READ_OS_MODE 0x09
+#define HOST_CMD_WRITE_OS_MODE 0x0A
 
 #define HOST_CMD_MACRO_INFO 0x40
+
+#define OS_MODE_WIN 0
+#define OS_MODE_MAC 1
 
 // RGB EEPROM 地址 (紧接层数据后面, 动态计算)
 #define EEPROM_RGB_BASE_ADDR (EEPROM_KEYDATA_START + MAX_LAYERS * LAYER_DATA_SIZE)
@@ -58,6 +63,7 @@ extern "C"
 
 // USB HID 轮询率 (bInterval: 1=1000Hz, 2=500Hz, 10=100Hz)
 #define EEPROM_POLL_RATE_ADDR (EEPROM_RGB_BASE_ADDR + 11)
+#define EEPROM_OS_MODE_ADDR (EEPROM_RGB_BASE_ADDR + 12)
 
   // 函数声明
   void KeysDataInit(void);
@@ -68,8 +74,11 @@ extern "C"
   uint16_t getKeyValueAt(uint8_t layer, uint8_t index);
 
   // 层管理
+  extern __xdata uint8_t osMode;
+
   uint8_t getCurrentLayer(void);
   void setCurrentLayer(uint8_t layer);
+  void setOsMode(uint8_t mode);
 
   // EEPROM 接口
   void saveLayerToEEPROM(uint8_t layer);

@@ -934,6 +934,7 @@ function groupConfigSlicesForRegion(region: FlashRegion, slices: PageDatum[]): P
   return Array.from({ length: slots }, (_, slotId) => {
     const offset = slotId * slotSize;
     const slotSlices = slices.filter((slice) => slice.slotId === slotId);
+    const risk: RiskLevel = slotId === 0 ? 'high' : 'medium';
     return {
       index: Math.floor(offset / pageSize.value),
       offset,
@@ -942,7 +943,7 @@ function groupConfigSlicesForRegion(region: FlashRegion, slices: PageDatum[]): P
       slotId,
       label: `SLOT ${slotId}`,
       detail: `${slotSlices.length} ordered fields / ${Math.min(slotSize, Math.max(1, region.size - offset))}B`,
-      risk: slotId === 0 ? 'high' : 'medium',
+      risk,
       children: slotSlices,
     };
   });
@@ -980,7 +981,7 @@ function buildSemanticFrames(region: FlashRegion): PageDatum[] {
 function buildReservedBanks(region: FlashRegion): PageDatum[] {
   const block = pageSize.value || 0x100;
   const count = Math.max(1, Math.ceil(region.size / block));
-  return Array.from({ length: count }, (_, index) => {
+  return Array.from({ length: count }, (_, index): PageDatum => {
     const offset = index * block;
     const size = Math.min(block, Math.max(1, region.size - offset));
     return {

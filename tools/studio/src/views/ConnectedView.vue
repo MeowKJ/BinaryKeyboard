@@ -23,6 +23,7 @@ import FnPanel from '@/components/FnPanel.vue';
 import RgbPanel from '@/components/RgbPanel.vue';
 import ActionsPanel from '@/components/ActionsPanel.vue';
 import MacroPanel from '@/components/MacroPanel.vue';
+import ConfigProfilePanel from '@/components/ConfigProfilePanel.vue';
 import StormDataFlashEntry from '@/components/StormDataFlashEntry.vue';
 import StormDataFlashPanel from '@/components/StormDataFlashPanel.vue';
 import ThemeConfigurator from '@/components/ThemeConfigurator.vue';
@@ -222,6 +223,7 @@ function onCatAction(action: string) {
         <FnPanel v-if="showFnPanel" />
         <RgbPanel v-if="showRgbPanel" />
         <MacroPanel v-if="showMacroPanel" @edit="openMacroEditor" />
+        <ConfigProfilePanel v-if="previewKeyboardType < 0" />
         <StormDataFlashEntry v-if="showStormDataFlashPanel" @open="dataFlashVisible = true" />
         <ActionsPanel v-if="showResetButton" :show-reset-button="showResetButton" @reset="confirmReset" />
       </aside>

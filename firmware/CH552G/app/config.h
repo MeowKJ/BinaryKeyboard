@@ -17,7 +17,7 @@
 #define FW_VERSION_PATCH BK_FIRMWARE_VERSION_PATCH
 
 // CH552 的特性级别用于旧 HID 读写兼容，不参与发布版本号
-#define CH552_FEATURE_LEVEL 0x0D
+#define CH552_FEATURE_LEVEL 0x0E
 // EEPROM 头部只保留本地 schema 常量，避免旧布局被误读
 #define EEPROM_SCHEMA_ID 0x01
 
