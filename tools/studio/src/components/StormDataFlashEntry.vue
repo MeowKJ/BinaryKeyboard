@@ -41,26 +41,27 @@ const emit = defineEmits<{
   min-height: 76px;
   padding: 0.72rem 0.78rem !important;
   overflow: hidden;
-  border-color: rgba(125, 211, 252, 0.3) !important;
+  border-color: rgba(34, 211, 238, 0.62) !important;
   background:
-    linear-gradient(135deg, rgba(2, 6, 23, 0.86), rgba(8, 47, 73, 0.24) 62%, rgba(127, 29, 29, 0.18)),
-    repeating-linear-gradient(90deg, rgba(125, 211, 252, 0.045) 0 1px, transparent 1px 18px) !important;
+    linear-gradient(135deg, rgba(2, 6, 23, 0.78), rgba(8, 47, 73, 0.34) 58%, rgba(127, 29, 29, 0.22)),
+    repeating-linear-gradient(90deg, rgba(125, 211, 252, 0.07) 0 1px, transparent 1px 18px) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(186, 230, 253, 0.045),
-    inset 0 0 28px rgba(14, 165, 233, 0.055),
-    0 0 28px rgba(14, 165, 233, 0.08) !important;
+    inset 0 0 0 1px rgba(186, 230, 253, 0.09),
+    inset 0 0 34px rgba(14, 165, 233, 0.13),
+    0 0 34px rgba(14, 165, 233, 0.22),
+    0 0 18px rgba(244, 63, 94, 0.1) !important;
   cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
 }
 
 .storm-dataflash-entry:hover,
 .storm-dataflash-entry:focus-visible {
-  border-color: rgba(103, 232, 249, 0.68) !important;
+  border-color: rgba(103, 232, 249, 0.96) !important;
   box-shadow:
-    inset 0 0 0 1px rgba(186, 230, 253, 0.08),
-    inset 0 0 30px rgba(14, 165, 233, 0.08),
-    0 0 32px rgba(14, 165, 233, 0.18),
-    0 0 26px rgba(244, 63, 94, 0.08) !important;
+    inset 0 0 0 1px rgba(224, 242, 254, 0.18),
+    inset 0 0 38px rgba(14, 165, 233, 0.16),
+    0 0 42px rgba(34, 211, 238, 0.34),
+    0 0 30px rgba(244, 63, 94, 0.16) !important;
   outline: none;
   transform: translateY(-1px);
 }
@@ -75,14 +76,14 @@ const emit = defineEmits<{
 .storm-dataflash-entry::before {
   inset: 0;
   background:
-    linear-gradient(112deg, transparent 0 44%, rgba(186, 230, 253, 0.2) 47%, transparent 50% 100%);
-  opacity: 0.24;
+    linear-gradient(112deg, transparent 0 42%, rgba(224, 242, 254, 0.38) 47%, rgba(34, 211, 238, 0.16) 50%, transparent 54% 100%);
+  opacity: 0.34;
   animation: entrySweep 4.6s ease-in-out infinite;
 }
 
 .storm-dataflash-entry::after {
   inset: 1px;
-  border: 1px solid rgba(251, 113, 133, 0.1);
+  border: 1px solid rgba(251, 113, 133, 0.24);
   clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 }
 
@@ -101,12 +102,12 @@ const emit = defineEmits<{
   width: 3.2rem;
   height: 3.2rem;
   padding: 0.32rem;
-  border: 1px solid rgba(125, 211, 252, 0.28);
+  border: 1px solid rgba(103, 232, 249, 0.58);
   border-radius: 3px;
   background:
     linear-gradient(135deg, rgba(8, 47, 73, 0.52), rgba(15, 23, 42, 0.76)),
     repeating-linear-gradient(0deg, rgba(125, 211, 252, 0.08) 0 1px, transparent 1px 8px);
-  box-shadow: inset 0 0 18px rgba(125, 211, 252, 0.08), 0 0 18px rgba(14, 165, 233, 0.12);
+  box-shadow: inset 0 0 20px rgba(125, 211, 252, 0.14), 0 0 20px rgba(34, 211, 238, 0.2);
 }
 
 .entry-die span {
@@ -145,7 +146,7 @@ const emit = defineEmits<{
 }
 
 .entry-copy code {
-  color: rgba(125, 211, 252, 0.78);
+  color: rgba(165, 243, 252, 0.92);
   font-size: 0.62rem;
   font-weight: 900;
   line-height: 1;
@@ -160,10 +161,10 @@ const emit = defineEmits<{
   justify-content: center;
   min-width: 2.45rem;
   height: 1.34rem;
-  border: 1px solid rgba(125, 211, 252, 0.24);
+  border: 1px solid rgba(103, 232, 249, 0.42);
   border-radius: 2px;
-  background: rgba(14, 116, 144, 0.14);
-  color: #67e8f9;
+  background: rgba(14, 116, 144, 0.24);
+  color: #a5f3fc;
   font-size: 0.58rem;
   font-weight: 950;
   letter-spacing: 0.04em;
@@ -175,30 +176,45 @@ const emit = defineEmits<{
   justify-content: center;
   width: 2.35rem;
   height: 2.35rem;
-  border: 1px solid rgba(125, 211, 252, 0.42);
+  border: 1px solid rgba(165, 243, 252, 0.98);
   border-radius: 3px;
   background:
-    linear-gradient(135deg, rgba(14, 116, 144, 0.36), rgba(127, 29, 29, 0.28)),
-    rgba(2, 6, 23, 0.64);
-  color: #e0f2fe;
+    linear-gradient(135deg, rgba(224, 242, 254, 0.96), rgba(34, 211, 238, 0.86) 48%, rgba(8, 145, 178, 0.9)),
+    #22d3ee;
+  color: #02111f;
   cursor: pointer;
-  box-shadow: inset 0 0 16px rgba(186, 230, 253, 0.07), 0 0 16px rgba(14, 165, 233, 0.14);
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 -10px 16px rgba(8, 47, 73, 0.18),
+    0 0 22px rgba(34, 211, 238, 0.42),
+    0 6px 18px rgba(0, 0, 0, 0.28);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
 }
 
 .entry-open i {
   font-size: 1rem;
-  filter: drop-shadow(0 0 7px rgba(186, 230, 253, 0.62));
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.7));
 }
 
 .entry-open:hover,
 .storm-dataflash-entry:hover .entry-open {
-  border-color: rgba(186, 230, 253, 0.78);
-  box-shadow: 0 0 18px rgba(14, 165, 233, 0.22), 0 0 12px rgba(251, 113, 133, 0.12);
+  border-color: rgba(255, 255, 255, 1);
+  filter: brightness(1.08) saturate(1.12);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36),
+    inset 0 -10px 16px rgba(8, 47, 73, 0.16),
+    0 0 28px rgba(34, 211, 238, 0.62),
+    0 0 18px rgba(251, 113, 133, 0.2),
+    0 8px 20px rgba(0, 0, 0, 0.32);
 }
 
 .entry-open:hover {
   transform: translateY(-1px);
+}
+
+.entry-open:active {
+  transform: translateY(0) scale(0.96);
+  filter: brightness(0.96) saturate(1.2);
 }
 
 @media (max-width: 760px) {

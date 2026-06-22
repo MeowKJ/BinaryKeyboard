@@ -85,10 +85,10 @@ let currentPhaseDuration = 0;
 
 // ── 阶段主题色 HSL [h, s, l] ──
 const PHASE_ACCENT: Record<WeatherPhase, [number, number, number]> = {
-  clear: [220, 25, 82],
-  cloudy: [215, 15, 62],
-  lightning: [220, 10, 38],
-  rain: [270, 30, 32],
+  clear: [190, 82, 66],
+  cloudy: [198, 74, 58],
+  lightning: [187, 92, 72],
+  rain: [204, 82, 56],
 };
 
 let currentHsl: [number, number, number] = [...PHASE_ACCENT.clear];
@@ -100,8 +100,8 @@ function lerpHsl(a: [number, number, number], b: [number, number, number], t: nu
 function applyAccentColors(h: number, s: number, l: number) {
   const root = document.documentElement;
   root.style.setProperty('--c-accent', `hsl(${h}, ${s}%, ${l}%)`);
-  root.style.setProperty('--c-accent-light', `hsl(${h}, ${s + 5}%, ${Math.min(l + 12, 95)}%)`);
-  root.style.setProperty('--c-accent-soft', `hsla(${h}, ${s}%, ${l}%, 0.15)`);
+  root.style.setProperty('--c-accent-light', `hsl(${h}, ${Math.min(s + 8, 100)}%, ${Math.min(l + 16, 95)}%)`);
+  root.style.setProperty('--c-accent-soft', `hsla(${h}, ${s}%, ${l}%, 0.24)`);
   root.style.setProperty('--c-accent-gradient', `linear-gradient(135deg, hsl(${h}, ${s + 5}%, ${Math.min(l + 12, 95)}%) 0%, hsl(${h}, ${s}%, ${l}%) 100%)`);
 }
 

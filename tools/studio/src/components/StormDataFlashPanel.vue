@@ -4,6 +4,7 @@ import { Application, Container, Graphics } from 'pixi.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { hidService } from '@/services/HidService';
 import { showToast } from '@/services/toastService';
+import StudioDialog from '@/components/StudioDialog.vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import {
   Command,
@@ -955,6 +956,11 @@ function groupPageSlicesForRegion(region: FlashRegion, slices: PageDatum[], fram
     const offset = pageId * frameSize;
     const pageSizeBytes = Math.min(frameSize, Math.max(1, region.size - offset));
     const children = slices.filter((slice) => slice.offset >= offset && slice.offset < offset + frameSize);
+    const risk: RiskLevel = children.some((child) => child.risk === 'critical')
+      ? 'critical'
+      : children.some((child) => child.risk === 'high')
+        ? 'high'
+        : regionMeta(region.id).risk;
     return {
       index: Math.floor(offset / pageSize.value),
       offset,
@@ -963,7 +969,7 @@ function groupPageSlicesForRegion(region: FlashRegion, slices: PageDatum[], fram
       slotId: pageId,
       label: `${labelPrefix} ${String(pageId).padStart(2, '0')}`,
       detail: `${children.length ? `${children.length} ordered fields` : 'physical page'} / ${pageSizeBytes}B`,
-      risk: children.some((child) => child.risk === 'critical') ? 'critical' : children.some((child) => child.risk === 'high') ? 'high' : regionMeta(region.id).risk,
+      risk,
       children: children.length ? children : undefined,
     };
   });
@@ -984,6 +990,7 @@ function buildReservedBanks(region: FlashRegion): PageDatum[] {
   return Array.from({ length: count }, (_, index): PageDatum => {
     const offset = index * block;
     const size = Math.min(block, Math.max(1, region.size - offset));
+    const risk: RiskLevel = 'medium';
     return {
       index,
       offset,
@@ -992,7 +999,7 @@ function buildReservedBanks(region: FlashRegion): PageDatum[] {
       slotId: index,
       label: `RSV PAGE ${String(index).padStart(2, '0')}`,
       detail: `unmapped 256B reserve page / ${size}B`,
-      risk: 'medium',
+      risk,
     };
   }).filter((page) => page.size > 0);
 }
@@ -2247,10 +2254,10 @@ watch([mapByteNodes, showByteLod, activeMapPage, selectedByteOffset], () => {
 </script>
 
 <template>
-  <Dialog
+  <StudioDialog
     v-model:visible="dialogVisible"
-    :style="{ width: 'min(1380px, calc(100vw - 18px))' }"
-    modal
+    size="immersive"
+    dismissable-mask
     class="storm-dataflash-dialog"
     :showHeader="false"
   >
@@ -2653,15 +2660,18 @@ watch([mapByteNodes, showByteLod, activeMapPage, selectedByteOffset], () => {
         </div>
       </div>
     </div>
-  </Dialog>
+  </StudioDialog>
 </template>
 
 <style>
 .storm-dataflash-dialog {
-  border: 1px solid rgba(125, 211, 252, 0.08) !important;
-  border-radius: 3px !important;
+  border: 1px solid rgba(34, 211, 238, 0.34) !important;
+  border-radius: 10px !important;
   background: rgba(0, 6, 18, 0.34) !important;
-  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.56), 0 0 120px rgba(14, 165, 233, 0.12) !important;
+  box-shadow:
+    0 26px 90px rgba(0, 0, 0, 0.56),
+    0 0 120px rgba(14, 165, 233, 0.2),
+    0 0 46px rgba(244, 63, 94, 0.12) !important;
   backdrop-filter: blur(10px) saturate(1.08);
   -webkit-backdrop-filter: blur(10px) saturate(1.08);
 }
@@ -3078,9 +3088,9 @@ body:has(.die-explorer.visual-test) .p-toast {
 }
 
 .region-cell.active rect {
-  stroke: rgba(103, 232, 249, 0.95);
-  stroke-width: 0.92;
-  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.3));
+  stroke: rgba(165, 243, 252, 1);
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.5));
 }
 
 .region-cell rect {
@@ -3179,9 +3189,9 @@ body:has(.die-explorer.visual-test) .p-toast {
 
 .map-pages .page-cell.active rect {
   fill: rgba(14, 165, 233, 0.34);
-  stroke: rgba(103, 232, 249, 0.98);
-  stroke-width: 1.1;
-  filter: drop-shadow(0 0 11px rgba(34, 211, 238, 0.35));
+  stroke: rgba(165, 243, 252, 1);
+  stroke-width: 1.55;
+  filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.42));
 }
 
 .map-pages .page-cell.high.active rect,
@@ -3345,9 +3355,9 @@ body:has(.die-explorer.visual-test) .p-toast {
 }
 
 .selected-byte-guides .byte-frame {
-  stroke: rgba(254, 205, 211, 0.8);
-  stroke-width: 0.05;
-  filter: drop-shadow(0 0 0.5px rgba(251, 113, 133, 0.34));
+  stroke: rgba(254, 205, 211, 0.98);
+  stroke-width: 0.075;
+  filter: drop-shadow(0 0 1px rgba(251, 113, 133, 0.58));
 }
 
 .slot-frame rect {
@@ -3682,12 +3692,12 @@ body:has(.die-explorer.visual-test) .p-toast {
 .context-grid span.active {
   background: rgba(244, 63, 94, 0.9);
   border-color: rgba(254, 205, 211, 0.95);
-  box-shadow: 0 0 8px rgba(244, 63, 94, 0.45);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.68);
 }
 
 .die-hud.danger {
-  border-color: rgba(251, 113, 133, 0.4);
-  box-shadow: 0 0 30px rgba(244, 63, 94, 0.16);
+  border-color: rgba(251, 113, 133, 0.62);
+  box-shadow: 0 0 36px rgba(244, 63, 94, 0.24), inset 0 0 18px rgba(251, 113, 133, 0.06);
 }
 
 .die-hud.armed {
@@ -3713,16 +3723,17 @@ body:has(.die-explorer.visual-test) .p-toast {
   align-items: center;
   min-height: 1.32rem;
   padding: 0 0.5rem;
-  border: 1px solid rgba(125, 211, 252, 0.26);
+  border: 1px solid rgba(103, 232, 249, 0.46);
   border-radius: 2px;
-  background: rgba(14, 116, 144, 0.16);
-  color: #bae6fd;
+  background: rgba(14, 116, 144, 0.24);
+  color: #e0f2fe;
   font-size: 0.64rem;
   letter-spacing: 0.04em;
 }
 
 .die-hud .hud-chip.level {
-  color: #67e8f9;
+  color: #a5f3fc;
+  text-shadow: 0 0 10px rgba(34, 211, 238, 0.55);
 }
 
 .die-hud .hud-chip.high,
