@@ -7,7 +7,6 @@ import {
   MAX_KEYS,
   MacroActionType,
   OsMode,
-  PressEffect,
   ResponseCode,
   createEmptyAction,
   createEmptyKeymap,

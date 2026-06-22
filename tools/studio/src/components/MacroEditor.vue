@@ -1795,12 +1795,10 @@ watch(
       return;
     }
 
-    if (!visible) {
-      cleanupInteractiveState();
-      openTabs.value = [];
-      activeSlot.value = -1;
-      tabCache.value = new Map();
-    }
+    cleanupInteractiveState();
+    openTabs.value = [];
+    activeSlot.value = -1;
+    tabCache.value = new Map();
   },
 );
 

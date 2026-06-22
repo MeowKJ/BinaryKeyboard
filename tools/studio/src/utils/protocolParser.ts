@@ -177,20 +177,6 @@ function hex(n: number): string {
   return "0x" + n.toString(16).padStart(2, "0").toUpperCase();
 }
 
-/** 格式化修饰键 */
-function formatModifiers(mod: number): string {
-  const parts: string[] = [];
-  if (mod & 0x01) parts.push("LCtrl");
-  if (mod & 0x02) parts.push("LShift");
-  if (mod & 0x04) parts.push("LAlt");
-  if (mod & 0x08) parts.push("LGui");
-  if (mod & 0x10) parts.push("RCtrl");
-  if (mod & 0x20) parts.push("RShift");
-  if (mod & 0x40) parts.push("RAlt");
-  if (mod & 0x80) parts.push("RGui");
-  return parts.length ? parts.join("+") : "无";
-}
-
 /** 格式化按键动作 */
 function formatKeyAction(
   type: number,
@@ -433,7 +419,6 @@ export function parseReceiveFrame(frame: Uint8Array): {
         const pid = (data[3] << 8) | data[4];
         const ver = `${data[5]}.${data[6]}.${data[7]}`;
         const maxLayers = data[8];
-        const maxKeys = data[9];
         const macros = data[10];
         const kbType = KEYBOARD_TYPE_NAMES[data[11]] || `未知(${data[11]})`;
         const keyCount = data[12];

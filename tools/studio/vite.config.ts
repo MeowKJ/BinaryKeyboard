@@ -6,6 +6,8 @@ import Components from "unplugin-vue-components/vite";
 import { PrimeVueResolver } from "@primevue/auto-import-resolver";
 import { VitePWA } from "vite-plugin-pwa";
 
+const enablePwa = process.env.VITE_ENABLE_PWA === "1";
+
 // https://vite.dev/config/
 export default defineConfig({
   base: process.env.VITE_BASE_URL ?? '/',
@@ -15,6 +17,7 @@ export default defineConfig({
       resolvers: [PrimeVueResolver()],
     }),
     VitePWA({
+      disable: !enablePwa,
       registerType: "prompt",
       includeAssets: ["favicon.ico", "icon-192.png", "icon-512.png"],
       manifest: {

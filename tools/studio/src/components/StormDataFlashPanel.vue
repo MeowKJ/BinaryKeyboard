@@ -370,7 +370,6 @@ const coordinateHudText = computed(() => {
     `ZOOM ${Math.round(cameraScale.value * 100)}%`,
     cameraLod.value,
   ].join(' | ');
-  return `X ${Math.round(pointerWorldX.value).toString().padStart(4, '0')} · Y ${Math.round(pointerWorldY.value).toString().padStart(4, '0')} · ADDR ${hex(probe.address, 4)} · PAGE ${page.toString().padStart(2, '0')} · BYTE ${byte.toString().padStart(3, '0')} · ZOOM ${Math.round(cameraScale.value * 100)}% · ${cameraLod.value}`;
 });
 const areaAuditJson = computed(() => JSON.stringify(auditDieArea()));
 

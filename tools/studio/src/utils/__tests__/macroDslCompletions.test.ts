@@ -28,16 +28,6 @@ function hasLabel(input: string, label: string): boolean {
   return labelsAt(input).includes(label);
 }
 
-/** Check whether ANY label containing `text` appears */
-function hasLabelContaining(input: string, text: string): boolean {
-  return labelsAt(input).some((l) => l.toLowerCase().includes(text.toLowerCase()));
-}
-
-/** Kinds of all completions */
-function kindsAt(input: string): string[] {
-  return completionsAt(input).map((c) => c.kind);
-}
-
 // ─── 1. Command-level completions ──────────────────────────────────────────
 
 describe("command-level completions (empty / partial keyword)", () => {

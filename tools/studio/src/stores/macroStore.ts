@@ -148,8 +148,6 @@ export const useMacroStore = defineStore("macro", () => {
       : MACRO_MAX_DATA_SIZE,
   );
   const maxNameBytes = computed(() => isDynamicSlots.value ? 0 : MACRO_NAME_MAX_BYTES);
-  /** CH552G 无 saveConfig (Flash 直接写入) */
-  const needsExplicitSave = computed(() => !isCh552.value);
 
   // ========================================
   // 状态
