@@ -29,8 +29,8 @@ static uint8_t s_pressed_keys[6] = {0};
 static uint8_t s_pressed_count = 0;
 static uint8_t s_current_modifier = 0;
 static uint8_t s_current_mouse_buttons = 0;
-static bool s_boot_key_prev_pressed = false;
-static uint8_t s_keycode_refcount[256] = {0};
+static uint8_t s_keycode_slots[KBD_MAX_KEYS] = {0};
+static uint8_t s_keycode_refcount[KBD_MAX_KEYS] = {0};
 static uint8_t s_modifier_refcount[8] = {0};
 static uint8_t s_mouse_button_refcount[5] = {0};
 static kbd_action_t s_active_actions[KBD_MAX_KEYS];
@@ -56,6 +56,7 @@ static const uint8_t s_mouse_button_bits[5] = {
 
 static void ResetInputState(void);
 static void RebuildKeyboardReport(void);
+static void UpdateKeycodeRefcount(uint8_t keycode, bool pressed);
 static void UpdateModifierMask(uint8_t mask, bool pressed);
 static void UpdateMouseButtons(uint8_t buttons, bool pressed);
 static void SwitchLayer(uint8_t target_layer);
@@ -64,7 +65,6 @@ static void ExecuteFnAction(kbd_fn_action_t action, uint8_t param);
 static void OnModeChange(kbd_work_mode_t new_mode);
 static void OnConnStateChange(kbd_conn_state_t state);
 static void OnLedReport(uint8_t leds);
-static void KBD_Core_ProcessBootKey(void);
 
 /*============================================================================*/
 /* 模式管理回调结构 */
@@ -86,7 +86,6 @@ static kbd_mode_callbacks_t s_callbacks = {
 void KBD_Core_Init(void)
 {
     ResetInputState();
-    s_boot_key_prev_pressed = (BootKey_IsPressed() == 1);
     LOG_I(TAG, "Core initialized");
 }
 
@@ -97,8 +96,6 @@ void KBD_Core_Process(void)
 {
     key_event_t key_evt;
     fnkey_event_t fn_evt;
-
-    KBD_Core_ProcessBootKey();
 
     /* 处理普通按键事件 */
     while (Key_GetEvent(&key_evt))
@@ -120,37 +117,9 @@ void KBD_Core_Process(void)
 }
 
 /**
- * @brief 检查是否有 FN 键被按下
+ * @brief 检查 BOOT 层切换修饰键是否被按下
  */
-static bool IsFnKeyHeld(void)
-{
-    for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
-    {
-        if (FnKey_IsDown(i) == 1)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-static void KBD_Core_ProcessBootKey(void)
-{
-#if KBD_BOOT_KEY_ENTER_BOOTLOADER
-    bool pressed = (BootKey_IsPressed() == 1);
-
-    if (pressed && !s_boot_key_prev_pressed)
-    {
-        LOG_W(TAG, "BOOT: enter IAP");
-        KBD_Core_ReleaseAll();
-        KBD_RGB_Flash(255, 140, 0, 120);
-        mDelaymS(120);
-        Hal_JumpToBootloader();
-    }
-
-    s_boot_key_prev_pressed = pressed;
-#endif
-}
+static bool IsBootLayerModifierHeld(void) { return (BootKey_IsPressed() == 1); }
 
 /**
  * @brief 处理普通按键事件
@@ -172,24 +141,18 @@ void KBD_Core_HandleKeyEvent(const key_event_t *evt)
         KBD_RGB_RegisterKeyPress(evt->key);
     }
 
-    /* FN 组合键：按住 FN + 按键 = 切换到对应层 */
-    if (IsFnKeyHeld() && pressed)
+    /* 层切换组合键：按住 BOOT + 按键 = 切换到对应层 */
+    if (IsBootLayerModifierHeld() && pressed)
     {
         uint8_t target_layer = evt->key; /* 按键0->层0, 按键1->层1... */
         kbd_keymap_t *keymap = KBD_GetKeymap();
 
         if (target_layer < keymap->num_layers)
         {
-            LOG_I(TAG, "FN+Key%d -> Layer %d", evt->key, target_layer);
+            LOG_I(TAG, "BOOT+Key%d -> Layer %d", evt->key, target_layer);
             SwitchLayer(target_layer);
             memset(&s_active_actions[evt->key], 0, sizeof(s_active_actions[evt->key]));
             s_active_action_valid[evt->key] = 1;
-            /* 标记所有按住的 FN 键: 松开时不触发 click/long */
-            for (uint8_t i = 0; i < KBD_MAX_FN_KEYS; i++)
-            {
-                if (FnKey_IsDown(i) == 1)
-                    FnKey_MarkComboUsed(i);
-            }
             return; /* 不执行按键原本的动作 */
         }
     }
@@ -362,6 +325,7 @@ static void OnLedReport(uint8_t leds)
 static void ResetInputState(void)
 {
     memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
+    memset(s_keycode_slots, 0, sizeof(s_keycode_slots));
     memset(s_keycode_refcount, 0, sizeof(s_keycode_refcount));
     memset(s_modifier_refcount, 0, sizeof(s_modifier_refcount));
     memset(s_mouse_button_refcount, 0, sizeof(s_mouse_button_refcount));
@@ -379,9 +343,9 @@ static void RebuildKeyboardReport(void)
     s_pressed_count = 0;
     memset(s_pressed_keys, 0, sizeof(s_pressed_keys));
 
-    for (uint16_t keycode = 0; keycode < sizeof(s_keycode_refcount); keycode++)
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
     {
-        if (s_keycode_refcount[keycode] == 0)
+        if (s_keycode_refcount[i] == 0 || s_keycode_slots[i] == 0)
         {
             continue;
         }
@@ -389,7 +353,7 @@ static void RebuildKeyboardReport(void)
         {
             break;
         }
-        s_pressed_keys[s_pressed_count++] = (uint8_t)keycode;
+        s_pressed_keys[s_pressed_count++] = s_keycode_slots[i];
     }
 
     if (s_pressed_count > 0 || s_current_modifier != 0)
@@ -399,6 +363,57 @@ static void RebuildKeyboardReport(void)
     else
     {
         KBD_Mode_ReleaseAllKeys();
+    }
+}
+
+static void UpdateKeycodeRefcount(uint8_t keycode, bool pressed)
+{
+    if (keycode == 0)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
+    {
+        if (s_keycode_slots[i] != keycode)
+        {
+            continue;
+        }
+
+        if (pressed)
+        {
+            if (s_keycode_refcount[i] < 0xFF)
+            {
+                s_keycode_refcount[i]++;
+            }
+            return;
+        }
+
+        if (s_keycode_refcount[i] > 0)
+        {
+            s_keycode_refcount[i]--;
+            if (s_keycode_refcount[i] == 0)
+            {
+                s_keycode_slots[i] = 0;
+            }
+        }
+        return;
+    }
+
+    if (!pressed)
+    {
+        return;
+    }
+
+    for (uint8_t i = 0; i < KBD_MAX_KEYS; i++)
+    {
+        if (s_keycode_refcount[i] != 0)
+        {
+            continue;
+        }
+        s_keycode_slots[i] = keycode;
+        s_keycode_refcount[i] = 1;
+        return;
     }
 }
 
@@ -466,6 +481,7 @@ static void SwitchLayer(uint8_t target_layer)
 
     if (target_layer == old_layer)
     {
+        KBD_RGB_FlashLayer(target_layer);
         return;
     }
 
@@ -498,18 +514,12 @@ static void ExecuteKeyAction(uint8_t key_index, const kbd_action_t *action, bool
     case KBD_ACTION_KEYBOARD:
         if (pressed)
         {
-            if (action->param1 != 0 && s_keycode_refcount[action->param1] < 0xFF)
-            {
-                s_keycode_refcount[action->param1]++;
-            }
+            UpdateKeycodeRefcount(action->param1, true);
             UpdateModifierMask(action->modifier, true);
         }
         else
         {
-            if (action->param1 != 0 && s_keycode_refcount[action->param1] > 0)
-            {
-                s_keycode_refcount[action->param1]--;
-            }
+            UpdateKeycodeRefcount(action->param1, false);
             UpdateModifierMask(action->modifier, false);
         }
         RebuildKeyboardReport();

@@ -14,22 +14,22 @@ const emit = defineEmits<{
 }>();
 
 const releaseStore = useReleaseStore();
-const { toggleMode, themeMode } = useTheme();
+const { toggleMode, themeMode, canToggleMode } = useTheme();
 
 const linkButtons = [
   {
     label: 'Bilibili',
-    icon: 'pi pi-video',
+    iconSrc: 'https://www.bilibili.com/favicon.ico',
     href: 'https://space.bilibili.com/1676918589',
   },
   {
     label: 'GitHub',
-    icon: 'pi pi-github',
+    iconSrc: 'https://github.githubassets.com/favicons/favicon.svg',
     href: 'https://github.com/MeowKJ/BinaryKeyboard',
   },
   {
     label: 'OSHWHub',
-    icon: 'pi pi-box',
+    iconSrc: 'https://oshwhub.com/favicon.ico',
     href: 'https://oshwhub.com/kjpig/works',
   },
 ];
@@ -38,7 +38,7 @@ const linkButtons = [
 <template>
   <div class="welcome-screen" :class="{ returning: welcomeReturning }">
     <!-- 主题切换按钮 -->
-    <button class="theme-toggle" @click="toggleMode">
+    <button v-if="canToggleMode" class="theme-toggle" @click="toggleMode">
       <i :class="themeMode === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
     </button>
 
@@ -63,14 +63,14 @@ const linkButtons = [
 
           <!-- 连接中状态 -->
           <div v-if="connecting" class="connecting-overlay">
-            <img src="@/assets/emoji/hourglass_not_done_animated.png" class="connecting-hourglass" alt="" />
+            <CatEmoji type="hourglass-not-done-animated" class="connecting-hourglass" />
             <span class="connecting-text">正在连接...</span>
           </div>
           <template v-else>
             <Button label="连接键盘" icon="pi pi-usb" size="large" @click="emit('connect')" class="connect-button" />
             <p class="connect-hint">
               <i class="pi pi-info-circle"></i>
-              请确保键盘已通过 USB 连接
+              无线款可保持蓝牙模式，插入 USB 后直接配置
             </p>
           </template>
         </div>
@@ -144,7 +144,7 @@ const linkButtons = [
           target="_blank"
           rel="noopener"
         >
-          <i :class="link.icon"></i>
+          <img class="welcome-link-icon" :src="link.iconSrc" :alt="`${link.label} 图标`" loading="lazy" />
           <span>{{ link.label }}</span>
           <i class="pi pi-external-link link-external-icon"></i>
         </a>
@@ -161,10 +161,9 @@ const linkButtons = [
 }
 
 .welcome-screen {
-  height: 100vh;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   position: relative;
   overflow-y: auto;
@@ -175,10 +174,12 @@ const linkButtons = [
 }
 
 .welcome-content {
+  --keyboard-preview-width: 166px;
   text-align: center;
   max-width: 600px;
   width: min(100%, 600px);
   padding: 2rem;
+  margin-block: auto;
 }
 
 .logo-section {
@@ -186,8 +187,22 @@ const linkButtons = [
 }
 
 .logo-icon {
-  font-size: 4rem;
+  width: 4.25rem;
+  height: 4.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 1rem;
+  font-size: 3.75rem;
+  line-height: 1;
+}
+
+.logo-icon :deep(.cat-emoji) {
+  display: block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  vertical-align: 0;
 }
 
 .app-title {
@@ -209,13 +224,16 @@ const linkButtons = [
 
 .connect-section {
   margin-bottom: 3rem;
+  display: flex;
+  justify-content: center;
 }
 
 .connect-card {
+  width: min(100%, 360px);
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-xl);
-  padding: 2rem;
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.625rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   position: relative;
 }
@@ -244,10 +262,12 @@ const linkButtons = [
 }
 
 .connect-button {
-  width: 100%;
+  width: calc(100% - 2rem);
+  margin-inline: 1rem;
   font-size: 1.1rem !important;
   font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;
+  justify-content: center;
 }
 
 .connect-hint {
@@ -488,6 +508,13 @@ const linkButtons = [
   border-color: var(--c-accent);
   background: var(--c-accent-soft);
   box-shadow: 0 8px 20px -16px var(--c-accent);
+}
+
+.welcome-link-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .link-external-icon {

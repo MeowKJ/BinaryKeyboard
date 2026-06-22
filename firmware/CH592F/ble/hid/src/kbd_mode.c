@@ -113,10 +113,12 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
     LOG_I(TAG, "init mode=%d", initial_mode);
 
     /*
-     * WCH Application 示例思路：每种模式只初始化对应协议栈
-     * - USB 模式：仅 USB，不初始化 BLE HID
-     * - BLE 模式：仅 BLE HID，不初始化 USB
-     * 模式切换通过 SYS_ResetExecute() 全系统复位实现
+     * 工作模式只决定按键报告发送到哪里：
+     * - USB 模式：按键报告走 USB
+     * - BLE 模式：按键报告走 BLE
+     *
+     * BLE 模式也初始化 USB Device。这样无线使用时插上 USB，Studio 仍可通过
+     * USB HID 配置接口读写当前键盘配置，不需要先切换到 USB 工作模式。
      */
     if (initial_mode == KBD_WORK_MODE_BLE)
     {
@@ -127,6 +129,7 @@ int KBD_Mode_Init(kbd_work_mode_t initial_mode, kbd_mode_callbacks_t *pCBs)
             LOG_E(TAG, "BLE init failed %d", ret);
             return ret;
         }
+        USB_Device_Init();
     }
     else
     {
@@ -386,6 +389,22 @@ int KBD_Mode_USB_Wakeup(void)
 /* HID 报告发送实现 */
 /*============================================================================*/
 
+static uint8_t KBD_Mode_ApplyOsModeModifier(uint8_t modifier)
+{
+    if (KBD_GetOsMode() != KBD_OS_MODE_MAC)
+    {
+        return modifier;
+    }
+
+    uint8_t mapped = modifier;
+    mapped &= (uint8_t)~(KBD_MOD_LCTRL | KBD_MOD_LGUI | KBD_MOD_RCTRL | KBD_MOD_RGUI);
+    if (modifier & KBD_MOD_LCTRL) mapped |= KBD_MOD_LGUI;
+    if (modifier & KBD_MOD_LGUI)  mapped |= KBD_MOD_LCTRL;
+    if (modifier & KBD_MOD_RCTRL) mapped |= KBD_MOD_RGUI;
+    if (modifier & KBD_MOD_RGUI)  mapped |= KBD_MOD_RCTRL;
+    return mapped;
+}
+
 int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_count)
 {
     if (!KBD_Mode_IsConnected())
@@ -394,10 +413,11 @@ int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_cou
     }
 
     KBD_Mode_RecordActivityInternal();
+    uint8_t report_modifier = KBD_Mode_ApplyOsModeModifier(modifier);
 
     /* 构建报告 */
     memset(g_kbd_report, 0, sizeof(g_kbd_report));
-    g_kbd_report[0] = modifier;
+    g_kbd_report[0] = report_modifier;
     g_kbd_report[1] = 0; /* Reserved */
 
     uint8_t count = (key_count > 6) ? 6 : key_count;
@@ -408,12 +428,12 @@ int KBD_Mode_SendKeyboardReport(uint8_t modifier, uint8_t *keys, uint8_t key_cou
 
     if (g_current_mode == KBD_WORK_MODE_USB)
     {
-        USB_Keyboard_Press(modifier, keys, key_count);
+        USB_Keyboard_Press(report_modifier, keys, key_count);
         return 0;
     }
     else
     {
-        return BLE_HID_SendKeyboardReport(modifier, keys, key_count);
+        return BLE_HID_SendKeyboardReport(report_modifier, keys, key_count);
     }
 }
 

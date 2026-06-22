@@ -317,4 +317,5 @@ function getActionBadge(action: KeyAction): string | null {
     user-select: none;
     font-weight: 600;
 }
+
 </style>

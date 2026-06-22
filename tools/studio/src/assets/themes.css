@@ -57,6 +57,21 @@
   background: transparent !important;
 }
 
+[data-theme-id="liuli"] .status-card,
+[data-theme-id="liuli"] .layer-keyboard-mini,
+[data-theme-id="liuli"] .layer-key-mini,
+[data-theme-id="liuli"] .os-mode-btn {
+  background: rgba(18, 12, 34, 0.44) !important;
+  border-color: rgba(190, 150, 255, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+[data-theme-id="liuli"] .status-icon,
+[data-theme-id="liuli"] .current-layer-badge,
+[data-theme-id="liuli"] .card-layer-badge {
+  background: rgba(190, 150, 255, 0.16) !important;
+}
+
 /* ==============================================
    猫咪主题 — 猫咪元素 + 温暖色调
 ============================================== */
@@ -150,6 +165,21 @@
   background: transparent !important;
 }
 
+[data-theme-id="frog"] .status-card,
+[data-theme-id="frog"] .layer-keyboard-mini,
+[data-theme-id="frog"] .layer-key-mini,
+[data-theme-id="frog"] .os-mode-btn {
+  background: rgba(9, 26, 36, 0.5) !important;
+  border-color: rgba(125, 211, 252, 0.2) !important;
+  box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.04);
+}
+
+[data-theme-id="frog"] .status-icon,
+[data-theme-id="frog"] .current-layer-badge,
+[data-theme-id="frog"] .card-layer-badge {
+  background: rgba(147, 197, 253, 0.16) !important;
+}
+
 /* ==============================================
    安哥拉兔主题 — 天蓝浅色 + 通透 + 视频背景
 ============================================== */
@@ -221,4 +251,194 @@
 
 [data-theme-id="angora"] .welcome-screen {
   background: transparent !important;
+}
+
+[data-theme-id="angora"] .status-card,
+[data-theme-id="angora"] .layer-keyboard-mini,
+[data-theme-id="angora"] .layer-key-mini,
+[data-theme-id="angora"] .os-mode-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: rgba(120, 170, 220, 0.16) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+[data-theme-id="angora"] .status-icon,
+[data-theme-id="angora"] .current-layer-badge,
+[data-theme-id="angora"] .card-layer-badge {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* ==============================================
+   风暴主题 — 天气循环: 阴云遮月 → 闪电 → 暴雨 → 明月
+   动态效果由 StormEffect.vue 组件处理
+============================================== */
+
+[data-theme-id="storm"] {
+  --c-bg-primary: rgba(6, 12, 22, 0.68);
+  --c-bg-secondary: rgba(8, 16, 30, 0.62);
+  --c-bg-tertiary: rgba(12, 24, 42, 0.68);
+  --c-bg-hover: rgba(18, 38, 64, 0.78);
+  --c-border: rgba(125, 211, 252, 0.28);
+  --c-border-light: rgba(186, 230, 253, 0.16);
+  /* accent 由 StormEffect 组件根据天气阶段动态设置 */
+  --c-text-primary: #e6f6ff;
+  --c-text-secondary: #a7c7d9;
+  --c-text-muted: #7190a4;
+}
+
+/* 背景透明 — 交由 StormEffect 组件渲染天空 */
+[data-theme-id="storm"] .app-root {
+  background: transparent;
+}
+
+/* 磨砂面板 — 高透明度 */
+[data-theme-id="storm"] .panel,
+[data-theme-id="storm"] .keyboard-card,
+[data-theme-id="storm"] .connect-card,
+[data-theme-id="storm"] .welcome-version-card,
+[data-theme-id="storm"] .app-header {
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  background: rgba(6, 14, 26, 0.58) !important;
+  border-color: rgba(125, 211, 252, 0.22) !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(186, 230, 253, 0.06);
+}
+
+[data-theme-id="storm"] .sidebar {
+  scrollbar-color: rgba(100, 120, 200, 0.3) transparent;
+}
+
+/* 发光边框 — 幽蓝电光 */
+[data-theme-id="storm"] .keyboard-card {
+  border: 1px solid rgba(125, 211, 252, 0.24) !important;
+  background: rgba(6, 14, 26, 0.5) !important;
+  box-shadow:
+    0 8px 32px rgba(14, 165, 233, 0.12),
+    0 0 1px rgba(186, 230, 253, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 按键也高透明 */
+[data-theme-id="storm"] .key-btn {
+  background: rgba(10, 24, 42, 0.58) !important;
+  border-color: rgba(125, 211, 252, 0.22) !important;
+}
+
+[data-theme-id="storm"] .card-header {
+  background: rgba(4, 12, 24, 0.54) !important;
+  border-color: rgba(125, 211, 252, 0.18) !important;
+}
+
+[data-theme-id="storm"] .keyboard-container {
+  background: transparent;
+}
+
+/* 欢迎页透明 */
+[data-theme-id="storm"] .welcome-screen {
+  background: transparent !important;
+}
+
+[data-theme-id="storm"] .status-card,
+[data-theme-id="storm"] .layer-keyboard-mini,
+[data-theme-id="storm"] .layer-key-mini,
+[data-theme-id="storm"] .os-mode-btn {
+  background:
+    linear-gradient(135deg, rgba(8, 12, 28, 0.56), rgba(18, 25, 52, 0.32)) !important;
+  border-color: rgba(125, 211, 252, 0.16) !important;
+  box-shadow:
+    0 0 18px rgba(14, 165, 233, 0.06),
+    inset 0 0 0 1px rgba(186, 230, 253, 0.04);
+}
+
+[data-theme-id="storm"] .status-card:hover,
+[data-theme-id="storm"] .layer-key-mini:hover:not(.disabled):not(.readonly),
+[data-theme-id="storm"] .os-mode-btn:hover:not(:disabled) {
+  border-color: rgba(186, 230, 253, 0.44) !important;
+  box-shadow:
+    0 0 24px rgba(56, 189, 248, 0.12),
+    inset 0 0 0 1px rgba(186, 230, 253, 0.07) !important;
+}
+
+[data-theme-id="storm"] .status-icon,
+[data-theme-id="storm"] .current-layer-badge,
+[data-theme-id="storm"] .card-layer-badge {
+  background: rgba(14, 116, 144, 0.22) !important;
+  color: #bae6fd !important;
+}
+
+[data-theme-id="storm"] .layer-key-mini.current-layer {
+  border-color: rgba(45, 212, 191, 0.72) !important;
+  background: rgba(20, 184, 166, 0.14) !important;
+}
+
+[data-theme-id="storm"] .layer-key-mini.edit-layer {
+  border-color: rgba(125, 211, 252, 0.78) !important;
+  background: rgba(14, 165, 233, 0.16) !important;
+}
+
+[data-theme-id="storm"] .device-badge,
+[data-theme-id="storm"] .cat-preview-select,
+[data-theme-id="storm"] .theme-toggle,
+[data-theme-id="storm"] .entry-open,
+[data-theme-id="storm"] .keyboard-action-btn,
+[data-theme-id="storm"] .p-button:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.36) !important;
+  background:
+    linear-gradient(135deg, rgba(8, 28, 48, 0.86), rgba(9, 45, 68, 0.62)) !important;
+  color: #dff8ff !important;
+  box-shadow:
+    0 0 0 1px rgba(186, 230, 253, 0.05) inset,
+    0 0 16px rgba(56, 189, 248, 0.1) !important;
+}
+
+[data-theme-id="storm"] .keyboard-action-btn.save,
+[data-theme-id="storm"] .p-button.p-button-primary:not(:disabled),
+[data-theme-id="storm"] .p-button:not(.p-button-secondary):not(.p-button-danger):not(:disabled) {
+  border-color: rgba(103, 232, 249, 0.68) !important;
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(8, 145, 178, 0.74)) !important;
+  color: #ecfeff !important;
+  box-shadow:
+    0 0 0 1px rgba(236, 254, 255, 0.1) inset,
+    0 0 24px rgba(34, 211, 238, 0.22) !important;
+}
+
+[data-theme-id="storm"] .device-badge:hover,
+[data-theme-id="storm"] .cat-preview-select:hover,
+[data-theme-id="storm"] .cat-preview-select:focus,
+[data-theme-id="storm"] .entry-open:hover,
+[data-theme-id="storm"] .keyboard-action-btn:hover:not(:disabled),
+[data-theme-id="storm"] .p-button:not(:disabled):hover {
+  border-color: rgba(207, 250, 254, 0.82) !important;
+  background:
+    linear-gradient(135deg, rgba(15, 82, 112, 0.96), rgba(8, 145, 178, 0.84)) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(236, 254, 255, 0.14) inset,
+    0 0 28px rgba(34, 211, 238, 0.28) !important;
+}
+
+[data-theme-id="storm"] .firmware-download-btn {
+  border-color: rgba(251, 191, 36, 0.62) !important;
+  background: rgba(12, 24, 42, 0.68) !important;
+  color: #fde68a !important;
+  box-shadow: none !important;
+}
+
+[data-theme-id="storm"] .firmware-download-btn:hover,
+[data-theme-id="storm"] .firmware-download-btn:focus-visible {
+  border-color: rgba(254, 240, 138, 0.82) !important;
+  background: rgba(18, 38, 64, 0.78) !important;
+  color: #fffbeb !important;
+  box-shadow: none !important;
+}
+
+[data-theme-id="storm"] button:disabled,
+[data-theme-id="storm"] .p-button:disabled,
+[data-theme-id="storm"] .keyboard-action-btn:disabled {
+  border-color: rgba(100, 116, 139, 0.22) !important;
+  background: rgba(15, 23, 42, 0.36) !important;
+  color: rgba(148, 163, 184, 0.5) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
 }

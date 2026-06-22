@@ -6,6 +6,7 @@ import {
   MAX_FN_KEYS,
   MAX_KEYS,
   MacroActionType,
+  OsMode,
   PressEffect,
   ResponseCode,
   createEmptyAction,
@@ -22,6 +23,7 @@ import {
   type MacroData,
   type MacroHeader,
   type MacroOverview,
+  type OsModeConfig,
   type RgbConfig,
 } from '@/types/protocol';
 import { FIRMWARE_VERSION_META } from '@/generated/versionConfig';
@@ -76,6 +78,8 @@ export class Ch592Codec implements DeviceCodec<DataView> {
       setRgbConfig: (config) => this.setRgbConfig(transport, config),
       getFnKeyConfig: () => this.getFnKeyConfig(transport),
       setFnKeyConfig: (config) => this.setFnKeyConfig(transport, config),
+      getOsMode: () => this.getOsMode(transport),
+      setOsMode: (config) => this.setOsMode(transport, config),
       saveConfig: () => this.runOkCommand(transport, Command.CFG_SAVE, 'CFG_SAVE'),
       loadConfig: () => this.runOkCommand(transport, Command.CFG_LOAD, 'CFG_LOAD'),
       resetConfig: () => this.runOkCommand(transport, Command.CFG_RESET, 'CFG_RESET'),
@@ -312,6 +316,16 @@ export class Ch592Codec implements DeviceCodec<DataView> {
     return new Uint8Array([config.enabled ? 1 : 0]);
   }
 
+  parseOsModeConfig(resp: DataView): OsModeConfig {
+    const d = this.expectOk(resp, 'CFG_OS_GET');
+    const mode = resp.getUint8(d + 1) === OsMode.MAC ? OsMode.MAC : OsMode.WIN;
+    return { mode };
+  }
+
+  buildSetOsModePayload(config: OsModeConfig): Uint8Array {
+    return new Uint8Array([config.mode === OsMode.MAC ? OsMode.MAC : OsMode.WIN]);
+  }
+
   expectOk(resp: DataView, commandName: string): number {
     const status = resp.getUint8(RESP_HEADER_SIZE);
     if (status !== ResponseCode.OK) {
@@ -399,6 +413,16 @@ export class Ch592Codec implements DeviceCodec<DataView> {
   private async setFnKeyConfig(transport: CodecTransport<DataView>, config: FnKeyConfig): Promise<void> {
     const resp = await this.sendCommand(transport, Command.FNKEY_SET, 0, this.buildSetFnKeyPayload(config));
     this.expectOk(resp, 'FNKEY_SET');
+  }
+
+  private async getOsMode(transport: CodecTransport<DataView>): Promise<OsModeConfig> {
+    const resp = await this.sendCommand(transport, Command.CFG_OS_GET);
+    return this.parseOsModeConfig(resp);
+  }
+
+  private async setOsMode(transport: CodecTransport<DataView>, config: OsModeConfig): Promise<void> {
+    const resp = await this.sendCommand(transport, Command.CFG_OS_SET, 0, this.buildSetOsModePayload(config));
+    this.expectOk(resp, 'CFG_OS_SET');
   }
 
   private async getBattery(transport: CodecTransport<DataView>): Promise<BatteryInfo> {

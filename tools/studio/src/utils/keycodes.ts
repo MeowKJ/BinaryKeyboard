@@ -2,7 +2,7 @@
  * HID 键码定义和工具函数
  */
 
-import { Modifier } from '@/types/protocol';
+import { Modifier, OsMode } from '@/types/protocol';
 
 /** HID 键码到名称映射 */
 export const KEYCODE_NAMES: Record<number, string> = {
@@ -69,19 +69,64 @@ export const CODE_TO_HID: Record<string, number> = {
   'NonConvert': 0x8b,
 };
 
+export interface ModifierDisplayOption {
+  label: string;
+  mask: Modifier;
+}
+
+const WIN_MODIFIER_LABELS: Record<number, string> = {
+  [Modifier.LCTRL]: 'Ctrl',
+  [Modifier.LSHIFT]: 'Shift',
+  [Modifier.LALT]: 'Alt',
+  [Modifier.LGUI]: 'Win',
+  [Modifier.RCTRL]: 'RCtrl',
+  [Modifier.RSHIFT]: 'RShift',
+  [Modifier.RALT]: 'RAlt',
+  [Modifier.RGUI]: 'RWin',
+};
+
+const MAC_MODIFIER_LABELS: Record<number, string> = {
+  [Modifier.LCTRL]: 'Control',
+  [Modifier.LSHIFT]: 'Shift',
+  [Modifier.LALT]: 'Option',
+  [Modifier.LGUI]: 'Command',
+  [Modifier.RCTRL]: 'RControl',
+  [Modifier.RSHIFT]: 'RShift',
+  [Modifier.RALT]: 'ROption',
+  [Modifier.RGUI]: 'RCommand',
+};
+
+const MODIFIER_ORDER: Modifier[] = [
+  Modifier.LCTRL,
+  Modifier.LSHIFT,
+  Modifier.LALT,
+  Modifier.LGUI,
+  Modifier.RCTRL,
+  Modifier.RSHIFT,
+  Modifier.RALT,
+  Modifier.RGUI,
+];
+
+export function getModifierLabel(mask: number, osMode: OsMode = OsMode.WIN): string {
+  const labels = osMode === OsMode.MAC ? MAC_MODIFIER_LABELS : WIN_MODIFIER_LABELS;
+  return labels[mask] ?? `Mod(0x${mask.toString(16).toUpperCase()})`;
+}
+
+export function getModifierOptions(osMode: OsMode = OsMode.WIN): ModifierDisplayOption[] {
+  return MODIFIER_ORDER.map((mask) => ({
+    label: getModifierLabel(mask, osMode),
+    mask,
+  }));
+}
+
 /** 获取键码显示名称 */
-export function getKeycodeName(keycode: number, modifier = 0): string {
+export function getKeycodeName(keycode: number, modifier = 0, osMode: OsMode = OsMode.WIN): string {
   const parts: string[] = [];
 
   // 修饰键
-  if (modifier & Modifier.LCTRL) parts.push('Ctrl');
-  if (modifier & Modifier.LSHIFT) parts.push('Shift');
-  if (modifier & Modifier.LALT) parts.push('Alt');
-  if (modifier & Modifier.LGUI) parts.push('Win');
-  if (modifier & Modifier.RCTRL) parts.push('RCtrl');
-  if (modifier & Modifier.RSHIFT) parts.push('RShift');
-  if (modifier & Modifier.RALT) parts.push('RAlt');
-  if (modifier & Modifier.RGUI) parts.push('RWin');
+  for (const mask of MODIFIER_ORDER) {
+    if (modifier & mask) parts.push(getModifierLabel(mask, osMode));
+  }
 
   // 键码
   const keyName = KEYCODE_NAMES[keycode];

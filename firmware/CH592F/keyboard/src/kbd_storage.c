@@ -258,6 +258,7 @@ static const kbd_system_config_t s_default_system = {
     .debounce_ms = 10,          /* 10ms */
     .log_enabled = KBD_LOG_DEFAULT_ENABLED, /* HID 日志默认开关由构建类型决定 */
     .deep_sleep_min = 1,        /* DEEP 默认在 LIGHT 后 1 分钟 */
+    .os_mode = KBD_OS_MODE_WIN, /* 默认 Win 模式 */
 };
 
 /*============================================================================*/
@@ -596,6 +597,9 @@ static bool TryLoadConfigSlot(uint8_t slot, kbd_config_slot_cache_t *out) {
 static void ApplyLoadedConfig(const kbd_config_slot_cache_t *cfg) {
   memcpy(&s_config_header, &cfg->header, sizeof(s_config_header));
   memcpy(&s_system_config, &cfg->system, sizeof(s_system_config));
+  if (s_system_config.os_mode > KBD_OS_MODE_MAC) {
+    s_system_config.os_mode = KBD_OS_MODE_WIN;
+  }
   memcpy(&s_keymap_config, &cfg->keymap, sizeof(s_keymap_config));
   memcpy(&s_fnkey_config, &cfg->fnkey, sizeof(s_fnkey_config));
   memcpy(&s_rgb_config, &cfg->rgb, sizeof(s_rgb_config));
@@ -811,6 +815,19 @@ kbd_keymap_t *KBD_GetKeymap(void) { return &s_keymap_config; }
 kbd_fnkey_config_t *KBD_GetFnKeyConfig(void) { return &s_fnkey_config; }
 
 kbd_rgb_config_t *KBD_GetRgbConfig(void) { return &s_rgb_config; }
+
+uint8_t KBD_GetOsMode(void) {
+  return (s_system_config.os_mode == KBD_OS_MODE_MAC) ? KBD_OS_MODE_MAC
+                                                       : KBD_OS_MODE_WIN;
+}
+
+int KBD_SetOsMode(uint8_t mode) {
+  if (mode > KBD_OS_MODE_MAC) {
+    return -1;
+  }
+  s_system_config.os_mode = mode;
+  return 0;
+}
 
 /*============================================================================*/
 /*                              层操作函数 */

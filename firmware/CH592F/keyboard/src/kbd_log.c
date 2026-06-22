@@ -44,7 +44,7 @@ static uint8_t s_enabled = KBD_LOG_DEFAULT_ENABLED;  /**< 日志总开关 */
 #define LOG_FLUSH_COUNT 2
 
 /** 队列深度 (2 的幂便于取模) */
-#define LOG_QUEUE_SIZE 16
+#define LOG_QUEUE_SIZE 8
 #define LOG_QUEUE_MASK (LOG_QUEUE_SIZE - 1)
 
 /*============================================================================*/

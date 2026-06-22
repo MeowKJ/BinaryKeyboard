@@ -17,6 +17,7 @@ import type { KeyDef, KeySize } from '@/config/layouts';
 import { ActionType, type KeyAction } from '@/types/protocol';
 import { getKeycodeName } from '@/utils/keycodes';
 import { getConsumerName } from '@/utils/consumer';
+import { useDeviceStore } from '@/stores/deviceStore';
 
 const props = defineProps<{
   /** 按键定义 */
@@ -32,6 +33,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   click: [];
 }>();
+
+const deviceStore = useDeviceStore();
 
 /** 网格定位样式 */
 const gridStyle = computed(() => {
@@ -73,7 +76,7 @@ const displayLabel = computed(() => {
 
   switch (action.type) {
     case ActionType.KEYBOARD:
-      return getKeycodeName(action.param1, action.modifier) || `0x${action.param1.toString(16).toUpperCase()}`;
+      return getKeycodeName(action.param1, action.modifier, deviceStore.osModeConfig.mode) || `0x${action.param1.toString(16).toUpperCase()}`;
     case ActionType.MOUSE_BTN:
       return getMouseButtonName(action.param1);
     case ActionType.MOUSE_WHEEL:
@@ -266,4 +269,5 @@ function getWheelName(dir: number): string {
 .badge-mouse { color: var(--c-warning); }
 .badge-layer { color: var(--c-accent); }
 .badge-macro { color: var(--c-danger); }
+
 </style>

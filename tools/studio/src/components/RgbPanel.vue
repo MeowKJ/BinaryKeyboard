@@ -8,14 +8,14 @@
       <div class="rgb-item">
         <span class="rgb-label">RGB 开关</span>
         <label class="rgb-switch">
-          <input type="checkbox" v-model="deviceStore.rgbConfig.enabled" />
+          <input type="checkbox" v-model="deviceStore.rgbConfig.enabled" @change="autoSaveRgb" />
           <span>{{ deviceStore.rgbConfig.enabled ? '开启' : '关闭' }}</span>
         </label>
       </div>
 
       <div class="rgb-item">
         <span class="rgb-label">模式</span>
-        <select v-model="deviceStore.rgbConfig.mode" class="rgb-select">
+        <select v-model="deviceStore.rgbConfig.mode" class="rgb-select" @change="autoSaveRgb">
           <option v-for="mode in modeOptions" :key="mode.value" :value="mode.value">
             {{ mode.label }}
           </option>
@@ -30,6 +30,7 @@
             format="hex"
             inline
             class="rgb-color-picker"
+            @update:model-value="scheduleRgbSave"
           />
           <input
             v-model="colorHex"
@@ -37,28 +38,33 @@
             class="rgb-hex-input"
             placeholder="#ffffff"
             maxlength="7"
+            @blur="autoSaveRgb"
+            @keydown.enter.prevent="autoSaveRgb"
           />
         </div>
       </div>
 
       <div class="rgb-item">
         <span class="rgb-label">按键灯亮度 {{ Math.round(deviceStore.rgbConfig.brightness * 100 / 255) }}%</span>
-        <input type="range" v-model.number="deviceStore.rgbConfig.brightness" min="0" max="255" class="rgb-slider" />
+        <input type="range" v-model.number="deviceStore.rgbConfig.brightness" min="0" max="255" class="rgb-slider"
+          @change="autoSaveRgb" @blur="autoSaveRgb" @keyup="autoSaveRgb" />
       </div>
 
       <div v-if="showIndicatorBrightness" class="rgb-item">
         <span class="rgb-label">指示灯亮度 {{ Math.round(deviceStore.rgbConfig.indicatorBrightness * 100 / 255) }}%</span>
-        <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" :min="RGB_INDICATOR_MIN_BRIGHTNESS" max="255" class="rgb-slider" />
+        <input type="range" v-model.number="deviceStore.rgbConfig.indicatorBrightness" :min="RGB_INDICATOR_MIN_BRIGHTNESS" max="255" class="rgb-slider"
+          @change="autoSaveRgb" @blur="autoSaveRgb" @keyup="autoSaveRgb" />
       </div>
 
       <div v-if="showSpeedSlider" class="rgb-item">
         <span class="rgb-label">灯效速度 {{ Math.round(deviceStore.rgbConfig.speed * 100 / 255) }}%</span>
-        <input type="range" v-model.number="deviceStore.rgbConfig.speed" min="0" max="255" class="rgb-slider" />
+        <input type="range" v-model.number="deviceStore.rgbConfig.speed" min="0" max="255" class="rgb-slider"
+          @change="autoSaveRgb" @blur="autoSaveRgb" @keyup="autoSaveRgb" />
       </div>
 
       <div class="rgb-item">
         <span class="rgb-label">按下效果</span>
-        <select v-model.number="deviceStore.rgbConfig.pressEffect" class="rgb-select">
+        <select v-model.number="deviceStore.rgbConfig.pressEffect" class="rgb-select" @change="autoSaveRgb">
           <option v-for="opt in pressEffectOptions" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
@@ -73,6 +79,8 @@
           min="0"
           max="255"
           class="rgb-number-input"
+          @change="autoSaveRgb"
+          @blur="autoSaveRgb"
         />
       </div>
 
@@ -84,27 +92,26 @@
           min="0"
           max="255"
           class="rgb-number-input"
+          @change="autoSaveRgb"
+          @blur="autoSaveRgb"
         />
       </div>
 
       <div v-if="deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552" class="rgb-item">
         <span class="rgb-label">USB 轮询率</span>
-        <select v-model.number="pollRateModel" class="rgb-select">
+        <select v-model.number="pollRateModel" class="rgb-select" @change="autoSaveRgb">
           <option v-for="opt in pollRateOptions" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </option>
         </select>
         <span class="rgb-hint">修改后需重新插拔键盘生效</span>
       </div>
-
-      <Button label="保存设置" icon="pi pi-check" size="small" @click="saveRgb"
-        class="rgb-save-btn btn-primary" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useDeviceStore } from '@/stores/deviceStore';
 import { showToast } from '@/services/toastService';
 import {
@@ -117,6 +124,9 @@ import {
 } from '@/types/protocol';
 
 const deviceStore = useDeviceStore();
+const isAutoSaving = ref(false);
+const hasPendingSave = ref(false);
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 const modeOptions = computed(() => {
   if (deviceStore.deviceInfo?.protocol === DeviceProtocol.CH552) {
@@ -203,14 +213,41 @@ const colorHex = computed({
   },
 });
 
-async function saveRgb() {
+function scheduleRgbSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void autoSaveRgb();
+  }, 650);
+}
+
+async function autoSaveRgb() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (isAutoSaving.value) {
+    hasPendingSave.value = true;
+    return;
+  }
+
+  isAutoSaving.value = true;
   try {
     await deviceStore.saveRgbConfig();
-    showToast('success', '已保存', '设置已保存到设备');
   } catch (error) {
     showToast('error', '保存失败', error instanceof Error ? error.message : '未知错误');
+  } finally {
+    isAutoSaving.value = false;
+    if (hasPendingSave.value) {
+      hasPendingSave.value = false;
+      scheduleRgbSave();
+    }
   }
 }
+
+onBeforeUnmount(() => {
+  if (saveTimer) clearTimeout(saveTimer);
+});
 </script>
 
 <style scoped>
@@ -301,10 +338,6 @@ async function saveRgb() {
   font-size: 0.85rem;
   cursor: pointer;
   color: var(--c-text-primary);
-}
-
-.rgb-save-btn {
-  margin-top: 4px;
 }
 
 .rgb-hint {

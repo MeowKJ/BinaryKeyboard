@@ -211,6 +211,7 @@ else()
         UART_LOG_ENABLE=0
         KBD_DEBUG_BUILD=0
         KBD_USB_LOG_ENABLE=0
+        KBD_LOG_DEFAULT_ENABLED=0
     )
 endif()
 

@@ -4,6 +4,7 @@ import {
   LOCAL_RELEASE_MANIFEST,
   RELEASE_FEED,
 } from "@/generated/versionConfig";
+import { isNewerVersion } from "@/utils/version";
 
 type ReleaseVersions = {
   studio: string;
@@ -25,16 +26,6 @@ const DEFAULT_VERSIONS: ReleaseVersions = {
 };
 
 const RELEASE_RETRY_DELAY_MS = 60_000;
-
-function isNewerVersion(latest: string, current: string): boolean {
-  const a = latest.split(".").map(Number);
-  const b = current.split(".").map(Number);
-  for (let i = 0; i < Math.max(a.length, b.length); i++) {
-    if ((a[i] ?? 0) > (b[i] ?? 0)) return true;
-    if ((a[i] ?? 0) < (b[i] ?? 0)) return false;
-  }
-  return false;
-}
 
 export const useReleaseStore = defineStore("release", () => {
   const latestVersions = ref<ReleaseVersions>({ ...DEFAULT_VERSIONS });

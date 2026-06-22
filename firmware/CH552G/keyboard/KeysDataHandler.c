@@ -16,6 +16,7 @@ static void loadRgbFromEEPROM(void);
 
 static __xdata KeyConfig keySettings[MAX_LAYERS][KEY_CONFIG_SLOTS];
 static __xdata uint8_t currentLayer = 0;
+__xdata uint8_t osMode = OS_MODE_WIN;
 
 void KeysDataInit(void)
 {
@@ -109,6 +110,8 @@ static void initDefaultConfig(void)
   eeprom_write_byte(EEPROM_RGB_PRESS_EFFECT_ADDR, PRESS_EFFECT_NONE);
   // USB 轮询率默认 100Hz (bInterval=10)
   eeprom_write_byte(EEPROM_POLL_RATE_ADDR, 10);
+  // 系统模式默认 Win
+  eeprom_write_byte(EEPROM_OS_MODE_ADDR, OS_MODE_WIN);
   // MeowFS
   meowfs_format();
   eeprom_write_byte(EEPROM_MEOWFS_FMT_ADDR, MEOWFS_FMT_MAGIC);
@@ -173,6 +176,12 @@ void setCurrentLayer(uint8_t layer)
   eeprom_write_byte(EEPROM_LAYER_ADDR, layer);
 }
 
+void setOsMode(uint8_t mode)
+{
+  osMode = (mode == OS_MODE_MAC) ? OS_MODE_MAC : OS_MODE_WIN;
+  eeprom_write_byte(EEPROM_OS_MODE_ADDR, osMode);
+}
+
 // ── EEPROM 读写 ──
 
 void saveLayerToEEPROM(uint8_t layer)
@@ -199,6 +208,10 @@ void loadAllFromEEPROM(void)
   currentLayer = eeprom_read_byte(EEPROM_LAYER_ADDR);
   if (currentLayer >= MAX_LAYERS)
     currentLayer = 0;
+
+  osMode = eeprom_read_byte(EEPROM_OS_MODE_ADDR);
+  if (osMode > OS_MODE_MAC)
+    osMode = OS_MODE_WIN;
 
   for (uint8_t layer = 0; layer < MAX_LAYERS; layer++)
   {

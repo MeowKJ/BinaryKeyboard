@@ -3,15 +3,58 @@
  * 统一管理已注册的设备适配器插件
  */
 
-import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData } from '@/types/protocol';
+import type { DeviceInfo, DeviceStatus, FnKeyConfig, KeymapConfig, LogConfig, RgbConfig, MacroOverview, MacroHeader, MacroData, OsModeConfig } from '@/types/protocol';
 import { showToast } from '@/services/toastService';
 import { createHidAdapters } from './hid/registry';
-import type { BatteryInfo, HidAdapter, HidOptionalOperations } from './hid/common/types';
+import type { BatteryInfo, HidAdapter, HidDeviceEventHandler, HidOptionalOperations } from './hid/common/types';
 import { OPTIONAL_OPERATION_LABELS } from './hid/common/types';
 
 const ADAPTERS: HidAdapter[] = createHidAdapters();
 
 export const KEYBOARD_FILTERS: HIDDeviceFilter[] = ADAPTERS.flatMap((adapter) => adapter.filters);
+
+function collectionMatches(
+  collection: HIDCollectionInfo,
+  filter: HIDDeviceFilter,
+): boolean {
+  const usagePageMatches =
+    filter.usagePage === undefined || collection.usagePage === filter.usagePage;
+  const usageMatches = filter.usage === undefined || collection.usage === filter.usage;
+
+  if (usagePageMatches && usageMatches) {
+    return true;
+  }
+
+  return collection.children?.some((child) => collectionMatches(child, filter)) ?? false;
+}
+
+function deviceMatchesFilter(device: HIDDevice, filter: HIDDeviceFilter): boolean {
+  if (filter.vendorId !== undefined && device.vendorId !== filter.vendorId) return false;
+  if (filter.productId !== undefined && device.productId !== filter.productId) return false;
+
+  if (filter.usagePage === undefined && filter.usage === undefined) {
+    return true;
+  }
+
+  return device.collections?.some((collection) => collectionMatches(collection, filter)) ?? false;
+}
+
+function scoreDeviceForAdapter(device: HIDDevice, adapter: HidAdapter): number {
+  let best = 0;
+
+  for (const filter of adapter.filters) {
+    if (filter.vendorId !== undefined && device.vendorId !== filter.vendorId) continue;
+    if (filter.productId !== undefined && device.productId !== filter.productId) continue;
+
+    if (deviceMatchesFilter(device, filter)) {
+      best = Math.max(best, filter.usagePage !== undefined || filter.usage !== undefined ? 100 : 50);
+    } else {
+      best = Math.max(best, 10);
+    }
+  }
+
+  return best;
+}
 
 export class HidService {
   static isSupported(): boolean {
@@ -21,7 +64,15 @@ export class HidService {
   private activeAdapter: HidAdapter | null = null;
 
   private resolveAdapter(device: HIDDevice): HidAdapter | null {
-    return ADAPTERS.find((adapter) => adapter.matches(device)) ?? null;
+    return (
+      ADAPTERS.find(
+        (adapter) =>
+          adapter.matches(device) &&
+          adapter.filters.some((filter) => deviceMatchesFilter(device, filter)),
+      ) ??
+      ADAPTERS.find((adapter) => adapter.matches(device)) ??
+      null
+    );
   }
 
   private requireAdapter(): HidAdapter {
@@ -49,7 +100,7 @@ export class HidService {
     try {
       const devices = await navigator.hid.requestDevice({ filters: KEYBOARD_FILTERS });
       if (devices.length === 0) return null;
-      return devices[0];
+      return this.pickBestDevice(devices);
     } catch (error) {
       showToast('error', '连接失败', error instanceof Error ? error.message : '请求设备时发生未知错误');
       return null;
@@ -59,7 +110,23 @@ export class HidService {
   async getAuthorizedDevice(): Promise<HIDDevice | null> {
     if (!HidService.isSupported()) return null;
     const devices = await navigator.hid.getDevices();
-    return devices.find((device) => this.resolveAdapter(device) !== null) ?? null;
+    return this.pickBestDevice(devices);
+  }
+
+  private pickBestDevice(devices: HIDDevice[]): HIDDevice | null {
+    return (
+      devices
+        .map((device) => ({
+          device,
+          score: Math.max(
+            ...ADAPTERS.map((adapter) =>
+              adapter.matches(device) ? scoreDeviceForAdapter(device, adapter) : 0,
+            ),
+          ),
+        }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)[0]?.device ?? null
+    );
   }
 
   async connect(device: HIDDevice): Promise<boolean> {
@@ -98,6 +165,11 @@ export class HidService {
     return this.activeAdapter?.isConnected() ?? false;
   }
 
+  onDeviceEvent(handler: HidDeviceEventHandler): () => void {
+    const adapter = this.requireAdapter();
+    return adapter.onDeviceEvent(handler);
+  }
+
   async getSysInfo(): Promise<DeviceInfo> {
     return this.requireAdapter().getSysInfo();
   }
@@ -128,6 +200,14 @@ export class HidService {
 
   async setFnKeyConfig(config: FnKeyConfig): Promise<void> {
     await this.requireOptionalOperation('setFnKeyConfig')(config);
+  }
+
+  async getOsMode(): Promise<OsModeConfig> {
+    return this.requireOptionalOperation('getOsMode')();
+  }
+
+  async setOsMode(config: OsModeConfig): Promise<void> {
+    await this.requireOptionalOperation('setOsMode')(config);
   }
 
   async saveConfig(): Promise<void> {

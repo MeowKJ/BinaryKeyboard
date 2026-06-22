@@ -27,6 +27,8 @@ import {
   type KeyAction,
   type KeymapConfig,
   type LayerConfig,
+  OsMode,
+  type OsModeConfig,
 } from '@/types/protocol';
 import { FIRMWARE_VERSION_META } from '@/generated/versionConfig';
 import { toHexDump } from '@/utils/protocolParser';
@@ -42,6 +44,7 @@ const CH552_SLOT_COUNT = 8;
 const CH552_SLOT_SIZE = 3;
 const FW_VERSION_MULTILAYER = 0x0C;
 const FW_VERSION_RGB = 0x0D;
+const FW_VERSION_OS_MODE = 0x0E;
 const CH552_READ_RETRY_COUNT = 3;
 
 enum Ch552Command {
@@ -53,6 +56,8 @@ enum Ch552Command {
   READ_RGB = 0x06,
   WRITE_RGB = 0x07,
   FACTORY_RESET = 0x08,
+  READ_OS_MODE = 0x09,
+  WRITE_OS_MODE = 0x0A,
   MACRO = 0x40,
 }
 
@@ -173,6 +178,12 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return {
       getRgbConfig: () => this.getRgbConfig(transport),
       setRgbConfig: (config) => this.setRgbConfig(transport, config),
+      ...(this.version >= FW_VERSION_OS_MODE
+        ? {
+            getOsMode: () => this.getOsMode(transport),
+            setOsMode: (config) => this.setOsMode(transport, config),
+          }
+        : {}),
       resetConfig: () => this.resetConfig(transport),
       getMacroOverview: () => this.getMacroOverview(transport),
       getMacroInfo: (slot) => this.getMacroInfo(transport, slot),
@@ -207,6 +218,12 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     return frame;
   }
 
+  buildReadOsModeFrame(): Uint8Array {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.READ_OS_MODE;
+    return frame;
+  }
+
   buildSetLayerFrame(layerIndex: number): Uint8Array {
     const frame = new Uint8Array(CH552_FRAME_SIZE);
     frame[0] = Ch552Command.SET_LAYER;
@@ -228,6 +245,13 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     frame[9] = config.indicatorBrightness ?? config.brightness;
     frame[10] = config.pressEffect ?? PressEffect.NONE;
     frame[11] = config.pollRate ?? 10;
+    return frame;
+  }
+
+  buildWriteOsModeFrame(config: OsModeConfig): Uint8Array {
+    const frame = new Uint8Array(CH552_FRAME_SIZE);
+    frame[0] = Ch552Command.WRITE_OS_MODE;
+    frame[1] = config.mode === OsMode.MAC ? OsMode.MAC : OsMode.WIN;
     return frame;
   }
 
@@ -368,6 +392,15 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
     };
   }
 
+  parseOsModeConfig(data: Uint8Array): OsModeConfig {
+    if (data[0] !== Ch552Command.READ_OS_MODE) {
+      throw new Error(`CH552G READ_OS_MODE 返回了未知响应 ${this.hexByte(data[0] ?? 0)}`);
+    }
+    return {
+      mode: data[1] === OsMode.MAC ? OsMode.MAC : OsMode.WIN,
+    };
+  }
+
   toDeviceInfo(blob: Ch552ConfigBlob): DeviceInfo {
     const keyboardType = this.mapDeviceType(blob.deviceType);
     const semver = this.versionToSemver(blob.version);
@@ -428,7 +461,10 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
 
   capabilitiesForVersion(version: number): DeviceCapabilities {
     if (version >= FW_VERSION_RGB) {
-      return CH552_CAPABILITIES;
+      return {
+        ...CH552_CAPABILITIES,
+        osMode: version >= FW_VERSION_OS_MODE,
+      };
     }
     return createDeviceCapabilities({
       multiLayer: version >= FW_VERSION_MULTILAYER,
@@ -436,6 +472,7 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       rgb: false,
       rgbOverlay: false,
       fnKeys: false,
+      osMode: false,
       macroActions: version >= FW_VERSION_RGB,
       wheelClickAction: false,
       battery: false,
@@ -478,6 +515,8 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
       case Ch552Command.READ_RGB: return 'CH552_READ_RGB';
       case Ch552Command.WRITE_RGB: return 'CH552_WRITE_RGB';
       case Ch552Command.FACTORY_RESET: return 'CH552_FACTORY_RESET';
+      case Ch552Command.READ_OS_MODE: return 'CH552_READ_OS_MODE';
+      case Ch552Command.WRITE_OS_MODE: return 'CH552_WRITE_OS_MODE';
       case Ch552Command.MACRO: return 'CH552_MACRO';
       default: return `CH552_CMD_${cmd.toString(16)}`;
     }
@@ -776,6 +815,24 @@ export class Ch552Codec implements DeviceCodec<Uint8Array> {
   private async setRgbConfig(transport: CodecTransport<Uint8Array>, config: RgbConfig): Promise<void> {
     await transport.sendNoWait(this.buildWriteRgbFrame(config));
     await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  private async getOsMode(transport: CodecTransport<Uint8Array>): Promise<OsModeConfig> {
+    const data = await this.readWithRetry('CH552G 系统模式读取超时', () => transport.sendAndWait(this.buildReadOsModeFrame(), {
+      timeout: 1500,
+      timeoutLabel: 'CH552G 系统模式读取超时',
+    }));
+    return this.parseOsModeConfig(data);
+  }
+
+  private async setOsMode(transport: CodecTransport<Uint8Array>, config: OsModeConfig): Promise<void> {
+    const data = await this.readWithRetry('CH552G 系统模式写入超时', () => transport.sendAndWait(this.buildWriteOsModeFrame(config), {
+      timeout: 1500,
+      timeoutLabel: 'CH552G 系统模式写入超时',
+    }));
+    if (data[0] !== Ch552Command.WRITE_OS_MODE || data[1] !== 0) {
+      throw new Error(`CH552G WRITE_OS_MODE 返回了未知响应 ${this.hexByte(data[0] ?? 0)}`);
+    }
   }
 
   private async resetConfig(transport: CodecTransport<Uint8Array>): Promise<void> {

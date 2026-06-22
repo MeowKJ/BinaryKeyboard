@@ -12,6 +12,7 @@ import {
   KeyboardType,
   LayerOp,
   MouseButton,
+  OsMode,
   PressEffect,
   WheelDirection,
   LogCategory,
@@ -29,6 +30,8 @@ const COMMAND_NAMES: Record<number, string> = {
   [Command.CFG_SAVE]: "CFG_SAVE",
   [Command.CFG_LOAD]: "CFG_LOAD",
   [Command.CFG_RESET]: "CFG_RESET",
+  [Command.CFG_OS_GET]: "CFG_OS_GET",
+  [Command.CFG_OS_SET]: "CFG_OS_SET",
   [Command.KEYMAP_GET]: "KEYMAP_GET",
   [Command.KEYMAP_SET]: "KEYMAP_SET",
   [Command.LAYER_GET]: "LAYER_GET",
@@ -45,6 +48,9 @@ const COMMAND_NAMES: Record<number, string> = {
   [Command.LOG]: "LOG",
   [Command.LOG_GET]: "LOG_GET",
   [Command.LOG_SET]: "LOG_SET",
+  [Command.DATAFLASH_INFO]: "DATAFLASH_INFO",
+  [Command.DATAFLASH_READ]: "DATAFLASH_READ",
+  [Command.DATAFLASH_WRITE]: "DATAFLASH_WRITE",
 };
 
 const COMMAND_LABELS: Record<number, string> = {
@@ -53,6 +59,8 @@ const COMMAND_LABELS: Record<number, string> = {
   [Command.CFG_SAVE]: "保存配置到 Flash",
   [Command.CFG_LOAD]: "从 Flash 加载配置",
   [Command.CFG_RESET]: "恢复出厂设置",
+  [Command.CFG_OS_GET]: "获取系统模式",
+  [Command.CFG_OS_SET]: "设置系统模式",
   [Command.KEYMAP_GET]: "获取按键映射",
   [Command.KEYMAP_SET]: "设置按键映射",
   [Command.LAYER_GET]: "获取当前层",
@@ -69,6 +77,9 @@ const COMMAND_LABELS: Record<number, string> = {
   [Command.LOG]: "设备日志",
   [Command.LOG_GET]: "获取日志配置",
   [Command.LOG_SET]: "设置日志配置",
+  [Command.DATAFLASH_INFO]: "获取 DataFlash 布局",
+  [Command.DATAFLASH_READ]: "读取 DataFlash",
+  [Command.DATAFLASH_WRITE]: "写入 DataFlash 字节",
 };
 
 const RESPONSE_CODE_NAMES: Record<number, string> = {
@@ -295,6 +306,12 @@ export function parseSendFrame(frame: Uint8Array): {
       parsed += ` | 切换到层 ${sub + 1}`;
       break;
 
+    case Command.CFG_OS_SET:
+      if (len >= 1) {
+        parsed += ` | ${data[0] === OsMode.MAC ? "Mac" : "Win"}`;
+      }
+      break;
+
     case Command.RGB_SET:
       if (len >= 9) {
         const enabled = data[0] ? "开" : "关";
@@ -335,6 +352,20 @@ export function parseSendFrame(frame: Uint8Array): {
 
     case Command.MACRO_DEL:
       parsed += ` | 删除槽位 ${sub}`;
+      break;
+
+    case Command.DATAFLASH_READ:
+      if (len >= 3) {
+        const offset = (data[0] << 8) | data[1];
+        parsed += ` | ${hex(offset)} +${data[2]}B`;
+      }
+      break;
+
+    case Command.DATAFLASH_WRITE:
+      if (len >= 3) {
+        const offset = (data[0] << 8) | data[1];
+        parsed += ` | ${hex(offset)} = ${hex(data[2])}`;
+      }
       break;
   }
 
@@ -419,6 +450,35 @@ export function parseReceiveFrame(frame: Uint8Array): {
         const battery = data[4];
         const charging = data[5] ? "充电中" : "未充电";
         parsed += ` | ${mode} ${conn} | 层${layer + 1} | 电量 ${battery}% ${charging}`;
+      }
+      break;
+
+    case Command.DATAFLASH_INFO:
+      if (len >= 17) {
+        const total = (data[1] << 8) | data[2];
+        const page = (data[3] << 8) | data[4];
+        const macroBase = (data[9] << 8) | data[10];
+        const macroSize = (data[11] << 8) | data[12];
+        parsed += ` | 总计 ${total}B, 页 ${page}B, 宏区 ${hex(macroBase)} +${macroSize}B`;
+      }
+      break;
+
+    case Command.DATAFLASH_READ:
+      if (len >= 2) {
+        parsed += ` | ${data[1]}B`;
+      }
+      break;
+
+    case Command.DATAFLASH_WRITE:
+      if (len >= 4) {
+        const offset = (data[1] << 8) | data[2];
+        parsed += ` | ${hex(offset)} = ${hex(data[3])}`;
+      }
+      break;
+
+    case Command.CFG_OS_GET:
+      if (len >= 2) {
+        parsed += ` | ${data[1] === OsMode.MAC ? "Mac" : "Win"}`;
       }
       break;
 

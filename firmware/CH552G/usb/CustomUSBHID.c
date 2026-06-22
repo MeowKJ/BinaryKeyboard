@@ -28,6 +28,29 @@ __xdata uint8_t CustomBuf[31] = {0x01};
 
 typedef void (*pTaskFn)(void);
 
+#define MOD_LCTRL 0x01
+#define MOD_LGUI 0x08
+#define MOD_RCTRL 0x10
+#define MOD_RGUI 0x80
+
+static uint8_t applyOsModeModifier(uint8_t modifier)
+{
+  uint8_t mapped = modifier;
+  if (osMode != OS_MODE_MAC)
+    return mapped;
+
+  mapped &= (uint8_t)~(MOD_LCTRL | MOD_LGUI | MOD_RCTRL | MOD_RGUI);
+  if (modifier & MOD_LCTRL)
+    mapped |= MOD_LGUI;
+  if (modifier & MOD_LGUI)
+    mapped |= MOD_LCTRL;
+  if (modifier & MOD_RCTRL)
+    mapped |= MOD_RGUI;
+  if (modifier & MOD_RGUI)
+    mapped |= MOD_RCTRL;
+  return mapped;
+}
+
 void USBInit()
 {
   USBDeviceCfg();         // Device mode configuration
@@ -209,6 +232,21 @@ void USB_EP1_OUT()
         CustomBuf[2] = flash_read_byte(MEOWFS_BASE + 1);
         USB_EP1_send(5);
       }
+      else if (cmd == HOST_CMD_READ_OS_MODE)
+      {
+        memset(CustomBuf, 0, sizeof(CustomBuf));
+        CustomBuf[0] = HOST_CMD_READ_OS_MODE;
+        CustomBuf[1] = osMode;
+        USB_EP1_send(5);
+      }
+      else if (cmd == HOST_CMD_WRITE_OS_MODE)
+      {
+        setOsMode(Ep1Buffer[2]);
+        memset(CustomBuf, 0, sizeof(CustomBuf));
+        CustomBuf[0] = HOST_CMD_WRITE_OS_MODE;
+        CustomBuf[1] = 0;
+        USB_EP1_send(5);
+      }
       else if (cmd >= HOST_CMD_MACRO_INFO)
       {
         handle_macro_cmd();
@@ -262,7 +300,7 @@ uint8_t USB_EP1_send(__data uint8_t reportID)
   Ep1Buffer[64] = reportID;
   for (__data uint8_t i = 0; i < len; i++)
   {
-    Ep1Buffer[64 + 1 + i] = src[i];
+    Ep1Buffer[64 + 1 + i] = (reportID == 1 && i == 0) ? applyOsModeModifier(src[i]) : src[i];
   }
   UEP1_T_LEN = 1 + len;
 

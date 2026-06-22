@@ -1,32 +1,30 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue';
+import CatEmoji from '@/components/CatEmoji.vue';
 import { lastToastSeverity } from '@/services/toastService';
-
-import idleImg from '@/assets/emoji/grinning_cat_with_smiling_eyes_animated.png';
-import successImg from '@/assets/emoji/smiling_cat_with_heart-eyes_animated.png';
-import errorImg from '@/assets/emoji/crying_cat_animated.png';
-import warnImg from '@/assets/emoji/weary_cat_animated.png';
-import infoImg from '@/assets/emoji/grinning_cat_animated.png';
-import loadingImg from '@/assets/emoji/hourglass_not_done_animated.png';
+import type { StudioEmojiType } from '@/utils/fluentEmoji';
+import { KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
 
 const props = defineProps<{
   loading?: boolean;
+  showFactoryReset?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'action', action: string): void;
 }>();
 
+const previewKeyboardType = defineModel<number>('previewType', { default: -1 });
 const menuOpen = ref(false);
 
-const currentImg = computed(() => {
-  if (props.loading) return loadingImg;
+const currentEmoji = computed<StudioEmojiType>(() => {
+  if (props.loading) return 'hourglass-not-done-animated';
   switch (lastToastSeverity.value) {
-    case 'success': return successImg;
-    case 'error': return errorImg;
-    case 'warn': return warnImg;
-    case 'info': return infoImg;
-    default: return idleImg;
+    case 'success': return 'heart-eyes-animated';
+    case 'error': return 'crying-animated';
+    case 'warn': return 'weary-animated';
+    case 'info': return 'grinning-animated';
+    default: return 'grinning-eyes-animated';
   }
 });
 
@@ -51,11 +49,21 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
 
 <template>
   <div class="cat-assistant" :class="{ loading }" @click.stop="toggleMenu">
-    <img :src="currentImg" alt="猫咪助手" draggable="false" />
+    <CatEmoji :type="currentEmoji" alt="猫咪助手" class="cat-assistant-emoji" />
     <span v-if="loading" class="cat-loading-text">加载中...</span>
 
     <transition name="cat-menu">
-      <div v-if="menuOpen" class="cat-menu">
+      <div v-if="menuOpen" class="cat-menu" @click.stop>
+        <label class="cat-preview-control">
+          <span>设备视图</span>
+          <select v-model.number="previewKeyboardType" class="cat-preview-select">
+            <option :value="-1">实际设备</option>
+            <option :value="0">预览：{{ KeyboardTypeInfo[KeyboardType.BASIC]?.name || '基础款' }}</option>
+            <option :value="1">预览：{{ KeyboardTypeInfo[KeyboardType.FIVE_KEYS]?.name || '五键款' }}</option>
+            <option :value="2">预览：{{ KeyboardTypeInfo[KeyboardType.KNOB]?.name || '旋钮款' }}</option>
+          </select>
+        </label>
+        <div class="cat-menu-divider"></div>
         <button class="cat-menu-item" @click.stop="onAction('refresh')">
           <i class="pi pi-sync"></i>
           <span>刷新配置</span>
@@ -73,6 +81,10 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
           <span>回到顶部</span>
         </button>
         <div class="cat-menu-divider"></div>
+        <button v-if="showFactoryReset" class="cat-menu-item danger" @click.stop="onAction('factoryReset')">
+          <i class="pi pi-refresh"></i>
+          <span>恢复出厂</span>
+        </button>
         <button class="cat-menu-item danger" @click.stop="onAction('disconnect')">
           <i class="pi pi-power-off"></i>
           <span>断开连接</span>
@@ -99,10 +111,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
   transform: scale(1.1);
 }
 
-.cat-assistant img {
+.cat-assistant :deep(.cat-assistant-emoji) {
   width: 100%;
   height: 100%;
-  object-fit: contain;
   pointer-events: none;
   /* 独立合成层，防止 APNG 帧切换时与父元素 transform transition 互相干扰产生跳动 */
   will-change: contents;
@@ -130,12 +141,46 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  min-width: 140px;
+  min-width: 176px;
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md, 12px);
   padding: 0.35rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.cat-preview-control {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem 0.35rem;
+}
+
+.cat-preview-control span {
+  color: var(--c-text-muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.cat-preview-select {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-secondary);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  outline: none;
+  cursor: pointer;
+}
+
+.cat-preview-select:hover,
+.cat-preview-select:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
 }
 
 .cat-menu-item {

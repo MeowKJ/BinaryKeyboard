@@ -1,6 +1,7 @@
 <template>
-  <Dialog v-model:visible="dialogVisible" :style="{ width: 'min(1120px, calc(100vw - 24px))' }" modal
+  <StudioDialog v-model:visible="dialogVisible" size="lg"
     :closable="!isRecording && capturingIdx < 0" :closeOnEscape="!isRecording && capturingIdx < 0"
+    :dismissableMask="!isRecording && capturingIdx < 0"
     class="macro-editor-dialog" :showHeader="false" @hide="cleanupInteractiveState">
 
     <div class="ide-layout">
@@ -57,10 +58,16 @@
                 <span>MeowMacro</span>
               </button>
             </div>
-            <a class="meowmacro-doc-link" href="https://meowkj.github.io/BinaryKeyboard/meowmacro" target="_blank"
+            <a class="meowmacro-doc-link studio-help-link" href="https://meowkj.github.io/BinaryKeyboard/meowmacro" target="_blank"
               rel="noopener" v-tooltip.bottom="'MeowMacro 语法文档'">
               <i class="pi pi-question-circle"></i>
             </a>
+            <button class="macro-file-btn" type="button" title="导入到当前宏" @click="openMacroImport" v-tooltip.bottom="'导入到当前宏'">
+              <i class="pi pi-upload"></i>
+            </button>
+            <button class="macro-file-btn" type="button" title="导出当前宏" @click="exportCurrentMacro" v-tooltip.bottom="'导出当前宏'">
+              <i class="pi pi-download"></i>
+            </button>
           </div>
           <button class="ide-close-btn" @click="closeEditor" v-tooltip.left="'关闭'">
             <i class="pi pi-times"></i>
@@ -264,21 +271,30 @@
         </div>
       </div>
     </div>
+    <input ref="macroImportInputRef" class="macro-import-input" type="file" accept="application/json,.json" @change="importCurrentMacro" />
 
-  </Dialog>
+  </StudioDialog>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 import { VueDraggable, type MoveEvent } from "vue-draggable-plus";
 import { parseActions, useMacroStore, type MacroCard } from "@/stores/macroStore";
+import { useStudioAssetStore } from "@/stores/studioAssetStore";
+import { useDeviceStore } from "@/stores/deviceStore";
 import { showToast } from "@/services/toastService";
+import StudioDialog from "@/components/StudioDialog.vue";
 import {
   MacroActionType,
   type MacroAction,
 } from "@/types/protocol";
+import {
+  ASSET_FORMAT_VERSION,
+  MACRO_PACK_FORMAT,
+  type MacroPackDocument,
+} from "@/types/studioAssets";
 import { MACRO_CONSUMER_KEYS, getConsumerName } from "@/utils/consumer";
-import { getHidFromEvent, KEYCODE_NAMES } from "@/utils/keycodes";
+import { getHidFromEvent, getModifierLabel, getModifierOptions, KEYCODE_NAMES } from "@/utils/keycodes";
 import {
   compileMacroCards,
   compileMacroDsl,
@@ -299,6 +315,8 @@ const emit = defineEmits<{
 }>();
 
 const macroStore = useMacroStore();
+const deviceStore = useDeviceStore();
+const assetStore = useStudioAssetStore();
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -324,6 +342,7 @@ const codeHighlightRef = ref<HTMLElement | null>(null);
 const codeGutterTrackRef = ref<HTMLElement | null>(null);
 const codeMeasureRef = ref<HTMLElement | null>(null);
 const codeCaretMarkerRef = ref<HTMLElement | null>(null);
+const macroImportInputRef = ref<HTMLInputElement | null>(null);
 const showModifierMenu = ref(false);
 const showMouseMenu = ref(false);
 const showConsumerMenu = ref(false);
@@ -408,27 +427,140 @@ const mouseOptions = [
   { label: "前进", param: 0x10 },
 ];
 
-const modifierOptions = [
-  { label: "Ctrl", param: 0x01 },
-  { label: "Shift", param: 0x02 },
-  { label: "Alt", param: 0x04 },
-  { label: "Win", param: 0x08 },
-  { label: "RCtrl", param: 0x10 },
-  { label: "RShift", param: 0x20 },
-  { label: "RAlt", param: 0x40 },
-  { label: "RWin", param: 0x80 },
-];
+const modifierOptions = computed(() =>
+  getModifierOptions(deviceStore.osModeConfig.mode).map((option) => ({
+    label: option.label,
+    param: option.mask,
+  })),
+);
 
-const MOD_NAMES: Record<number, string> = {
-  0x01: "Ctrl",
-  0x02: "Shift",
-  0x04: "Alt",
-  0x08: "Win",
-  0x10: "RCtrl",
-  0x20: "RShift",
-  0x40: "RAlt",
-  0x80: "RWin",
-};
+function safeMacroFilename(name: string): string {
+  return (name.trim() || "macro")
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 96) || "macro";
+}
+
+function downloadJson(filename: string, json: string): void {
+  const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function macroPackFromCurrentEditor(): MacroPackDocument | null {
+  if (activeSlot.value < 0) {
+    showToast("warn", "未选择宏", "请先打开一个宏");
+    return null;
+  }
+
+  const compileState = editorMode.value === "code"
+    ? codeCompileState.value
+    : compileMacroCards(macroStore.editingCards);
+  if (compileState.diagnostics.length > 0) {
+    showToast("error", "宏验证失败", compileState.diagnostics[0]?.message || "宏动作存在非法顺序");
+    return null;
+  }
+  if (compileState.actionCount <= 0) {
+    showToast("warn", "宏为空", "没有可导出的动作");
+    return null;
+  }
+
+  const info = deviceStore.deviceInfo;
+  if (!info) {
+    showToast("error", "设备未连接", "无法生成宏文件来源信息");
+    return null;
+  }
+
+  const name = macroStore.editingName.trim() || `宏 ${activeSlot.value + 1}`;
+  return {
+    format: MACRO_PACK_FORMAT,
+    version: ASSET_FORMAT_VERSION,
+    name,
+    createdAt: new Date().toISOString(),
+    sourceDevice: {
+      protocol: info.protocol,
+      protocolLabel: info.protocolLabel,
+      keyboardType: info.keyboardType,
+      keyboardTypeName: deviceStore.keyboardTypeName,
+      actualKeyCount: info.actualKeyCount,
+      maxLayers: info.maxLayers,
+      macroSlots: info.macroSlots,
+      fnKeyCount: info.fnKeyCount,
+      firmwareVersion: deviceStore.firmwareVersion,
+      capabilities: {
+        multiLayer: info.capabilities.multiLayer,
+        layerKeyActions: info.capabilities.layerKeyActions,
+        rgb: info.capabilities.rgb,
+        fnKeys: info.capabilities.fnKeys,
+        macroActions: info.capabilities.macroActions,
+        osMode: info.capabilities.osMode,
+        wheelClickAction: info.capabilities.wheelClickAction,
+      },
+    },
+    macros: [
+      {
+        name,
+        sourceSlot: activeSlot.value,
+        actions: compileState.actions.map((action) => ({ ...action })),
+      },
+    ],
+  };
+}
+
+function exportCurrentMacro(): void {
+  cleanupInteractiveState();
+  const pack = macroPackFromCurrentEditor();
+  if (!pack) return;
+  downloadJson(`${safeMacroFilename(pack.name)}.binarykeyboard-macro.json`, JSON.stringify(pack, null, 2));
+  showToast("success", "宏已导出", pack.name);
+}
+
+function openMacroImport(): void {
+  if (activeSlot.value < 0) {
+    showToast("warn", "未选择宏", "请先打开一个宏");
+    return;
+  }
+  if (!macroImportInputRef.value) return;
+  macroImportInputRef.value.value = "";
+  macroImportInputRef.value.click();
+}
+
+async function importCurrentMacro(event: Event): Promise<void> {
+  cleanupInteractiveState();
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file || activeSlot.value < 0) return;
+
+  const slot = activeSlot.value;
+  try {
+    await assetStore.importMacroPackJson(await file.text(), {
+      strategy: "overwrite",
+      targetSlot: slot,
+      single: true,
+    });
+    tabCache.value.delete(slot);
+    await macroStore.startEditing(slot);
+    activeSlot.value = slot;
+    editorMode.value = "visual";
+    codeText.value = "";
+    syncCodeFromCards();
+    snapshotCurrentTab();
+    showToast("success", "宏已导入", `已写入宏 ${slot + 1}`);
+  } catch (error) {
+    showToast("error", "宏导入失败", error instanceof Error ? error.message : "未知错误");
+  }
+}
+
+function modifierName(modifier: number): string {
+  return getModifierLabel(modifier, deviceStore.osModeConfig.mode);
+}
 
 const MOUSE_BTN_NAMES: Record<number, string> = {
   0x01: "左键",
@@ -609,7 +741,11 @@ async function refreshCodeCompletions(): Promise<void> {
     return;
   }
 
-  const suggestions = getMacroDslCompletions(codeText.value, codeCaretIndex.value).slice(0, 10);
+  const suggestions = getMacroDslCompletions(
+    codeText.value,
+    codeCaretIndex.value,
+    deviceStore.osModeConfig.mode,
+  ).slice(0, 10);
   codeCompletions.value = suggestions;
   if (codeCompletionIndex.value >= suggestions.length) {
     codeCompletionIndex.value = 0;
@@ -756,7 +892,10 @@ function handleCodeKeyUp(event: KeyboardEvent): void {
 }
 
 function syncCodeFromCards(): void {
-  codeText.value = formatMacroDslFromCards(macroStore.editingCards);
+  codeText.value = formatMacroDslFromCards(
+    macroStore.editingCards,
+    deviceStore.osModeConfig.mode,
+  );
   requestAnimationFrame(syncCodeEditorDecorations);
   requestAnimationFrame(() => {
     updateCodeCaretFromTextarea();
@@ -768,7 +907,7 @@ function compileAndSimplify(): void {
   const compiled = codeCompileState.value;
   if (compiled.diagnostics.length > 0) return;
   const cards = parseActions(compiled.actions);
-  codeText.value = formatMacroDslFromCards(cards);
+  codeText.value = formatMacroDslFromCards(cards, deviceStore.osModeConfig.mode);
   requestAnimationFrame(syncCodeEditorDecorations);
 }
 
@@ -963,9 +1102,9 @@ function actionDescription(action: MacroAction): string {
         ? "释放 未设置"
         : `释放 ${KEYCODE_NAMES[action.param] || `0x${action.param.toString(16)}`}`;
     case MacroActionType.MOD_DOWN:
-      return `按下 ${MOD_NAMES[action.param] || `Mod(0x${action.param.toString(16)})`}`;
+      return `按下 ${modifierName(action.param)}`;
     case MacroActionType.MOD_UP:
-      return `释放 ${MOD_NAMES[action.param] || `Mod(0x${action.param.toString(16)})`}`;
+      return `释放 ${modifierName(action.param)}`;
     case MacroActionType.MOUSE_DOWN:
       return `按下 ${MOUSE_BTN_NAMES[action.param] || "鼠标键"}`;
     case MacroActionType.MOUSE_UP:
@@ -2050,6 +2189,31 @@ onBeforeUnmount(() => {
   background: var(--c-accent-soft);
 }
 
+.macro-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.macro-file-btn:hover {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent-light);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-accent) 12%, transparent);
+}
+
+.macro-import-input {
+  display: none;
+}
+
 .code-editor-panel {
   --macro-code-font-size: 0.92rem;
   --macro-code-line-height: 1.65;
@@ -2750,8 +2914,6 @@ onBeforeUnmount(() => {
   color: var(--c-accent);
 }
 
-/* (footer-toolbar unused in IDE layout) */
-
 .add-bar {
   display: flex;
   align-items: center;
@@ -2819,8 +2981,6 @@ onBeforeUnmount(() => {
   }
 }
 
-/* (footer-actions unused in IDE layout) */
-
 .card-ghost {
   opacity: 0.55;
 }
@@ -2863,14 +3023,6 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
     justify-self: start;
   }
-}
-
-:deep(.p-dialog) {
-  max-height: 92vh !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  border-radius: 0.75rem !important;
 }
 
 :deep(.p-dialog-header) {

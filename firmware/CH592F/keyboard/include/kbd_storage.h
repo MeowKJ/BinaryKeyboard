@@ -152,6 +152,21 @@ kbd_fnkey_config_t* KBD_GetFnKeyConfig(void);
  */
 kbd_rgb_config_t* KBD_GetRgbConfig(void);
 
+/**
+ * @brief 获取 Win/Mac 系统模式
+ * @return 0=Win, 1=Mac
+ */
+uint8_t KBD_GetOsMode(void);
+
+/**
+ * @brief 设置 Win/Mac 系统模式 (仅更新 RAM 配置，持久化由 KBD_Config_Save 完成)
+ *
+ * @param[in] mode 0=Win, 1=Mac
+ * @return 0 成功
+ * @return -1 参数无效
+ */
+int KBD_SetOsMode(uint8_t mode);
+
 /** @} */ /* end of KBD_Storage_Access */
 
 /*============================================================================*/

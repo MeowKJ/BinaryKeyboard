@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.app.json",
-  "include": ["src/**/__tests__/*"],
+  "include": ["src/types/webhid.d.ts", "src/**/__tests__/*"],
   "exclude": [],
   "compilerOptions": {
     "types": ["vitest/globals"]

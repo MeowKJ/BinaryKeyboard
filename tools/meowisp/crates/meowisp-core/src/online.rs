@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
@@ -7,6 +8,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const MANIFEST_URL: &str = "https://meowkj.github.io/BinaryKeyboard/api/release-manifest.json";
 const RELEASES_API: &str =
     "https://api.github.com/repos/MeowKJ/BinaryKeyboard/releases?per_page=100";
 
@@ -46,6 +48,38 @@ struct GitHubAsset {
     size: u64,
 }
 
+#[derive(Debug, Deserialize)]
+struct ReleaseManifest {
+    #[serde(rename = "generatedAt")]
+    generated_at: Option<String>,
+    commit: Option<String>,
+    artifacts: ManifestArtifacts,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManifestArtifacts {
+    #[serde(default)]
+    ch592: HashMap<String, ManifestCh592Artifact>,
+    #[serde(default)]
+    ch552: HashMap<String, ManifestCh552Artifact>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManifestCh592Artifact {
+    version: String,
+    #[serde(rename = "fullHexUrl")]
+    full_hex_url: Option<String>,
+    #[serde(rename = "appBinUrl")]
+    app_bin_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManifestCh552Artifact {
+    version: String,
+    #[serde(rename = "hexUrl")]
+    hex_url: Option<String>,
+}
+
 fn categorize(chip: &str) -> (String, String) {
     let upper = chip.to_ascii_uppercase();
     if upper.starts_with("CH55") {
@@ -60,7 +94,10 @@ fn categorize(chip: &str) -> (String, String) {
 }
 
 fn release_filename_descriptor(name: &str) -> Option<FirmwareDescriptor> {
-    let stem = name.strip_suffix(".bin")?;
+    let (stem, extension) = name
+        .strip_suffix(".bin")
+        .map(|stem| (stem, "bin"))
+        .or_else(|| name.strip_suffix(".hex").map(|stem| (stem, "hex")))?;
     let parts: Vec<_> = stem.split('-').collect();
     if parts.len() < 3 {
         return None;
@@ -77,7 +114,7 @@ fn release_filename_descriptor(name: &str) -> Option<FirmwareDescriptor> {
             chip,
             keyboard,
             version,
-            flavor: "bin".into(),
+            flavor: extension.into(),
             category,
             family,
         });
@@ -172,10 +209,10 @@ pub fn describe_firmware_name(name: &str) -> Option<FirmwareDescriptor> {
 
 impl ReleaseAsset {
     pub fn list_label(&self) -> String {
-        let flavor = if self.descriptor.flavor == "full" {
-            "FULL"
-        } else {
-            "BIN"
+        let flavor = match self.descriptor.flavor.as_str() {
+            "full" => "FULL",
+            "hex" => "HEX",
+            _ => "BIN",
         };
         format!(
             "{} · {} · v{} · {}",
@@ -194,7 +231,125 @@ impl ReleaseAsset {
     }
 }
 
-pub fn fetch_release_assets() -> Result<Vec<ReleaseAsset>, String> {
+fn filename_from_url(url: &str) -> String {
+    url.split(['?', '#'])
+        .next()
+        .and_then(|path| path.rsplit('/').next())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("firmware.bin")
+        .to_string()
+}
+
+fn manifest_release_tag(manifest: &ReleaseManifest) -> String {
+    manifest
+        .commit
+        .as_deref()
+        .map(|commit| format!("manifest-{commit}"))
+        .unwrap_or_else(|| "release-manifest".into())
+}
+
+fn manifest_date(manifest: &ReleaseManifest) -> String {
+    manifest
+        .generated_at
+        .as_deref()
+        .unwrap_or("")
+        .chars()
+        .take(10)
+        .collect()
+}
+
+fn manifest_asset(
+    name: String,
+    download_url: String,
+    release_tag: &str,
+    published_at: &str,
+    descriptor: FirmwareDescriptor,
+) -> ReleaseAsset {
+    ReleaseAsset {
+        name,
+        download_url,
+        release_tag: release_tag.into(),
+        published_at: published_at.into(),
+        size_bytes: 0,
+        descriptor,
+    }
+}
+
+fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
+    let manifest = ureq::get(MANIFEST_URL)
+        .set("Accept", "application/json")
+        .set("User-Agent", "MeowISP/0.1")
+        .call()
+        .map_err(|err| format!("读取发布清单失败: {err}"))?
+        .into_json::<ReleaseManifest>()
+        .map_err(|err| format!("解析发布清单失败: {err}"))?;
+
+    let release_tag = manifest_release_tag(&manifest);
+    let published_at = manifest_date(&manifest);
+    let mut assets = Vec::new();
+
+    for (keyboard, artifact) in &manifest.artifacts.ch592 {
+        let Some(url) = artifact
+            .full_hex_url
+            .as_ref()
+            .or(artifact.app_bin_url.as_ref())
+        else {
+            continue;
+        };
+        let name = filename_from_url(url);
+        let (category, family) = categorize("CH592F");
+        assets.push(manifest_asset(
+            name,
+            url.clone(),
+            &release_tag,
+            &published_at,
+            FirmwareDescriptor {
+                chip: "CH592F".into(),
+                keyboard: keyboard.to_ascii_uppercase(),
+                version: artifact.version.clone(),
+                flavor: if artifact.full_hex_url.is_some() {
+                    "full".into()
+                } else {
+                    "bin".into()
+                },
+                category,
+                family,
+            },
+        ));
+    }
+
+    for (keyboard, artifact) in &manifest.artifacts.ch552 {
+        let Some(url) = artifact.hex_url.as_ref() else {
+            continue;
+        };
+        let name = filename_from_url(url);
+        let (category, family) = categorize("CH552G");
+        assets.push(manifest_asset(
+            name,
+            url.clone(),
+            &release_tag,
+            &published_at,
+            FirmwareDescriptor {
+                chip: "CH552G".into(),
+                keyboard: keyboard.to_ascii_uppercase(),
+                version: artifact.version.clone(),
+                flavor: "hex".into(),
+                category,
+                family,
+            },
+        ));
+    }
+
+    assets.sort_by(|left, right| {
+        compare_versions(&right.descriptor.version, &left.descriptor.version)
+            .then_with(|| left.descriptor.chip.cmp(&right.descriptor.chip))
+            .then_with(|| left.descriptor.keyboard.cmp(&right.descriptor.keyboard))
+    });
+
+    Ok(assets)
+}
+
+fn fetch_github_release_assets() -> Result<Vec<ReleaseAsset>, String> {
     let releases = ureq::get(RELEASES_API)
         .set("Accept", "application/vnd.github+json")
         .set("User-Agent", "MeowISP/0.1")
@@ -243,6 +398,15 @@ pub fn fetch_release_assets() -> Result<Vec<ReleaseAsset>, String> {
     });
 
     Ok(assets)
+}
+
+pub fn fetch_release_assets() -> Result<Vec<ReleaseAsset>, String> {
+    match fetch_manifest_assets() {
+        Ok(assets) if !assets.is_empty() => Ok(assets),
+        Ok(_) => fetch_github_release_assets(),
+        Err(manifest_err) => fetch_github_release_assets()
+            .map_err(|release_err| format!("{manifest_err}\n{release_err}")),
+    }
 }
 
 pub fn download_release_asset(asset: &ReleaseAsset) -> Result<PathBuf, String> {

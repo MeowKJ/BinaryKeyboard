@@ -1,4 +1,7 @@
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 
 use std::cell::{Cell, RefCell};
 use std::fs;
@@ -161,7 +164,8 @@ fn extend_firmware_to_sector_boundary(buf: &mut Vec<u8>) {
 
 fn get_flashing(cli: &Cli) -> Result<Flashing<'_>> {
     if cli_uses_serial(cli) {
-        Flashing::new_from_serial(cli.port.as_deref(), cli.baudrate).context("failed to open serial device")
+        Flashing::new_from_serial(cli.port.as_deref(), cli.baudrate)
+            .context("failed to open serial device")
     } else {
         Flashing::new_from_usb(cli.device).context("failed to open USB device")
     }
@@ -186,7 +190,8 @@ fn run_cli(cli: Cli) -> Result<()> {
                     log::info!("\t{port}");
                 }
             } else {
-                let ndevices = UsbTransport::scan_devices().context("failed to scan USB devices")?;
+                let ndevices =
+                    UsbTransport::scan_devices().context("failed to scan USB devices")?;
                 log::info!(
                     "Found {} USB device{}",
                     ndevices,
@@ -316,7 +321,9 @@ fn run_cli(cli: Cli) -> Result<()> {
                     }
 
                     log::info!("Writing EEPROM(Data Flash)...");
-                    flashing.write_eeprom(&eeprom).context("EEPROM write failed")?;
+                    flashing
+                        .write_eeprom(&eeprom)
+                        .context("EEPROM write failed")?;
                     log::info!("EEPROM written");
                 }
             }
@@ -397,7 +404,7 @@ fn print_doctor() {
         Err(err) => println!("binary: <unavailable> ({err})"),
     }
     println!("ui-font-family: {}", ui_font_family());
-    println!("release-source: GitHub Releases");
+    println!("release-source: GitHub Pages manifest, GitHub Releases fallback");
 
     if cfg!(target_os = "linux") {
         println!(
@@ -922,7 +929,7 @@ fn refresh_online_assets(weak: Weak<AppWindow>, state: Arc<Mutex<AppState>>) {
     if let Some(app) = weak.upgrade() {
         app.set_online_sheet_visible(true);
         app.set_online_loading(true);
-        app.set_online_status("正在读取 GitHub Release...".into());
+        app.set_online_status("正在读取在线固件...".into());
         set_progress(&app, "读取在线固件", 20);
     }
 
@@ -940,7 +947,7 @@ fn refresh_online_assets(weak: Weak<AppWindow>, state: Arc<Mutex<AppState>>) {
                         set_online_options(&app, &assets);
                         if assets.is_empty() {
                             app.set_online_status(
-                                "当前 Release 里还没有匹配的 CH552 BIN / CH592F FULL BIN".into(),
+                                "当前在线源里还没有匹配的 CH552 / CH592F 固件".into(),
                             );
                             set_progress(&app, "在线固件为空", 100);
                         } else {
@@ -1192,7 +1199,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let state_pick = state.clone();
     app.on_request_pick_bin(move || {
         if let Some(path) = FileDialog::new()
-            .add_filter("Binary firmware", &["bin"])
+            .add_filter("Firmware", &["bin", "hex"])
             .pick_file()
         {
             let name = path
@@ -1331,7 +1338,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 set_log(
                     &app,
                     "缺少固件",
-                    "请先选择一个本地 BIN，或从在线列表中选择一个 Release BIN。",
+                    "请先选择一个本地固件，或从在线列表中选择一个在线固件。",
                 );
             }
             return;
@@ -1378,7 +1385,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 set_log(
                     &app,
                     "缺少固件",
-                    "请先选择一个本地 BIN，或从在线列表中选择一个 Release BIN。",
+                    "请先选择一个本地固件，或从在线列表中选择一个在线固件。",
                 );
             }
             return;
