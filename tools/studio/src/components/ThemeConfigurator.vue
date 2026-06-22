@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from 'vue';
 import CatEmoji from '@/components/CatEmoji.vue';
 import { useTheme, type ThemeId } from '@/composables/useTheme';
 import type { StudioEmojiType } from '@/utils/fluentEmoji';
@@ -41,6 +42,16 @@ function onSatInput(e: Event) {
 function onSyncToggle() {
   setSyncVersionHue(!syncVersionHue.value);
 }
+
+function onClickOutside(event: MouseEvent) {
+  if (!configuratorOpen.value) return;
+  const target = event.target as HTMLElement;
+  if (target.closest('.theme-configurator') || target.closest('.cat-assistant')) return;
+  closeConfigurator();
+}
+
+onMounted(() => document.addEventListener('click', onClickOutside));
+onUnmounted(() => document.removeEventListener('click', onClickOutside));
 </script>
 
 <template>

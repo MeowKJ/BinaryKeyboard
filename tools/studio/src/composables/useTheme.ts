@@ -103,6 +103,7 @@ export function useTheme() {
   const accentHue = computed(() => config.value.accentHue);
   const accentSaturation = computed(() => config.value.accentSaturation);
   const syncVersionHue = computed(() => config.value.syncVersionHue);
+  const canToggleMode = computed(() => config.value.id === 'default' || config.value.id === 'neko');
 
   function applyFull() {
     const root = document.documentElement;
@@ -133,7 +134,7 @@ export function useTheme() {
   }
 
   function toggleMode() {
-    if (config.value.id === 'liuli' || config.value.id === 'angora') return;
+    if (!canToggleMode.value) return;
     const newMode: ThemeMode = config.value.mode === 'dark' ? 'light' : 'dark';
     config.value = { ...config.value, mode: newMode };
     persistConfig(config.value);
@@ -193,6 +194,7 @@ export function useTheme() {
     accentHue,
     accentSaturation,
     syncVersionHue,
+    canToggleMode,
     configuratorOpen,
     init,
     setThemeId,

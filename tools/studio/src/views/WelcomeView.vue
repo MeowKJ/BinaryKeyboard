@@ -14,7 +14,7 @@ const emit = defineEmits<{
 }>();
 
 const releaseStore = useReleaseStore();
-const { toggleMode, themeMode } = useTheme();
+const { toggleMode, themeMode, canToggleMode } = useTheme();
 
 const linkButtons = [
   {
@@ -38,7 +38,7 @@ const linkButtons = [
 <template>
   <div class="welcome-screen" :class="{ returning: welcomeReturning }">
     <!-- 主题切换按钮 -->
-    <button class="theme-toggle" @click="toggleMode">
+    <button v-if="canToggleMode" class="theme-toggle" @click="toggleMode">
       <i :class="themeMode === 'dark' ? 'pi pi-sun' : 'pi pi-moon'"></i>
     </button>
 
@@ -161,10 +161,9 @@ const linkButtons = [
 }
 
 .welcome-screen {
-  height: 100vh;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   position: relative;
   overflow-y: auto;
@@ -180,6 +179,7 @@ const linkButtons = [
   max-width: 600px;
   width: min(100%, 600px);
   padding: 2rem;
+  margin-block: auto;
 }
 
 .logo-section {
@@ -187,8 +187,22 @@ const linkButtons = [
 }
 
 .logo-icon {
-  font-size: 4rem;
+  width: 4.25rem;
+  height: 4.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 1rem;
+  font-size: 3.75rem;
+  line-height: 1;
+}
+
+.logo-icon :deep(.cat-emoji) {
+  display: block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  vertical-align: 0;
 }
 
 .app-title {
