@@ -14,6 +14,7 @@ import AppHeader from '@/layouts/AppHeader.vue';
 import CatAssistant from '@/components/CatAssistant.vue';
 import KeyboardLayout from '@/components/KeyboardLayout.vue';
 import KeyboardDecoration from '@/components/KeyboardDecoration.vue';
+import StudioDialog from '@/components/StudioDialog.vue';
 import ActionEditor from '@/components/ActionEditor.vue';
 import MacroEditor from '@/components/MacroEditor.vue';
 import DeviceInfoPanel from '@/components/DeviceInfoPanel.vue';
@@ -21,9 +22,10 @@ import KeyboardStatus from '@/components/KeyboardStatus.vue';
 import LayerPanel from '@/components/LayerPanel.vue';
 import FnPanel from '@/components/FnPanel.vue';
 import RgbPanel from '@/components/RgbPanel.vue';
-import ActionsPanel from '@/components/ActionsPanel.vue';
+import RgbEntry from '@/components/RgbEntry.vue';
+import ConfigLibraryEntry from '@/components/ConfigLibraryEntry.vue';
+import ConfigLibraryPanel from '@/components/ConfigLibraryPanel.vue';
 import MacroPanel from '@/components/MacroPanel.vue';
-import ConfigProfilePanel from '@/components/ConfigProfilePanel.vue';
 import StormDataFlashEntry from '@/components/StormDataFlashEntry.vue';
 import StormDataFlashPanel from '@/components/StormDataFlashPanel.vue';
 import ThemeConfigurator from '@/components/ThemeConfigurator.vue';
@@ -53,6 +55,10 @@ const selectedKeyIndex = ref(-1);
 const macroEditorVisible = ref(false);
 const macroEditorSlot = ref(0);
 const dataFlashVisible = ref(false);
+const configLibraryVisible = ref(false);
+const configLibraryRefreshKey = ref(0);
+const deviceInfoVisible = ref(false);
+const rgbPanelVisible = ref(false);
 const kbCardRef = ref<HTMLElement | null>(null);
 const earStyle = ref<Record<string, string>>({});
 
@@ -79,6 +85,27 @@ onUnmounted(() => {
 
 watch(themeId, (id) => {
   if (id === 'neko') { earLoop(); } else { cancelAnimationFrame(earRaf); }
+});
+
+watch(configLibraryVisible, (visible) => {
+  if (!visible) configLibraryRefreshKey.value += 1;
+});
+
+watch(previewKeyboardType, (value) => {
+  if (value >= 0) {
+    deviceStore.setEditLayer(0);
+    showToast(
+      'info',
+      '预览模式',
+      `正在预览 ${KeyboardTypeInfo[value as KeyboardType]?.name || '未知型号'}`,
+    );
+    return;
+  }
+
+  if (deviceStore.deviceInfo) {
+    deviceStore.setEditLayer(deviceStore.keymap.currentLayer);
+    showToast('info', '实际设备', '已切回当前连接的键盘');
+  }
 });
 
 async function openMacroEditor(slot: number) {
@@ -124,6 +151,7 @@ const showLayerPanel = computed(() => hasUiSection(currentUiDefinition.value, 'l
 const showFnPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'fn-panel'));
 const showRgbPanel = computed(() => previewKeyboardType.value < 0 && hasUiSection(currentUiDefinition.value, 'rgb-panel'));
 const showMacroPanel = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsMacroActions);
+const showConfigLibrary = computed(() => previewKeyboardType.value < 0);
 const showResetButton = computed(() => previewKeyboardType.value < 0 && deviceStore.supportsFactoryReset);
 const showLayerBadge = computed(() => previewKeyboardType.value >= 0 || deviceStore.supportsMultiLayer);
 const showStormDataFlashPanel = computed(
@@ -194,6 +222,7 @@ function onCatAction(action: string) {
     case 'theme': props.onToggleTheme(); break;
     case 'themeConfig': openConfigurator(); break;
     case 'disconnect': props.onDisconnect(); break;
+    case 'factoryReset': confirmReset(); break;
     case 'scrollTop': window.scrollTo({ top: 0, behavior: 'smooth' }); break;
   }
 }
@@ -210,22 +239,29 @@ function onCatAction(action: string) {
     <!-- 青蛙主题飘落花瓣 -->
     <FallingEffect v-if="themeId === 'frog'" type="sakura" :count="10" />
 
-    <CatAssistant @action="onCatAction" />
+    <CatAssistant
+      v-model:preview-type="previewKeyboardType"
+      :show-factory-reset="showResetButton"
+      @action="onCatAction"
+    />
 
-    <AppHeader v-model:preview-type="previewKeyboardType" @refresh="onRefresh" @disconnect="onDisconnect" />
+    <AppHeader
+      v-model:preview-type="previewKeyboardType"
+      @refresh="onRefresh"
+      @disconnect="onDisconnect"
+      @open-device-info="deviceInfoVisible = true"
+    />
 
     <main class="app-main" :class="{ 'terminal-open': terminalStore.isOpen }">
       <!-- 左侧面板 -->
       <aside class="sidebar">
-        <DeviceInfoPanel />
         <KeyboardStatus />
         <LayerPanel v-if="showLayerPanel" :keyboard-type="currentKeyboardType" :preview-mode="previewKeyboardType >= 0" />
         <FnPanel v-if="showFnPanel" />
-        <RgbPanel v-if="showRgbPanel" />
+        <RgbEntry v-if="showRgbPanel" @open="rgbPanelVisible = true" />
+        <ConfigLibraryEntry v-if="showConfigLibrary" :refresh-key="configLibraryRefreshKey" @open="configLibraryVisible = true" />
         <MacroPanel v-if="showMacroPanel" @edit="openMacroEditor" />
-        <ConfigProfilePanel v-if="previewKeyboardType < 0" />
         <StormDataFlashEntry v-if="showStormDataFlashPanel" @open="dataFlashVisible = true" />
-        <ActionsPanel v-if="showResetButton" :show-reset-button="showResetButton" @reset="confirmReset" />
       </aside>
 
       <div class="keyboard-spacer"></div>
@@ -288,6 +324,24 @@ function onCatAction(action: string) {
 
     <ActionEditor v-model:visible="editorVisible" :key-index="selectedKeyIndex" :action="selectedAction"
       @save="onActionSave" />
+    <StudioDialog
+      v-model:visible="deviceInfoVisible"
+      size="sm"
+      header="设备信息"
+      class="device-info-dialog"
+    >
+      <DeviceInfoPanel />
+    </StudioDialog>
+    <StudioDialog
+      v-if="showRgbPanel"
+      v-model:visible="rgbPanelVisible"
+      size="sm"
+      header="RGB 灯效"
+      class="rgb-dialog"
+    >
+      <RgbPanel />
+    </StudioDialog>
+    <ConfigLibraryPanel v-if="showConfigLibrary" v-model:visible="configLibraryVisible" />
     <MacroEditor v-model:visible="macroEditorVisible" :slot="macroEditorSlot" />
     <StormDataFlashPanel v-if="showStormDataFlashPanel" v-model:visible="dataFlashVisible" />
     <ThemeConfigurator />
@@ -333,6 +387,14 @@ function onCatAction(action: string) {
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 2px; }
+
+:deep(.device-info-dialog .panel),
+:deep(.rgb-dialog .panel) {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
 
 .keyboard-spacer {
   flex: 1;

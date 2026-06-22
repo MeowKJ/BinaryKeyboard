@@ -1,6 +1,6 @@
 /**
  * BinaryKeyboard Studio 全局样式
- * 开源键盘改键工具
+ * 开源键盘改键工�?
  */
 
 /* ============================================
@@ -13,34 +13,34 @@
    CSS 变量 - 默认深色主题
 ============================================ */
 :root {
-  /* 背景色 */
+  /* 背景�?*/
   --c-bg-primary: #0a0d14;
   --c-bg-secondary: #111620;
   --c-bg-tertiary: #181e2c;
   --c-bg-hover: #1e2a3a;
 
-  /* 边框色 */
+  /* 边框�?*/
   --c-border: #2d3a50;
   --c-border-light: #222d40;
 
-  /* 文字色 */
+  /* 文字�?*/
   --c-text-primary: #eaf0fa;
   --c-text-secondary: #b0c0d8;
   --c-text-muted: #7088a8;
 
-  /* 主色调 - 深蓝（偏浅） */
+  /* 主色�?- 深蓝（偏浅） */
   --c-accent: #93c5fd;
   --c-accent-light: #bfdbfe;
   --c-accent-soft: rgba(147, 197, 253, 0.15);
   --c-accent-gradient: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
 
-  /* 功能色 */
+  /* 功能�?*/
   --c-success: #4ade80;
   --c-warning: #fbbf24;
   --c-danger: #fb7185;
   --c-info: #60a5fa;
 
-  /* 按键色 */
+  /* 按键�?*/
   --c-key-bg: #181e2c;
   --c-key-border: #2d3a50;
   --c-key-active-bg: rgba(96, 165, 250, 0.2);
@@ -56,6 +56,13 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 20px;
+
+  /* 弹窗尺寸 */
+  --studio-dialog-sm: min(520px, calc(100vw - 24px));
+  --studio-dialog-md: min(980px, calc(100vw - 24px));
+  --studio-dialog-lg: min(1120px, calc(100vw - 24px));
+  --studio-dialog-immersive: min(1380px, calc(100vw - 18px));
+  --studio-dialog-max-height: calc(100vh - 24px);
   
   /* 动画 */
   --transition-fast: 0.15s ease;
@@ -92,7 +99,7 @@ body {
 }
 
 /* ============================================
-   滚动条
+   滚动�?
 ============================================ */
 ::-webkit-scrollbar {
   width: 8px;
@@ -116,7 +123,7 @@ body {
    PrimeVue 主题覆盖
 ============================================ */
 .app-root {
-  /* 背景色 */
+  /* 背景�?*/
   --p-surface-0: var(--c-bg-primary);
   --p-surface-50: var(--c-bg-secondary);
   --p-surface-100: var(--c-bg-tertiary);
@@ -127,7 +134,7 @@ body {
   --p-surface-600: var(--c-text-secondary);
   --p-surface-700: var(--c-text-primary);
   
-  /* 主色调 */
+  /* 主色�?*/
   --p-primary-50: color-mix(in srgb, var(--c-accent) 10%, white);
   --p-primary-100: color-mix(in srgb, var(--c-accent) 20%, white);
   --p-primary-200: color-mix(in srgb, var(--c-accent) 40%, white);
@@ -137,7 +144,7 @@ body {
   --p-primary-600: color-mix(in srgb, var(--c-accent) 90%, black);
   --p-primary-700: color-mix(in srgb, var(--c-accent) 80%, black);
   
-  /* 文字色 */
+  /* 文字�?*/
   --p-text-color: var(--c-text-primary);
   --p-text-muted-color: var(--c-text-muted);
   
@@ -164,7 +171,7 @@ body {
   box-shadow: 0 4px 12px var(--c-key-shadow);
 }
 
-/* 对话框 */
+/* 对话�?*/
 .p-dialog {
   border-radius: var(--radius-xl) !important;
   border: 1px solid var(--c-border) !important;
@@ -211,13 +218,209 @@ body {
   min-width: 80px;
 }
 
-/* 对话框遮罩 */
+/* 对话框遮�?*/
 .p-dialog-mask {
   background: rgba(0, 0, 0, 0.6) !important;
   backdrop-filter: blur(4px) !important;
 }
 
-/* 确认对话框 */
+/* Studio 统一弹窗壳层 */
+.studio-dialog.p-dialog {
+  width: var(--studio-dialog-width, var(--studio-dialog-md)) !important;
+  max-width: calc(100vw - 24px) !important;
+  max-height: var(--studio-dialog-max-height) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid color-mix(in srgb, var(--c-accent) 28%, var(--c-border)) !important;
+  border-radius: 10px !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--c-bg-secondary) 92%, var(--c-accent) 8%), var(--c-bg-secondary)) !important;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.46),
+    0 0 42px color-mix(in srgb, var(--c-accent) 13%, transparent) !important;
+  overflow: hidden !important;
+}
+
+.studio-dialog-sm.p-dialog {
+  --studio-dialog-width: var(--studio-dialog-sm);
+}
+
+.studio-dialog-md.p-dialog {
+  --studio-dialog-width: var(--studio-dialog-md);
+}
+
+.studio-dialog-lg.p-dialog {
+  --studio-dialog-width: var(--studio-dialog-lg);
+}
+
+.studio-dialog-immersive.p-dialog {
+  --studio-dialog-width: var(--studio-dialog-immersive);
+  max-width: calc(100vw - 18px) !important;
+}
+
+.studio-dialog .p-dialog-header {
+  min-height: 3.4rem;
+  padding: 0.95rem 1.1rem !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-border) 82%, var(--c-accent) 18%) !important;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--c-bg-tertiary) 86%, var(--c-accent) 10%), var(--c-bg-secondary)) !important;
+}
+
+.studio-dialog .p-dialog-title {
+  font-size: 0.95rem;
+  font-weight: 900 !important;
+}
+
+.studio-dialog .p-dialog-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  background: var(--c-bg-secondary) !important;
+}
+
+.studio-dialog .p-dialog-footer {
+  min-height: 3.25rem;
+  padding: 0.8rem 1.1rem !important;
+  border-top: 1px solid color-mix(in srgb, var(--c-border) 84%, var(--c-accent) 16%) !important;
+  background: color-mix(in srgb, var(--c-bg-secondary) 88%, var(--c-bg-tertiary)) !important;
+}
+
+.studio-dialog.p-dialog:not(.studio-dialog-sm) .p-dialog-content {
+  overflow: hidden;
+}
+
+.studio-dialog-mask.p-dialog-mask,
+.p-dialog-mask:has(.studio-dialog) {
+  background: rgba(2, 6, 23, 0.68) !important;
+  backdrop-filter: blur(8px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.08) !important;
+}
+
+/* PrimeVue 悬浮提示 */
+.p-tooltip {
+  max-width: min(320px, calc(100vw - 24px)) !important;
+}
+
+.p-tooltip .p-tooltip-text {
+  padding: 0.55rem 0.7rem !important;
+  border: 1px solid color-mix(in srgb, var(--c-accent) 30%, var(--c-border)) !important;
+  border-radius: var(--radius-sm) !important;
+  background: color-mix(in srgb, var(--c-bg-secondary) 92%, #020617) !important;
+  color: var(--c-text-secondary) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34) !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  line-height: 1.45 !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+.studio-help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--c-text-muted);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1;
+  text-decoration: none;
+  cursor: help;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.studio-help-link:hover,
+.studio-help-link:focus-visible {
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+  outline: none;
+}
+
+.sidebar-entry {
+  display: grid;
+  grid-template-columns: 2.85rem minmax(0, 1fr) var(--sidebar-entry-action-width, 2.35rem);
+  align-items: center;
+  gap: 0.68rem;
+  min-height: 68px;
+  padding: 0.68rem 0.78rem !important;
+  border-color: color-mix(in srgb, var(--c-accent) 34%, var(--c-border)) !important;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--c-bg-secondary) 88%, var(--c-accent) 12%), var(--c-bg-secondary)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 16px) !important;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.sidebar-entry:hover,
+.sidebar-entry:focus-visible {
+  border-color: var(--c-accent) !important;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--c-accent) 22%, transparent) !important;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.sidebar-entry .entry-icon,
+.sidebar-entry .entry-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+
+.sidebar-entry .entry-icon {
+  width: 2.65rem;
+  height: 2.65rem;
+  border: 1px solid color-mix(in srgb, var(--c-accent) 38%, var(--c-border));
+  color: var(--c-accent-light);
+  background: var(--c-accent-soft);
+}
+
+.sidebar-entry .entry-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.sidebar-entry .entry-copy strong {
+  color: var(--c-text-primary);
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.sidebar-entry .entry-copy code {
+  color: var(--c-text-muted);
+  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.62rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-entry .entry-open {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-secondary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
+}
+
+.sidebar-entry:hover .entry-open,
+.sidebar-entry .entry-open:hover {
+  border-color: var(--c-accent);
+  color: var(--c-accent-light);
+  background: var(--c-accent-soft);
+}
+
+/* 确认对话�?*/
 .p-confirmdialog {
   max-width: 400px !important;
 }
@@ -404,7 +607,7 @@ body {
 .glow { animation: glow 2s ease-in-out infinite; }
 
 /* ============================================
-   工具类
+   工具�?
 ============================================ */
 .text-accent { color: var(--c-accent); }
 .text-muted { color: var(--c-text-muted); }
@@ -448,7 +651,7 @@ body {
   color: #b91c1c !important;
 }
 
-/* 浅色模式 - 主按钮 (保存配置) */
+/* 浅色模式 - 主按�?(保存配置) */
 [data-theme="light"] .btn-primary {
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
   border: none !important;
@@ -486,10 +689,10 @@ body {
 }
 
 /* ============================================
-   响应式设计
+   响应式设�?
 ============================================ */
 
-/* 宽屏：左侧控制区承载更多内容，减少垂直翻页 */
+/* 宽屏：左侧控制区承载更多内容，减少垂直翻�?*/
 @media (min-width: 1440px) {
   :root {
     --sidebar-width: 380px;
@@ -532,7 +735,7 @@ body {
   }
 }
 
-/* 手机横屏 / 小平板 (480px - 768px) */
+/* 手机横屏 / 小平�?(480px - 768px) */
 @media (max-width: 768px) {
   :root {
     --sidebar-width: 100%;
@@ -697,7 +900,7 @@ body {
 }
 
 /* ============================================
-   面板/侧边栏组件通用样式（从 App.vue 提取）
+   面板/侧边栏组件通用样式（从 App.vue 提取�?
 ============================================ */
 
 .panel {
@@ -722,470 +925,12 @@ body {
   font-size: 0.9rem;
 }
 
-.info-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* 宏管理面板 */
-.macro-panel-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: -0.35rem 0 0.75rem;
-  color: var(--c-text-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.macro-slot-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.375rem;
-}
-
-.macro-slot-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.5rem 0.625rem;
-  font-size: 0.8rem;
-  font-family: inherit;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--c-border);
-  background: var(--c-bg-tertiary);
-  color: var(--c-text-muted);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: left;
-  overflow: hidden;
-}
-
-.macro-slot-btn:hover {
-  background: var(--c-bg-hover);
-  border-color: var(--c-accent);
-  color: var(--c-text-secondary);
-}
-
-.macro-slot-btn.has-data {
-  border-color: var(--c-accent);
-  color: var(--c-accent-light);
-}
-
-.macro-slot-idx {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--c-bg-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.65rem;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.macro-slot-btn.has-data .macro-slot-idx {
-  background: var(--c-accent-soft);
-  color: var(--c-accent);
-}
-
-.macro-slot-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.info-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-}
-
-.info-label {
-  color: var(--c-text-muted);
-}
-
-.info-value {
-  font-weight: 600;
-}
-
-.layer-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
-  color: var(--c-text-muted);
-  padding: 0.5rem;
-  margin-bottom: 0.75rem;
-  background: var(--c-bg-tertiary);
-  border-radius: var(--radius-sm);
-}
-
-.layer-hint i {
-  font-size: 0.7rem;
-  color: var(--c-accent);
-}
-
-/* 层颜色图例 */
-.layer-legend {
-  display: flex;
-  gap: 1rem;
-  padding: 0.5rem;
-  margin-bottom: 0.75rem;
-  background: var(--c-bg-tertiary);
-  border-radius: var(--radius-sm);
-  justify-content: center;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.legend-dot.current-dot {
-  background: #22c55e;
-  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
-}
-
-.legend-dot.edit-dot {
-  background: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
-}
-
-.legend-text {
-  font-size: 0.7rem;
-  color: var(--c-text-secondary);
-  font-weight: 500;
-}
-
-/* 缩小版键盘布局 */
-.layer-keyboard-mini {
-  display: grid;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-  padding: 0.5rem;
-  background: var(--c-bg-tertiary);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--c-border-light);
-  aspect-ratio: auto;
-  width: 100%;
-  max-width: 200px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.layer-keyboard-mini-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  color: var(--c-text-muted);
-  font-size: 0.75rem;
-}
-
-.layer-key-mini {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--c-bg-secondary);
-  border: 1.5px solid var(--c-border);
-  border-radius: calc(var(--radius-sm) * 0.8);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  position: relative;
-  min-height: 30px;
-  min-width: 30px;
-}
-
-/* 按键尺寸 */
-.layer-key-mini.key-1u {
-  aspect-ratio: 1;
-}
-
-.layer-key-mini.key-2u-h {
-  aspect-ratio: 2;
-}
-
-.layer-key-mini.key-2u-v {
-  height: 100%;
-  /* 确保填满grid行 */
-  min-height: calc(2 * 30px + 0.3rem);
-  /* 2个按键高度 + gap */
-}
-
-/* 旋钮按下按键样式 */
-.layer-key-mini.key-encoder-press {
-  aspect-ratio: 1;
-  border-radius: 50%;
-}
-
-.layer-key-mini:hover {
-  border-color: var(--c-accent);
-  transform: translateY(-1px);
-  box-shadow: 0 1px 4px var(--c-key-shadow);
-}
-
-/* 当前层（键盘硬件状态）- 绿色 */
-.layer-key-mini.current-layer {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: #22c55e;
-  box-shadow: 0 0 0 1.5px rgba(34, 197, 94, 0.15);
-}
-
-/* 编辑层（软件UI状态）- 橙色 */
-.layer-key-mini.edit-layer {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 1.5px rgba(245, 158, 11, 0.15);
-}
-
-/* 当前层和编辑层是同一层时 - 混合渐变效果 */
-.layer-key-mini.current-layer.edit-layer {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(245, 158, 11, 0.15) 100%);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  position: relative;
-}
-
-.layer-key-mini.current-layer.edit-layer::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: calc(var(--radius-sm) * 0.8);
-  padding: 2px;
-  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* 旋钮按键的圆形渐变边框 */
-.layer-key-mini.key-encoder-press.current-layer.edit-layer::before {
-  border-radius: 50%;
-}
-
-.layer-key-mini.disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  background: var(--c-bg-tertiary) !important;
-  border-color: var(--c-border-light) !important;
-  box-shadow: none !important;
-}
-
-.layer-key-mini.disabled:hover {
-  transform: none;
-  border-color: var(--c-border-light) !important;
-}
-
-.encoder-label {
-  font-size: 0.75rem !important;
-}
-
-.layer-key-number {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--c-accent);
-  line-height: 1;
-}
-
-.layer-key-mini.current-layer .layer-key-number {
-  color: #22c55e;
-  font-size: 1rem;
-}
-
-.layer-key-mini.edit-layer .layer-key-number {
-  color: #f59e0b;
-  font-size: 1rem;
-}
-
-.layer-key-mini.current-layer.edit-layer .layer-key-number {
-  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.layer-key-label {
-  font-size: 0.55rem;
-  color: var(--c-text-muted);
-  margin-top: 0.15rem;
-  font-weight: 600;
-}
-
-.layer-key-mini.current-layer .layer-key-label {
-  color: #22c55e;
-}
-
-.layer-key-mini.edit-layer .layer-key-label {
-  color: #f59e0b;
-}
-
-.layer-key-mini.current-layer.edit-layer .layer-key-label {
-  background: linear-gradient(135deg, #22c55e 0%, #f59e0b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.layer-info {
-  margin-top: 0.5rem;
-}
-
-.current-layer-badge {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: var(--c-accent-soft);
-  border-radius: var(--radius-sm);
-}
-
-.layer-label {
-  font-size: 0.75rem;
-  color: var(--c-text-muted);
-  font-weight: 600;
-}
-
-.layer-number {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--c-accent);
-}
-
-/* 浅色模式优化 */
-[data-theme="light"] .current-layer-badge {
-  background: #e0f2fe;
-}
-
-[data-theme="light"] .layer-number {
-  color: #1d4ed8;
-}
-
-[data-theme="light"] .layer-keyboard-mini {
-  background: #f8fafc;
-  border-color: #e2e8f0;
-}
-
-[data-theme="light"] .layer-key-mini {
-  background: #ffffff;
-  border-color: #cbd5e1;
-}
-
-[data-theme="light"] .layer-key-mini:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
-}
-
-/* 亮色主题 - 当前层 */
-[data-theme="light"] .layer-key-mini.current-layer {
-  background: rgba(34, 197, 94, 0.15);
-  border-color: #16a34a;
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.1);
-}
-
-/* 亮色主题 - 编辑层 */
-[data-theme="light"] .layer-key-mini.edit-layer {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: #d97706;
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.1);
-}
-
-/* 亮色主题 - 同时是当前层和编辑层 */
-[data-theme="light"] .layer-key-mini.current-layer.edit-layer {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%);
-}
-
-[data-theme="light"] .layer-key-mini.current-layer.edit-layer::before {
-  background: linear-gradient(135deg, #16a34a 0%, #d97706 100%);
-}
-
-[data-theme="light"] .layer-key-mini.current-layer .layer-key-number,
-[data-theme="light"] .layer-key-mini.current-layer .layer-key-label {
-  color: #16a34a;
-}
-
-[data-theme="light"] .layer-key-mini.edit-layer .layer-key-number,
-[data-theme="light"] .layer-key-mini.edit-layer .layer-key-label {
-  color: #d97706;
-}
-
-[data-theme="light"] .layer-key-mini.current-layer.edit-layer .layer-key-number,
-[data-theme="light"] .layer-key-mini.current-layer.edit-layer .layer-key-label {
-  background: linear-gradient(135deg, #16a34a 0%, #d97706 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 [data-theme="light"] .card-layer-badge {
   background: #dbeafe;
   border-color: #93c5fd;
   color: #1d4ed8;
 }
-
-/* 响应式 */
-@media (max-width: 768px) {
-  .layer-keyboard-mini {
-    gap: 0.25rem;
-    padding: 0.4rem;
-    max-width: 160px;
-  }
-
-  .layer-key-mini {
-    min-height: 28px;
-    min-width: 28px;
-  }
-
-  .layer-key-number {
-    font-size: 0.8rem;
-  }
-
-  .layer-key-mini.current-layer .layer-key-number,
-  .layer-key-mini.edit-layer .layer-key-number {
-    font-size: 0.9rem;
-  }
-
-  .layer-key-mini.current-layer.edit-layer .layer-key-number {
-    font-size: 0.95rem;
-  }
-
-  .layer-key-label {
-    font-size: 0.5rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .layer-keyboard-mini {
-    gap: 0.2rem;
-    padding: 0.35rem;
-    max-width: 140px;
-  }
-
-  .layer-key-mini {
-    min-height: 25px;
-    min-width: 25px;
-  }
-}
-
-/* FN 键配置 */
+/* FN 键配�?*/
 .fn-config {
   display: flex;
   flex-direction: column;

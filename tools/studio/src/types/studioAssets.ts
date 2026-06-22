@@ -1,17 +1,10 @@
 import type {
   DeviceCapabilities,
   DeviceProtocol,
-  FnKeyConfig,
   KeyboardType,
-  KeyAction,
-  KeymapConfig,
   MacroAction,
-  MacroData,
-  OsModeConfig,
-  RgbConfig,
 } from "@/types/protocol";
 
-export const CONFIG_PROFILE_FORMAT = "meowkeyboard-config-profile";
 export const MACRO_PACK_FORMAT = "meowkeyboard-macro-pack";
 export const ASSET_FORMAT_VERSION = 1;
 
@@ -26,29 +19,6 @@ export interface AssetSourceDevice {
   fnKeyCount: number;
   firmwareVersion: string;
   capabilities: Partial<DeviceCapabilities>;
-}
-
-export interface MacroReference {
-  layer: number;
-  key: number;
-  slot: number;
-}
-
-export interface ConfigProfileDocument {
-  format: typeof CONFIG_PROFILE_FORMAT;
-  version: typeof ASSET_FORMAT_VERSION;
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  sourceDevice: AssetSourceDevice;
-  config: {
-    keymap: KeymapConfig;
-    rgb?: RgbConfig;
-    fn?: FnKeyConfig;
-    osMode?: OsModeConfig;
-  };
-  macroRefs: MacroReference[];
 }
 
 export interface MacroAsset {
@@ -66,14 +36,6 @@ export interface MacroPackDocument {
   macros: MacroAsset[];
 }
 
-export type ApplySeverity = "ok" | "warn" | "skip" | "error";
-
-export interface ApplyPlanItem {
-  section: string;
-  severity: ApplySeverity;
-  message: string;
-}
-
 export interface ApplyProgress {
   active: boolean;
   title: string;
@@ -85,6 +47,7 @@ export interface ApplyProgress {
 export interface MacroImportOptions {
   strategy: "append" | "original" | "overwrite";
   targetSlot?: number;
+  single?: boolean;
 }
 
 export function cloneAsset<T>(value: T): T {

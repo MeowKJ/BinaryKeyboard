@@ -3,15 +3,18 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 import CatEmoji from '@/components/CatEmoji.vue';
 import { lastToastSeverity } from '@/services/toastService';
 import type { StudioEmojiType } from '@/utils/fluentEmoji';
+import { KeyboardType, KeyboardTypeInfo } from '@/types/protocol';
 
 const props = defineProps<{
   loading?: boolean;
+  showFactoryReset?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'action', action: string): void;
 }>();
 
+const previewKeyboardType = defineModel<number>('previewType', { default: -1 });
 const menuOpen = ref(false);
 
 const currentEmoji = computed<StudioEmojiType>(() => {
@@ -50,7 +53,17 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
     <span v-if="loading" class="cat-loading-text">加载中...</span>
 
     <transition name="cat-menu">
-      <div v-if="menuOpen" class="cat-menu">
+      <div v-if="menuOpen" class="cat-menu" @click.stop>
+        <label class="cat-preview-control">
+          <span>设备视图</span>
+          <select v-model.number="previewKeyboardType" class="cat-preview-select">
+            <option :value="-1">实际设备</option>
+            <option :value="0">预览：{{ KeyboardTypeInfo[KeyboardType.BASIC]?.name || '基础款' }}</option>
+            <option :value="1">预览：{{ KeyboardTypeInfo[KeyboardType.FIVE_KEYS]?.name || '五键款' }}</option>
+            <option :value="2">预览：{{ KeyboardTypeInfo[KeyboardType.KNOB]?.name || '旋钮款' }}</option>
+          </select>
+        </label>
+        <div class="cat-menu-divider"></div>
         <button class="cat-menu-item" @click.stop="onAction('refresh')">
           <i class="pi pi-sync"></i>
           <span>刷新配置</span>
@@ -68,6 +81,10 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
           <span>回到顶部</span>
         </button>
         <div class="cat-menu-divider"></div>
+        <button v-if="showFactoryReset" class="cat-menu-item danger" @click.stop="onAction('factoryReset')">
+          <i class="pi pi-refresh"></i>
+          <span>恢复出厂</span>
+        </button>
         <button class="cat-menu-item danger" @click.stop="onAction('disconnect')">
           <i class="pi pi-power-off"></i>
           <span>断开连接</span>
@@ -124,12 +141,46 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside));
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
-  min-width: 140px;
+  min-width: 176px;
   background: var(--c-bg-secondary);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md, 12px);
   padding: 0.35rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.cat-preview-control {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem 0.35rem;
+}
+
+.cat-preview-control span {
+  color: var(--c-text-muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.cat-preview-select {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm, 8px);
+  background: var(--c-bg-tertiary);
+  color: var(--c-text-secondary);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  outline: none;
+  cursor: pointer;
+}
+
+.cat-preview-select:hover,
+.cat-preview-select:focus {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
 }
 
 .cat-menu-item {
