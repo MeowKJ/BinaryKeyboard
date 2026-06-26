@@ -282,9 +282,9 @@ def main() -> None:
     wchisp = find_wchisp()
     if not wchisp:
         die(
-            "wchisp not found.\n\n"
-            "  Run:  python tools/scripts/setup.py          (auto-download)\n"
-            "  Or:   set WCHISP_PATH=/path/to/wchisp"
+            "BinaryKeyboard ISP not found.\n\n"
+            "  Run:  python tools/scripts/setup.py          (build from local Rust source)\n"
+            "  Or:   set BINARYKEYBOARD_ISP_PATH=/path/to/wchisp"
         )
 
     extra: list[str] = []

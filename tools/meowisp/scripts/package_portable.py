@@ -22,17 +22,17 @@ def write_text(path: Path, text: str) -> None:
 
 
 def common_readme(platform_name: str, arch: str) -> str:
-    return f"""MeowISP portable package
+    return f"""BinaryKeyboard ISP portable package
 
 Platform: {platform_name}
 Architecture: {arch}
 
 Run:
-- GUI: launch the bundled MeowISP executable
+- GUI: launch the bundled BinaryKeyboard ISP executable
 - Doctor: run `meowisp --doctor`
 - Probe: run `meowisp --probe`
 
-MeowISP reads online firmware directly from GitHub Releases.
+BinaryKeyboard ISP reads online firmware directly from GitHub Releases.
 """
 
 
@@ -50,7 +50,7 @@ Linux note:
 def macos_readme(arch: str) -> str:
     return common_readme("macOS", arch) + """
 macOS note:
-- Open `MeowISP.app` directly, or run the binary inside `MeowISP.app/Contents/MacOS/`.
+- Open `BinaryKeyboard ISP.app` directly, or run the binary inside `BinaryKeyboard ISP.app/Contents/MacOS/`.
 - If Gatekeeper warns on first launch, right click the app and choose Open.
 """
 
@@ -71,8 +71,8 @@ def create_targz(source_dir: Path, archive_base: Path) -> Path:
 
 
 def package_linux(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
-    package_name = f"MeowISP-linux-{arch}-{version}-portable"
-    with tempfile.TemporaryDirectory(prefix="meowisp-linux-") as temp_dir:
+    package_name = f"BinaryKeyboard-ISP-linux-{arch}-{version}-portable"
+    with tempfile.TemporaryDirectory(prefix="binarykeyboard-isp-linux-") as temp_dir:
         root = Path(temp_dir) / package_name
         root.mkdir(parents=True, exist_ok=True)
         target_binary = root / "meowisp"
@@ -84,26 +84,26 @@ def package_linux(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
 
 
 def package_windows(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
-    target = out_dir / f"MeowISP-windows-{arch}-{version}.exe"
+    target = out_dir / f"BinaryKeyboard-ISP-windows-{arch}-{version}.exe"
     shutil.copy2(binary, target)
     return target
 
 
 def package_macos(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
-    package_name = f"MeowISP-macos-{arch}-{version}-portable"
-    with tempfile.TemporaryDirectory(prefix="meowisp-macos-") as temp_dir:
+    package_name = f"BinaryKeyboard-ISP-macos-{arch}-{version}-portable"
+    with tempfile.TemporaryDirectory(prefix="binarykeyboard-isp-macos-") as temp_dir:
         root = Path(temp_dir) / package_name
-        app_dir = root / "MeowISP.app" / "Contents"
+        app_dir = root / "BinaryKeyboard ISP.app" / "Contents"
         macos_dir = app_dir / "MacOS"
         macos_dir.mkdir(parents=True, exist_ok=True)
-        target_binary = macos_dir / "MeowISP"
+        target_binary = macos_dir / "BinaryKeyboardISP"
         shutil.copy2(binary, target_binary)
         target_binary.chmod(target_binary.stat().st_mode | 0o111)
         plist = {
-            "CFBundleName": "MeowISP",
-            "CFBundleDisplayName": "MeowISP",
-            "CFBundleExecutable": "MeowISP",
-            "CFBundleIdentifier": "io.binarykeyboard.meowisp",
+            "CFBundleName": "BinaryKeyboard ISP",
+            "CFBundleDisplayName": "BinaryKeyboard ISP",
+            "CFBundleExecutable": "BinaryKeyboardISP",
+            "CFBundleIdentifier": "io.binarykeyboard.isp",
             "CFBundlePackageType": "APPL",
             "CFBundleShortVersionString": version,
             "CFBundleVersion": os.environ.get("GITHUB_SHA", "dev")[:7] or "dev",
@@ -117,7 +117,7 @@ def package_macos(binary: Path, out_dir: Path, arch: str, version: str) -> Path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Package MeowISP portable app archives")
+    parser = argparse.ArgumentParser(description="Package BinaryKeyboard ISP portable app archives")
     parser.add_argument("--platform", required=True, choices=("linux", "macos", "windows"))
     parser.add_argument("--arch", required=True)
     parser.add_argument("--version", required=True)

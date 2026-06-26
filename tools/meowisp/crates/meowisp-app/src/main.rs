@@ -384,7 +384,7 @@ fn brand_font_family() -> &'static str {
 }
 
 fn print_doctor() {
-    println!("MeowISP doctor");
+    println!("BinaryKeyboard ISP doctor");
     println!(
         "platform: {}-{}",
         std::env::consts::ARCH,

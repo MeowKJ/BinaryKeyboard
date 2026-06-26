@@ -278,7 +278,7 @@ fn manifest_asset(
 fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
     let manifest = ureq::get(MANIFEST_URL)
         .set("Accept", "application/json")
-        .set("User-Agent", "MeowISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
         .call()
         .map_err(|err| format!("读取发布清单失败: {err}"))?
         .into_json::<ReleaseManifest>()
@@ -352,7 +352,7 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
 fn fetch_github_release_assets() -> Result<Vec<ReleaseAsset>, String> {
     let releases = ureq::get(RELEASES_API)
         .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "MeowISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
         .call()
         .map_err(|err| format!("读取 GitHub Release 失败: {err}"))?
         .into_json::<Vec<GitHubRelease>>()
@@ -421,7 +421,7 @@ pub fn download_release_asset(asset: &ReleaseAsset) -> Result<PathBuf, String> {
 
     let response = ureq::get(&asset.download_url)
         .set("Accept", "application/octet-stream")
-        .set("User-Agent", "MeowISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
         .call()
         .map_err(|err| format!("下载固件失败: {err}"))?;
 

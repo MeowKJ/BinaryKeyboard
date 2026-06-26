@@ -1,6 +1,6 @@
-# MeowISP
+# BinaryKeyboard ISP
 
-MeowISP is a pure-Rust first-flash desktop tool for BinaryKeyboard.
+BinaryKeyboard ISP is a pure-Rust first-flash desktop tool for BinaryKeyboard.
 
 Current status:
 

@@ -40,7 +40,7 @@ STUDIO_ASSET_RE = re.compile(
     r"^BinaryKeyboard(?:[ .-])Studio-(?P<version>\d+\.\d+\.\d+)-"
 )
 MEOWISP_ASSET_RE = re.compile(
-    r"^MeowISP-(?:linux-(?:amd64|arm64)|macos-(?:apple-silicon|intel))-(?P<version>\d+\.\d+)-portable\.(?:tar\.gz|zip)$|^MeowISP-windows-amd64-(?P<win_version>\d+\.\d+)\.exe$"
+    r"^(?:BinaryKeyboard-ISP|MeowISP)-(?:linux-(?:amd64|arm64)|macos-(?:apple-silicon|intel))-(?P<version>\d+\.\d+)-portable\.(?:tar\.gz|zip)$|^(?:BinaryKeyboard-ISP|MeowISP)-windows-amd64-(?P<win_version>\d+\.\d+)\.exe$"
 )
 CH592_RELEASE_ASSET_RE = re.compile(
     r"^CH592F-(?:BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?:-(?:app|full|iap))?\.(?:bin|hex)$"

@@ -887,13 +887,13 @@ def doctor_lines(state: dict) -> list[str]:
     else:
         items.append("[FAIL] cmake: missing")
 
-    # wchisp
+    # BinaryKeyboard ISP
     wchisp_path = find_wchisp()
     if wchisp_path:
         ver = _tool_version([str(wchisp_path), "--version"])
-        items.append(f"[OK] wchisp: {wchisp_path} ({ver})")
+        items.append(f"[OK] BinaryKeyboard ISP: {wchisp_path} ({ver})")
     else:
-        items.append("[FAIL] wchisp: missing")
+        items.append("[FAIL] BinaryKeyboard ISP: missing")
 
     # target-specific tools (sdcc / ninja / toolchain)
     items.extend(current_target_profile(state).doctor_lines(state))

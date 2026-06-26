@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from urllib import request
 
-USER_AGENT = "MeowISP/0.1"
+USER_AGENT = "BinaryKeyboard-ISP/0.1"
 
 
 def apply_mirror(url: str) -> str:

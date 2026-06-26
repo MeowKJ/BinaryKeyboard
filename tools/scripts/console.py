@@ -101,7 +101,7 @@ def _ensure_wchisp_ready(python_exe: Path) -> None:
     if find_wchisp():
         return
 
-    print("[console] wchisp not found, running setup.py...", file=sys.stderr)
+    print("[console] BinaryKeyboard ISP not built, running setup.py...", file=sys.stderr)
     result = subprocess.run(
         [str(python_exe), str(SETUP_SCRIPT)],
         env=_venv_env(),
@@ -109,7 +109,8 @@ def _ensure_wchisp_ready(python_exe: Path) -> None:
     )
     if result.returncode != 0:
         print(
-            "[console] Auto-install of wchisp failed. "
+            "[console] BinaryKeyboard ISP build failed. "
+            "Install Rust/cargo and run `python tools/scripts/setup.py`. "
             "The console will continue and show ISP tools as unavailable.",
             file=sys.stderr,
         )
@@ -126,7 +127,10 @@ def _ensure_windows_isp_assets_ready(python_exe: Path) -> None:
         return
     wchisp = find_wchisp()
     if not wchisp:
-        print("[console] wchisp not found, skip CH375 DLL check.", file=sys.stderr)
+        print("[console] BinaryKeyboard ISP not found, skip CH375 DLL check.", file=sys.stderr)
+        return
+    embedded_dll = PROJECT_ROOT / "tools" / "meowisp" / ".cache" / "windows-assets" / "CH375DLL64.dll"
+    if embedded_dll.is_file() and PROJECT_ROOT in wchisp.resolve().parents:
         return
     dll_path = wchisp.parent / "CH375DLL64.dll"
     if dll_path.is_file():

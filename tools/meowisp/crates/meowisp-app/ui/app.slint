@@ -94,7 +94,7 @@ export component AppWindow inherits Window {
     in-out property <bool> has-firmware: false;
     in-out property <bool> busy: false;
     in-out property <string> log-title: "准备就绪";
-    in-out property <string> log-text: "欢迎使用 MeowISP~";
+    in-out property <string> log-text: "欢迎使用 BinaryKeyboard ISP~";
     in-out property <string> status-text: "准备就绪";
     in-out property <bool> show-permission-bar: false;
     in-out property <bool> udev-installed: false;
@@ -129,7 +129,7 @@ export component AppWindow inherits Window {
     callback request-dismiss-success();
     callback request-dismiss-error();
 
-    title: root.app-version == "dev" ? "MeowISP dev" : "MeowISP v" + root.app-version;
+    title: root.app-version == "dev" ? "BinaryKeyboard ISP dev" : "BinaryKeyboard ISP v" + root.app-version;
     width: 430px;
     height: root.show-permission-bar ? 450px : 410px;
     background: #f8f1e8;
@@ -180,7 +180,7 @@ export component AppWindow inherits Window {
                         Text {
                             x: 0px;
                             y: (parent.height - self.height) / 2 + 2px;
-                            text: root.app-version == "dev" ? "MeowISP dev" : "MeowISP v" + root.app-version;
+                            text: root.app-version == "dev" ? "BinaryKeyboard ISP dev" : "BinaryKeyboard ISP v" + root.app-version;
                             color: #241914;
                             font-family: root.brand-font-family;
                             font-size: 25px;
