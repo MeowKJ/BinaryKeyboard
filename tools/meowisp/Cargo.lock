@@ -2924,7 +2924,7 @@ dependencies = [
 
 [[package]]
 name = "meowisp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -2943,7 +2943,7 @@ dependencies = [
 
 [[package]]
 name = "meowisp-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",

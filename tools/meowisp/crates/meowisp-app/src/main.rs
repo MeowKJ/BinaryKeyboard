@@ -427,7 +427,7 @@ fn print_doctor() {
     }
 
     println!("tips:");
-    println!("  - use --probe to read the connected chip");
+    println!("  - use `meowisp probe` to read the connected chip");
     println!("  - launch without flags to open the desktop UI");
 }
 

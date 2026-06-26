@@ -29,8 +29,8 @@ Architecture: {arch}
 
 Run:
 - GUI: launch the bundled BinaryKeyboard ISP executable
-- Doctor: run `meowisp --doctor`
-- Probe: run `meowisp --probe`
+- Doctor: run `meowisp doctor`
+- Probe: run `meowisp probe`
 
 BinaryKeyboard ISP reads online firmware directly from GitHub Releases.
 """

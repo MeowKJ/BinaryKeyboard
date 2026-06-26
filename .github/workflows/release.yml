@@ -755,7 +755,7 @@ jobs:
         run: |
           mkdir -p dist/firmware/ch592f dist/firmware/ch552g
           cp dist/CH592F-*-app.bin dist/firmware/ch592f/ 2>/dev/null || true
-          cp dist/CH592F-*-full.hex dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH592F-*-full.bin dist/firmware/ch592f/ 2>/dev/null || true
           cp dist/CH552G-*.hex dist/firmware/ch552g/ 2>/dev/null || true
 
       - name: Upload pages-firmware artifact

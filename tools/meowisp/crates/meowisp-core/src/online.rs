@@ -67,6 +67,8 @@ struct ManifestArtifacts {
 #[derive(Debug, Deserialize)]
 struct ManifestCh592Artifact {
     version: String,
+    #[serde(rename = "fullBinUrl")]
+    full_bin_url: Option<String>,
     #[serde(rename = "fullHexUrl")]
     full_hex_url: Option<String>,
     #[serde(rename = "appBinUrl")]
@@ -278,7 +280,7 @@ fn manifest_asset(
 fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
     let manifest = ureq::get(MANIFEST_URL)
         .set("Accept", "application/json")
-        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.2")
         .call()
         .map_err(|err| format!("读取发布清单失败: {err}"))?
         .into_json::<ReleaseManifest>()
@@ -289,11 +291,11 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
     let mut assets = Vec::new();
 
     for (keyboard, artifact) in &manifest.artifacts.ch592 {
-        let Some(url) = artifact
-            .full_hex_url
+        let full_url = artifact
+            .full_bin_url
             .as_ref()
-            .or(artifact.app_bin_url.as_ref())
-        else {
+            .or(artifact.full_hex_url.as_ref());
+        let Some(url) = full_url.or(artifact.app_bin_url.as_ref()) else {
             continue;
         };
         let name = filename_from_url(url);
@@ -307,7 +309,7 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
                 chip: "CH592F".into(),
                 keyboard: keyboard.to_ascii_uppercase(),
                 version: artifact.version.clone(),
-                flavor: if artifact.full_hex_url.is_some() {
+                flavor: if full_url.is_some() {
                     "full".into()
                 } else {
                     "bin".into()
@@ -352,7 +354,7 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
 fn fetch_github_release_assets() -> Result<Vec<ReleaseAsset>, String> {
     let releases = ureq::get(RELEASES_API)
         .set("Accept", "application/vnd.github+json")
-        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.2")
         .call()
         .map_err(|err| format!("读取 GitHub Release 失败: {err}"))?
         .into_json::<Vec<GitHubRelease>>()
@@ -421,7 +423,7 @@ pub fn download_release_asset(asset: &ReleaseAsset) -> Result<PathBuf, String> {
 
     let response = ureq::get(&asset.download_url)
         .set("Accept", "application/octet-stream")
-        .set("User-Agent", "BinaryKeyboard-ISP/0.1")
+        .set("User-Agent", "BinaryKeyboard-ISP/0.2")
         .call()
         .map_err(|err| format!("下载固件失败: {err}"))?;
 
