@@ -324,12 +324,16 @@ const dialogVisible = computed({
 });
 
 // --- IDE tab state ---
+type EditorMode = "visual" | "code";
+
 interface TabSnapshot {
   cards: MacroCard[];
   name: string;
   codeText: string;
-  editorMode: "visual" | "code";
+  editorMode: EditorMode;
 }
+
+const MACRO_EDITOR_MODE_STORAGE_KEY = "bk-macro-editor-mode";
 
 const openTabs = ref<number[]>([]);
 const activeSlot = ref(-1);
@@ -347,7 +351,7 @@ const showModifierMenu = ref(false);
 const showMouseMenu = ref(false);
 const showConsumerMenu = ref(false);
 const capturingIdx = ref(-1);
-const editorMode = ref<"visual" | "code">("visual");
+const editorMode = ref<EditorMode>("visual");
 const codeText = ref("");
 const codeCaretIndex = ref(0);
 const codeHasFocus = ref(false);
@@ -548,9 +552,7 @@ async function importCurrentMacro(event: Event): Promise<void> {
     tabCache.value.delete(slot);
     await macroStore.startEditing(slot);
     activeSlot.value = slot;
-    editorMode.value = "visual";
-    codeText.value = "";
-    syncCodeFromCards();
+    applyPreferredEditorMode();
     snapshotCurrentTab();
     showToast("success", "宏已导入", `已写入宏 ${slot + 1}`);
   } catch (error) {
@@ -903,6 +905,34 @@ function syncCodeFromCards(): void {
   });
 }
 
+function isEditorMode(value: string | null): value is EditorMode {
+  return value === "visual" || value === "code";
+}
+
+function readPreferredEditorMode(): EditorMode {
+  if (typeof window === "undefined") return "visual";
+  try {
+    const value = window.localStorage.getItem(MACRO_EDITOR_MODE_STORAGE_KEY);
+    return isEditorMode(value) ? value : "visual";
+  } catch {
+    return "visual";
+  }
+}
+
+function rememberEditorMode(mode: EditorMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MACRO_EDITOR_MODE_STORAGE_KEY, mode);
+  } catch {
+    // Ignore storage failures in private mode or restricted webviews.
+  }
+}
+
+function applyPreferredEditorMode(): void {
+  syncCodeFromCards();
+  editorMode.value = readPreferredEditorMode();
+}
+
 function compileAndSimplify(): void {
   const compiled = codeCompileState.value;
   if (compiled.diagnostics.length > 0) return;
@@ -950,9 +980,7 @@ async function openTab(slot: number): Promise<void> {
   } else {
     await macroStore.startEditing(slot);
     activeSlot.value = slot;
-    editorMode.value = "visual";
-    codeText.value = "";
-    syncCodeFromCards();
+    applyPreferredEditorMode();
   }
 
   requestAnimationFrame(syncCodeEditorDecorations);
@@ -993,8 +1021,9 @@ function applyCodeToCards(): boolean {
   return true;
 }
 
-function setEditorMode(mode: "visual" | "code"): void {
+function setEditorMode(mode: EditorMode): void {
   if (mode === editorMode.value) {
+    rememberEditorMode(mode);
     return;
   }
 
@@ -1002,6 +1031,7 @@ function setEditorMode(mode: "visual" | "code"): void {
     cleanupInteractiveState();
     syncCodeFromCards();
     editorMode.value = "code";
+    rememberEditorMode("code");
     requestAnimationFrame(syncCodeEditorDecorations);
     return;
   }
@@ -1012,6 +1042,7 @@ function setEditorMode(mode: "visual" | "code"): void {
   }
 
   editorMode.value = "visual";
+  rememberEditorMode("visual");
 }
 
 function formatDiagnosticLocation(diagnostic: MacroDiagnostic): string {

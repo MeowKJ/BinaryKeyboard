@@ -161,16 +161,18 @@ const linkButtons = [
 }
 
 .welcome-screen {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   align-items: flex-start;
   justify-content: center;
   position: relative;
   overflow-y: auto;
-  padding: 2rem 0;
+  padding: 2rem 0 4.5rem;
   background:
     radial-gradient(ellipse at top, var(--c-accent-soft) 0%, transparent 50%),
     var(--c-bg-primary);
+  overscroll-behavior: contain;
 }
 
 .welcome-content {
@@ -525,7 +527,7 @@ const linkButtons = [
 @media (max-width: 640px) {
   .welcome-screen {
     align-items: flex-start;
-    padding: 1rem 0;
+    padding: 1rem 0 4rem;
   }
 
   .welcome-content {
