@@ -165,6 +165,8 @@ def _candidate_windows_ninja_paths() -> list[Path]:
 def _candidate_windows_sdcc_paths() -> list[Path]:
     home = Path.home()
     return [
+        Path(r"C:\Apps\Env\sdcc\bin\sdcc.exe"),
+        Path(r"C:\Apps\Env\SDCC\bin\sdcc.exe"),
         Path(r"C:\App\Environment\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),

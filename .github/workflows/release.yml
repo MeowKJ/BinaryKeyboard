@@ -136,9 +136,9 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install SDCC 4.5.0
+      - name: Install SDCC 4.6.0
         run: |
-          SDCC_VER="4.5.0"
+          SDCC_VER="4.6.0"
           wget -q "https://sourceforge.net/projects/sdcc/files/sdcc-linux-amd64/${SDCC_VER}/sdcc-${SDCC_VER}-amd64-unknown-linux2.5.tar.bz2/download" -O sdcc.tar.bz2
           tar xjf sdcc.tar.bz2
           echo "${PWD}/sdcc-${SDCC_VER}/bin" >> "$GITHUB_PATH"
