@@ -206,8 +206,8 @@ def _resolve_binary_path(value: str | Path, binary_name: str) -> Optional[Path]:
     return None
 
 
-def find_wchisp() -> Optional[Path]:
-    binary = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
+def find_meowisp() -> Optional[Path]:
+    binary = "meowisp.exe" if platform.system() == "Windows" else "meowisp"
     for env_name in ("BINARYKEYBOARD_ISP_PATH", "WCHISP_PATH"):
         env_path = os.environ.get(env_name, "")
         if env_path:
@@ -226,3 +226,7 @@ def find_wchisp() -> Optional[Path]:
         if resolved:
             return resolved
     return None
+
+
+def find_wchisp() -> Optional[Path]:
+    return find_meowisp()

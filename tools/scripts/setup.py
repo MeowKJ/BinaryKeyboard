@@ -2,8 +2,9 @@
 """Build the local BinaryKeyboard ISP helper.
 
 This script intentionally does not download upstream ch32-rs/wchisp binaries.
-BinaryKeyboard uses the vendored ISP backend in tools/meowisp/vendor-wchisp so
-Windows builds can use the CH375 DLL path instead of requiring Zadig/WinUSB.
+BinaryKeyboard builds its local ISP frontend from tools/meowisp and links the
+vendored backend, so Windows can use the CH375 DLL path instead of requiring
+Zadig/WinUSB for the upstream prebuilt binary.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MEOWISP_ROOT = PROJECT_ROOT / "tools" / "meowisp"
-VENDOR_WCHISP_MANIFEST = MEOWISP_ROOT / "vendor-wchisp" / "Cargo.toml"
+MEOWISP_MANIFEST = MEOWISP_ROOT / "Cargo.toml"
 TARGET_DIR = MEOWISP_ROOT / "target"
 FETCH_WINDOWS_DLL_SCRIPT = MEOWISP_ROOT / "scripts" / "fetch_windows_dll.py"
 WINDOWS_DLL_CACHE = MEOWISP_ROOT / ".cache" / "windows-assets" / "CH375DLL64.dll"
@@ -44,7 +45,7 @@ def sep() -> None:
 
 
 def binary_name() -> str:
-    return "wchisp.exe" if platform.system() == "Windows" else "wchisp"
+    return "meowisp.exe" if platform.system() == "Windows" else "meowisp"
 
 
 def release_binary() -> Path:
@@ -101,8 +102,8 @@ def build_binarykeyboard_isp() -> Path:
     require_rust()
     ensure_windows_dll()
 
-    if not VENDOR_WCHISP_MANIFEST.is_file():
-        raise SystemExit(f"BinaryKeyboard ISP manifest not found: {VENDOR_WCHISP_MANIFEST}")
+    if not MEOWISP_MANIFEST.is_file():
+        raise SystemExit(f"BinaryKeyboard ISP manifest not found: {MEOWISP_MANIFEST}")
 
     env = os.environ.copy()
     if platform.system() == "Windows":
@@ -115,7 +116,9 @@ def build_binarykeyboard_isp() -> Path:
             "build",
             "--release",
             "--manifest-path",
-            str(VENDOR_WCHISP_MANIFEST),
+            str(MEOWISP_MANIFEST),
+            "--bin",
+            "meowisp",
             "--target-dir",
             str(TARGET_DIR),
         ],

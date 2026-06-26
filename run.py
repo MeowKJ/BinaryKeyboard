@@ -16,7 +16,7 @@ ISP_BINARY = (
     / "meowisp"
     / "target"
     / "release"
-    / ("wchisp.exe" if os.name == "nt" else "wchisp")
+    / ("meowisp.exe" if os.name == "nt" else "meowisp")
 )
 
 

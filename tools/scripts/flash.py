@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from common import colorize as _c, die, find_wchisp, info, ok, sep, warn
+from common import colorize as _c, die, find_meowisp, info, ok, sep, warn
 from versioning import ch552_filename_for_keyboard, ch592_filename_for_keyboard
 
 
@@ -45,12 +45,16 @@ def _print_device_summary(output: str) -> None:
             print(f"  {_c('2', line.strip())}")
 
 
-def _read_device_info(wchisp: Path, extra: list[str]) -> subprocess.CompletedProcess[str]:
-    return _run_capture([str(wchisp), "info"] + extra)
+def isp_cmd(isp: Path, extra: list[str], *parts: str | Path) -> list[str]:
+    return [str(isp), *extra, *[str(part) for part in parts]]
+
+
+def _read_device_info(isp: Path, extra: list[str]) -> subprocess.CompletedProcess[str]:
+    return _run_capture(isp_cmd(isp, extra, "info"))
 
 
 def _repair_known_ch59x_verify_cfg(
-    wchisp: Path, extra: list[str], info_output: str
+    isp: Path, extra: list[str], info_output: str
 ) -> str:
     chip_name = _extract_chip_name(info_output)
     user_cfg = _extract_user_cfg(info_output)
@@ -63,9 +67,9 @@ def _repair_known_ch59x_verify_cfg(
         "Detected CH59x USER_CFG 0x4FFF0FD5, a known state that causes ISP verify to fail "
         "after a successful write. Resetting config registers before flashing."
     )
-    run([str(wchisp), "config", "reset"] + extra)
+    run(isp_cmd(isp, extra, "config", "reset"))
 
-    repaired = _read_device_info(wchisp, extra)
+    repaired = _read_device_info(isp, extra)
     if repaired.returncode != 0:
         die("Config reset succeeded, but the device could not be re-identified afterward.")
 
@@ -89,9 +93,9 @@ def resolve_file(file_arg: str) -> Path:
     return path
 
 
-def check_device(wchisp: Path, extra: list[str]) -> str:
+def check_device(isp: Path, extra: list[str]) -> str:
     info("Checking for ISP device...")
-    result = _read_device_info(wchisp, extra)
+    result = _read_device_info(isp, extra)
     if result.returncode != 0:
         die(
             "No WCH ISP device found.\n\n"
@@ -113,11 +117,11 @@ def confirm(prompt: str) -> None:
         sys.exit(0)
 
 
-def cmd_flash(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_flash(args, isp: Path, extra: list[str]) -> None:
     file_path = resolve_file(args.file)
     sep()
-    device_info = check_device(wchisp, extra)
-    _repair_known_ch59x_verify_cfg(wchisp, extra, device_info)
+    device_info = check_device(isp, extra)
+    _repair_known_ch59x_verify_cfg(isp, extra, device_info)
 
     flash_args: list[str] = []
     if args.skip_erase:
@@ -130,15 +134,15 @@ def cmd_flash(args, wchisp: Path, extra: list[str]) -> None:
     size_kb = file_path.stat().st_size / 1024
     sep()
     info(f"Flashing: {_c('1', file_path.name)}  ({size_kb:.1f} KB)")
-    run([str(wchisp), "flash"] + extra + flash_args + [str(file_path)])
+    run(isp_cmd(isp, extra, "flash", *flash_args, "--file", file_path))
     sep()
     ok("Flash complete.")
 
 
-def cmd_verify(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_verify(args, isp: Path, extra: list[str]) -> None:
     file_path = resolve_file(args.file)
     sep()
-    device_info = check_device(wchisp, extra)
+    device_info = check_device(isp, extra)
     if _extract_chip_name(device_info or "") and _extract_user_cfg(device_info or "") == KNOWN_BAD_CH59X_USER_CFG:
         warn(
             "Detected CH59x USER_CFG 0x4FFF0FD5. This state is known to make ISP verify fail "
@@ -146,75 +150,75 @@ def cmd_verify(args, wchisp: Path, extra: list[str]) -> None:
         )
     sep()
     info(f"Verifying: {_c('1', file_path.name)}")
-    run([str(wchisp), "verify"] + extra + [str(file_path)])
+    run(isp_cmd(isp, extra, "verify", "--file", file_path))
     sep()
     ok("Verify passed.")
 
 
-def cmd_erase(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_erase(args, isp: Path, extra: list[str]) -> None:
     sep()
-    check_device(wchisp, extra)
+    check_device(isp, extra)
     warn("This will erase ALL code flash on the chip!")
     confirm("Continue?")
     sep()
-    run([str(wchisp), "erase"] + extra)
+    run(isp_cmd(isp, extra, "erase"))
     ok("Erase complete.")
 
 
-def cmd_reset(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_reset(args, isp: Path, extra: list[str]) -> None:
     sep()
-    check_device(wchisp, extra)
+    check_device(isp, extra)
     info("Resetting chip...")
-    run([str(wchisp), "reset"] + extra)
+    run(isp_cmd(isp, extra, "reset"))
     ok("Reset sent.")
 
 
-def cmd_info(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_info(args, isp: Path, extra: list[str]) -> None:
     sep()
     info("Chip information:")
     sep()
-    run([str(wchisp), "info"] + extra)
+    run(isp_cmd(isp, extra, "info"))
 
 
-def cmd_probe(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_probe(args, isp: Path, extra: list[str]) -> None:
     sep()
     info("Probing connected WCH ISP devices...")
     sep()
-    run([str(wchisp), "probe"] + extra)
+    run(isp_cmd(isp, extra, "probe"))
 
 
-def cmd_eeprom(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_eeprom(args, isp: Path, extra: list[str]) -> None:
     sep()
-    check_device(wchisp, extra)
+    check_device(isp, extra)
     sep()
     if args.eeprom_cmd == "dump":
         out = Path(args.out) if args.out else Path("eeprom_dump.bin")
         info(f"Dumping EEPROM -> {_c('1', str(out))}")
-        run([str(wchisp), "eeprom", "dump"] + extra + ["--out", str(out)])
+        run(isp_cmd(isp, extra, "eeprom", "dump", "--out", out))
         ok(f"EEPROM dumped to: {out}")
     elif args.eeprom_cmd == "erase":
         warn("This will erase the DATA EEPROM (not code flash).")
         confirm("Continue?")
-        run([str(wchisp), "eeprom", "erase"] + extra)
+        run(isp_cmd(isp, extra, "eeprom", "erase"))
         ok("EEPROM erased.")
     elif args.eeprom_cmd == "write":
         file_path = resolve_file(args.file)
         info(f"Writing EEPROM from: {_c('1', str(file_path))}")
-        run([str(wchisp), "eeprom", "write"] + extra + [str(file_path)])
+        run(isp_cmd(isp, extra, "eeprom", "write", "--file", file_path))
         ok("EEPROM write complete.")
 
 
-def cmd_config(args, wchisp: Path, extra: list[str]) -> None:
+def cmd_config(args, isp: Path, extra: list[str]) -> None:
     sep()
-    check_device(wchisp, extra)
+    check_device(isp, extra)
     sep()
     if args.config_cmd == "info":
         info("Config registers:")
-        run([str(wchisp), "config", "info"] + extra)
+        run(isp_cmd(isp, extra, "config", "info"))
     elif args.config_cmd == "reset":
         warn("This will reset config registers to factory defaults!")
         confirm("Continue?")
-        run([str(wchisp), "config", "reset"] + extra)
+        run(isp_cmd(isp, extra, "config", "reset"))
         ok("Config registers reset.")
 
 
@@ -279,12 +283,12 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    wchisp = find_wchisp()
-    if not wchisp:
+    isp = find_meowisp()
+    if not isp:
         die(
             "BinaryKeyboard ISP not found.\n\n"
             "  Run:  python tools/scripts/setup.py          (build from local Rust source)\n"
-            "  Or:   set BINARYKEYBOARD_ISP_PATH=/path/to/wchisp"
+            "  Or:   set BINARYKEYBOARD_ISP_PATH=/path/to/meowisp"
         )
 
     extra: list[str] = []
@@ -307,7 +311,7 @@ def main() -> None:
     }
 
     try:
-        dispatch[args.command](args, wchisp=wchisp, extra=extra)
+        dispatch[args.command](args, isp=isp, extra=extra)
     except subprocess.CalledProcessError as exc:
         die(f"Command failed (exit {exc.returncode})")
     except KeyboardInterrupt:

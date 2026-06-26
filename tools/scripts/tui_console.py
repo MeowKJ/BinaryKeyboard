@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover - Windows fallback
     curses = None
 
 from targets.ch552.build import VALID_KEYBOARDS as CH552_KEYBOARDS
-from common import colorize as _c, find_cmake, find_sdcc, find_wchisp, display_path, use_color
+from common import colorize as _c, find_cmake, find_meowisp, find_sdcc, display_path, use_color
 from i18n import t
 from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
@@ -888,10 +888,10 @@ def doctor_lines(state: dict) -> list[str]:
         items.append("[FAIL] cmake: missing")
 
     # BinaryKeyboard ISP
-    wchisp_path = find_wchisp()
-    if wchisp_path:
-        ver = _tool_version([str(wchisp_path), "--version"])
-        items.append(f"[OK] BinaryKeyboard ISP: {wchisp_path} ({ver})")
+    meowisp_path = find_meowisp()
+    if meowisp_path:
+        ver = _tool_version([str(meowisp_path), "--version"])
+        items.append(f"[OK] BinaryKeyboard ISP: {meowisp_path} ({ver})")
     else:
         items.append("[FAIL] BinaryKeyboard ISP: missing")
 
@@ -1024,10 +1024,10 @@ def target_details_lines(state: dict) -> list[str]:
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_path = str(find_wchisp() or t('missing'))
+    meowisp_path = str(find_meowisp() or t('missing'))
     return [
         f"{t('isp.target')}: {state['target']}",
-        f"{t('isp.wchisp')}: {wchisp_path}",
+        f"{t('isp.meowisp')}: {meowisp_path}",
         f"{t('isp.flash_wrapper')}: {FLASH_SCRIPT}",
         f"{t('isp.default_image')}: {current_artifact_label(state)}",
         "",
