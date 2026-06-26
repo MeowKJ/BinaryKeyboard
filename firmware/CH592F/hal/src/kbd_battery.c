@@ -33,7 +33,9 @@
 /* 粗调校准只用于微调零点，过大偏移会把高电压直接钉死到满量程。 */
 #define BAT_ADC_CALIB_LIMIT 64
 /* TP4054 + 2K PROG 下，充电末段会较早接近 4.2V，但终止前不适合直接显示 100%。 */
+#define BAT_CHARGING_SEED_MAX 60u
 #define BAT_CHARGING_LEVEL_MAX 98u
+#define BAT_CHARGE_RISE_SAMPLES_PER_PCT 20u
 #define BAT_FULL_DONE_MV 4150u
 
 /*============================================================================*/
@@ -44,8 +46,12 @@
 static int16_t s_adc_calib = 0;
 static tmosTaskID s_task_id = TASK_NO_TASK;
 static uint16_t s_cached_voltage_mv = 3700;
+static uint8_t s_cached_level = 50;
 static uint8_t s_cache_ready = FALSE;
+static uint8_t s_level_ready = FALSE;
 static uint8_t s_sample_pending = FALSE;
+static uint8_t s_charge_rise_samples = 0;
+static kbd_charge_state_t s_last_charge_state = BAT_CHG_NONE;
 
 /*============================================================================*/
 /*                              LiPo 电压 → 百分比                            */
@@ -91,22 +97,53 @@ static uint8_t voltage_to_percent(uint16_t mv)
   return 100;
 }
 
-static uint8_t battery_level_from_state(uint16_t mv,
-                                        kbd_charge_state_t charge_state)
+static uint8_t charging_seed_level(uint16_t mv)
 {
   uint8_t level = voltage_to_percent(mv);
+  return (level > BAT_CHARGING_SEED_MAX) ? BAT_CHARGING_SEED_MAX : level;
+}
 
+static void battery_update_level(uint16_t mv, kbd_charge_state_t charge_state)
+{
   if (charge_state == BAT_CHG_CHARGING)
   {
-    return (level > BAT_CHARGING_LEVEL_MAX) ? BAT_CHARGING_LEVEL_MAX : level;
+    uint8_t level = s_level_ready ? s_cached_level : charging_seed_level(mv);
+
+    if (s_last_charge_state != BAT_CHG_CHARGING)
+    {
+      s_charge_rise_samples = 0;
+    }
+
+    if (level < BAT_CHARGING_LEVEL_MAX)
+    {
+      s_charge_rise_samples++;
+      if (s_charge_rise_samples >= BAT_CHARGE_RISE_SAMPLES_PER_PCT)
+      {
+        level++;
+        s_charge_rise_samples = 0;
+      }
+    }
+
+    s_cached_level = (level > BAT_CHARGING_LEVEL_MAX)
+                         ? BAT_CHARGING_LEVEL_MAX
+                         : level;
+    s_level_ready = TRUE;
+    s_last_charge_state = charge_state;
+    return;
   }
 
+  s_charge_rise_samples = 0;
   if (mv >= BAT_FULL_DONE_MV)
   {
-    return 100;
+    s_cached_level = 100;
+  }
+  else
+  {
+    s_cached_level = voltage_to_percent(mv);
   }
 
-  return level;
+  s_level_ready = TRUE;
+  s_last_charge_state = charge_state;
 }
 
 static uint16_t KBD_Battery_ProcessEvent(uint8_t task_id, uint16_t events);
@@ -184,6 +221,7 @@ static void battery_finish_sample(void)
 
   s_cached_voltage_mv =
       (uint16_t)((uint32_t)adc * KBD_VBAT_FULL_SCALE_MV / 2048);
+  battery_update_level(s_cached_voltage_mv, KBD_Battery_GetChargeState());
   s_cache_ready = TRUE;
   s_sample_pending = FALSE;
 }
@@ -250,8 +288,17 @@ uint16_t KBD_Battery_GetVoltage_mV(void)
 
 uint8_t KBD_Battery_GetLevel(void)
 {
-  uint16_t mv = KBD_Battery_GetVoltage_mV();
-  return battery_level_from_state(mv, KBD_Battery_GetChargeState());
+  if (!s_level_ready && !s_sample_pending)
+  {
+    KBD_Battery_RequestRefresh();
+  }
+
+  if (!s_level_ready)
+  {
+    return charging_seed_level(s_cached_voltage_mv);
+  }
+
+  return s_cached_level;
 }
 
 kbd_charge_state_t KBD_Battery_GetChargeState(void)
