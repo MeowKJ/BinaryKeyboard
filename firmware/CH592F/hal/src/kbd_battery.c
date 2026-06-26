@@ -35,7 +35,8 @@
 /* TP4054 + 2K PROG 下，充电末段会较早接近 4.2V，但终止前不适合直接显示 100%。 */
 #define BAT_CHARGING_SEED_MAX 60u
 #define BAT_CHARGING_LEVEL_MAX 98u
-#define BAT_CHARGE_RISE_SAMPLES_PER_PCT 20u
+/* 350-400mA charging: one 30s sample every tick, about 2 minutes per 1%. */
+#define BAT_CHARGE_RISE_SAMPLES_PER_PCT 4u
 #define BAT_FULL_DONE_MV 4150u
 
 /*============================================================================*/
