@@ -18,7 +18,7 @@
 1. 从仓库根目录运行统一控制台：
 
 ```bash
-./run.sh
+python run.py
 ```
 
 2. 在控制台中选择 target：
