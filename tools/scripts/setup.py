@@ -1,216 +1,172 @@
 #!/usr/bin/env python3
-"""
-setup.py — BinaryKeyboard development environment setup
-Downloads wchisp from GitHub releases into tools/scripts/
+"""Build the local BinaryKeyboard ISP helper.
+
+This script intentionally does not download upstream ch32-rs/wchisp binaries.
+BinaryKeyboard builds its local ISP frontend from tools/meowisp and links the
+vendored backend, so Windows can use the CH375 DLL path instead of requiring
+Zadig/WinUSB for the upstream prebuilt binary.
 """
 
-import json
+from __future__ import annotations
+
 import os
 import platform
 import shutil
-import stat
+import subprocess
 import sys
-import tarfile
-import tempfile
-import urllib.request
-import zipfile
 from pathlib import Path
 
-REPO = "ch32-rs/wchisp"
-API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
-TOOLS_SCRIPTS = Path(__file__).parent
-
-# ── Terminal colors ────────────────────────────────────────────────────────────
-def _c(code, text): return f"\033[{code}m{text}\033[0m" if sys.stdout.isatty() else text
-def info(msg):    print(_c("36", "[INFO]"), msg)
-def ok(msg):      print(_c("32", "[ OK ]"), msg)
-def warn(msg):    print(_c("33", "[WARN]"), msg)
-def error(msg):   print(_c("31", "[ERR ]"), msg, file=sys.stderr)
-def sep():        print(_c("2", "-" * 44))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+MEOWISP_ROOT = PROJECT_ROOT / "tools" / "meowisp"
+MEOWISP_MANIFEST = MEOWISP_ROOT / "Cargo.toml"
+TARGET_DIR = MEOWISP_ROOT / "target"
+FETCH_WINDOWS_DLL_SCRIPT = MEOWISP_ROOT / "scripts" / "fetch_windows_dll.py"
+WINDOWS_DLL_CACHE = MEOWISP_ROOT / ".cache" / "windows-assets" / "CH375DLL64.dll"
 
 
-# ── Platform detection ─────────────────────────────────────────────────────────
-def detect_platform() -> tuple[str, str]:
-    """Returns (os_tag, arch_tag) matching wchisp release naming."""
-    system = platform.system().lower()
-    machine = platform.machine().lower()
-
-    os_map = {
-        "darwin": "macos",
-        "linux":  "linux",
-        "windows": "win",
-    }
-    arch_map = {
-        "x86_64":  "x64",
-        "amd64":   "x64",
-        "aarch64": "aarch64",
-        "arm64":   "arm64",
-    }
-
-    os_tag = os_map.get(system)
-    arch_tag = arch_map.get(machine)
-
-    if not os_tag:
-        raise RuntimeError(f"Unsupported OS: {platform.system()}")
-    if not arch_tag:
-        raise RuntimeError(f"Unsupported architecture: {platform.machine()}")
-
-    # wchisp uses "arm64" for macOS Apple Silicon, "aarch64" for Linux ARM
-    if os_tag == "macos" and arch_tag == "aarch64":
-        arch_tag = "arm64"
-    if os_tag == "linux" and arch_tag == "arm64":
-        arch_tag = "aarch64"
-
-    return os_tag, arch_tag
+def _c(code: str, text: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if sys.stdout.isatty() else text
 
 
-# ── GitHub release fetch ───────────────────────────────────────────────────────
-def fetch_latest_release() -> dict:
-    info(f"Fetching latest release from github.com/{REPO} ...")
-    req = urllib.request.Request(API_URL, headers={"User-Agent": "setup.py"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.load(resp)
+def info(msg: str) -> None:
+    print(_c("36", "[INFO]"), msg)
 
 
-def find_asset(assets: list, os_tag: str, arch_tag: str) -> dict:
-    pattern = f"{os_tag}-{arch_tag}"
-    for asset in assets:
-        if pattern in asset["name"]:
-            return asset
-    available = [a["name"] for a in assets]
-    raise RuntimeError(
-        f"No asset found for '{pattern}'.\nAvailable:\n" +
-        "\n".join(f"  {n}" for n in available)
-    )
+def ok(msg: str) -> None:
+    print(_c("32", "[ OK ]"), msg)
 
 
-# ── Download & extract ─────────────────────────────────────────────────────────
-def download(url: str, dest: Path) -> None:
-    info(f"Downloading {url.split('/')[-1]} ...")
-    def _progress(count, block, total):
-        pct = min(count * block / total * 100, 100) if total > 0 else 0
-        bar = "█" * int(pct / 5) + "░" * (20 - int(pct / 5))
-        print(f"\r  [{bar}] {pct:5.1f}%", end="", flush=True)
-    urllib.request.urlretrieve(url, dest, reporthook=_progress)
-    print()
+def error(msg: str) -> None:
+    print(_c("31", "[ERR ]"), msg, file=sys.stderr)
 
 
-def extract_binary(archive: Path, dest_dir: Path) -> Path:
-    """Extract wchisp binary from archive, return path to extracted binary."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    binary_name = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-
-        if archive.suffix == ".gz":
-            with tarfile.open(archive, "r:gz") as tf:
-                tf.extractall(tmp_path)
-        elif archive.suffix == ".zip":
-            with zipfile.ZipFile(archive) as zf:
-                zf.extractall(tmp_path)
-        else:
-            raise RuntimeError(f"Unknown archive type: {archive.suffix}")
-
-        # Find the binary in extracted files
-        found = list(tmp_path.rglob(binary_name))
-        if not found:
-            raise RuntimeError(f"'{binary_name}' not found in archive.")
-
-        dest = dest_dir / binary_name
-        shutil.copy2(found[0], dest)
-
-        # Make executable
-        dest.chmod(dest.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        return dest
+def sep() -> None:
+    print(_c("2", "-" * 44))
 
 
-# ── Version check ──────────────────────────────────────────────────────────────
-def current_version(binary: Path):
-    """Return version string of installed wchisp, or None."""
-    import subprocess
+def binary_name() -> str:
+    return "meowisp.exe" if platform.system() == "Windows" else "meowisp"
+
+
+def release_binary() -> Path:
+    return TARGET_DIR / "release" / binary_name()
+
+
+def current_version(binary: Path) -> str | None:
     try:
         result = subprocess.run(
             [str(binary), "--version"],
-            capture_output=True, text=True, timeout=5
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         return result.stdout.strip() or result.stderr.strip()
     except Exception:
         return None
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
-def main():
+def require_rust() -> None:
+    missing = [tool for tool in ("cargo", "rustc") if shutil.which(tool) is None]
+    if not missing:
+        return
+
+    joined = ", ".join(missing)
+    raise SystemExit(
+        "Rust toolchain not found: "
+        f"{joined}\n\n"
+        "BinaryKeyboard ISP is built from this repository's vendored Rust source.\n"
+        "Install Rust with rustup, then open a new terminal and run this again:\n"
+        "  https://rustup.rs/\n\n"
+        "This script will not install Rust automatically."
+    )
+
+
+def ensure_windows_dll() -> None:
+    if platform.system() != "Windows":
+        return
+    if WINDOWS_DLL_CACHE.is_file():
+        return
+    if not FETCH_WINDOWS_DLL_SCRIPT.is_file():
+        raise SystemExit(f"CH375 DLL fetch script not found: {FETCH_WINDOWS_DLL_SCRIPT}")
+
+    info("Fetching CH375DLL64.dll for Windows CH375 backend...")
+    subprocess.run(
+        [sys.executable, str(FETCH_WINDOWS_DLL_SCRIPT), "--out", str(WINDOWS_DLL_CACHE)],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
+
+
+def build_binarykeyboard_isp() -> Path:
+    require_rust()
+    ensure_windows_dll()
+
+    if not MEOWISP_MANIFEST.is_file():
+        raise SystemExit(f"BinaryKeyboard ISP manifest not found: {MEOWISP_MANIFEST}")
+
+    env = os.environ.copy()
+    if platform.system() == "Windows":
+        env.setdefault("WCHISP_CH375_DLL", str(WINDOWS_DLL_CACHE))
+
+    info("Building BinaryKeyboard ISP from local vendored Rust source...")
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--release",
+            "--manifest-path",
+            str(MEOWISP_MANIFEST),
+            "--bin",
+            "meowisp",
+            "--target-dir",
+            str(TARGET_DIR),
+        ],
+        cwd=PROJECT_ROOT,
+        env=env,
+        check=True,
+    )
+
+    binary = release_binary()
+    if not binary.is_file():
+        raise SystemExit(f"Build completed but binary was not found: {binary}")
+    return binary
+
+
+def main() -> None:
     sep()
-    print(_c("1", "  BinaryKeyboard — Development Setup"))
+    print(_c("1", "  BinaryKeyboard ISP Setup"))
     sep()
 
-    # Check existing installation
-    dest_binary = TOOLS_SCRIPTS / ("wchisp.exe" if platform.system() == "Windows" else "wchisp")
-
-    if dest_binary.exists() and "--force" not in sys.argv:
-        ver = current_version(dest_binary)
-        ok(f"wchisp already installed: {ver or 'unknown version'}")
-        info(f"Location: {dest_binary}")
-        info("Use --force to reinstall.")
+    binary = release_binary()
+    if binary.exists() and "--force" not in sys.argv:
+        ver = current_version(binary)
+        ok(f"BinaryKeyboard ISP already built: {ver or 'unknown version'}")
+        info(f"Location: {binary}")
+        info("Use --force to rebuild.")
         sep()
         print_next_steps()
         return
 
-    # Detect platform
     try:
-        os_tag, arch_tag = detect_platform()
-    except RuntimeError as e:
-        error(str(e))
-        sys.exit(1)
-    info(f"Platform: {platform.system()} / {platform.machine()} → {os_tag}-{arch_tag}")
+        binary = build_binarykeyboard_isp()
+    except subprocess.CalledProcessError as exc:
+        error(f"BinaryKeyboard ISP build failed (exit {exc.returncode})")
+        sys.exit(exc.returncode)
 
-    # Fetch release info
-    try:
-        release = fetch_latest_release()
-    except Exception as e:
-        error(f"Failed to fetch release info: {e}")
-        sys.exit(1)
-
-    version = release["tag_name"]
-    info(f"Latest version: {version}")
-
-    # Find matching asset
-    try:
-        asset = find_asset(release["assets"], os_tag, arch_tag)
-    except RuntimeError as e:
-        error(str(e))
-        sys.exit(1)
-
-    # Download
-    with tempfile.NamedTemporaryFile(suffix=Path(asset["name"]).suffix, delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-
-    try:
-        download(asset["browser_download_url"], tmp_path)
-
-        # Extract
-        info(f"Extracting to {TOOLS_SCRIPTS}/")
-        binary = extract_binary(tmp_path, TOOLS_SCRIPTS)
-
-        # Verify
-        ver = current_version(binary)
-        sep()
-        ok(f"wchisp installed: {ver or version}")
-        ok(f"Location: {binary}")
-    finally:
-        tmp_path.unlink(missing_ok=True)
-
+    ver = current_version(binary)
+    sep()
+    ok(f"BinaryKeyboard ISP ready: {ver or 'unknown version'}")
+    ok(f"Location: {binary}")
     sep()
     print_next_steps()
 
 
-def print_next_steps():
+def print_next_steps() -> None:
     print(_c("1", "  Next steps:"))
-    print("  1. Build firmware:")
-    print("     CH592F: python tools/scripts/ch592f.py build --keyboard 5KEY --profile release")
-    print("     CH552G: python tools/scripts/ch552g.py build --keyboard BASIC")
-    print("  2. Connect target via USB while holding BOOT button")
+    print("  1. Connect target via USB while holding BOOT button")
+    print("  2. Probe:")
+    print("     python tools/scripts/flash.py probe")
     print("  3. Flash artifact:")
     print("     python tools/scripts/flash.py flash --file <firmware-artifact.bin>")
     sep()

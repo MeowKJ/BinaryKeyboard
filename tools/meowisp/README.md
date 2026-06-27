@@ -1,6 +1,6 @@
-# MeowISP
+# BinaryKeyboard ISP
 
-MeowISP is a pure-Rust first-flash desktop tool for BinaryKeyboard.
+BinaryKeyboard ISP is a pure-Rust first-flash desktop tool for BinaryKeyboard.
 
 Current status:
 
@@ -34,11 +34,11 @@ If you want to override the default cache path, set `WCHISP_CH375_DLL` to a spec
 
 ```bash
 ./tools/meowisp/target/debug/meowisp
-./tools/meowisp/target/debug/meowisp --doctor
-./tools/meowisp/target/debug/meowisp --probe
+./tools/meowisp/target/debug/meowisp doctor
+./tools/meowisp/target/debug/meowisp probe
 ```
 
-`--doctor` prints a lightweight local environment report. On macOS it will note that udev rules are not required; on Linux it reports whether the bundled WCH udev rules are installed.
+`doctor` prints a lightweight local environment report. On macOS it will note that udev rules are not required; on Linux it reports whether the bundled WCH udev rules are installed.
 
 ## Portable Packaging
 

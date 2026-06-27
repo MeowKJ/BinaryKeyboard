@@ -384,7 +384,7 @@ fn brand_font_family() -> &'static str {
 }
 
 fn print_doctor() {
-    println!("MeowISP doctor");
+    println!("BinaryKeyboard ISP doctor");
     println!(
         "platform: {}-{}",
         std::env::consts::ARCH,
@@ -427,7 +427,7 @@ fn print_doctor() {
     }
 
     println!("tips:");
-    println!("  - use --probe to read the connected chip");
+    println!("  - use `meowisp probe` to read the connected chip");
     println!("  - launch without flags to open the desktop UI");
 }
 

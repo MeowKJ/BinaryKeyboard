@@ -7,7 +7,7 @@ import subprocess
 import sys
 import venv
 
-from common import find_wchisp
+from common import find_meowisp
 
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -97,11 +97,11 @@ def _reexec_in_venv(python_exe: Path) -> None:
     os.execve(str(python_exe), argv, _venv_env())
 
 
-def _ensure_wchisp_ready(python_exe: Path) -> None:
-    if find_wchisp():
+def _ensure_isp_ready(python_exe: Path) -> None:
+    if find_meowisp():
         return
 
-    print("[console] wchisp not found, running setup.py...", file=sys.stderr)
+    print("[console] BinaryKeyboard ISP not built, running setup.py...", file=sys.stderr)
     result = subprocess.run(
         [str(python_exe), str(SETUP_SCRIPT)],
         env=_venv_env(),
@@ -109,7 +109,8 @@ def _ensure_wchisp_ready(python_exe: Path) -> None:
     )
     if result.returncode != 0:
         print(
-            "[console] Auto-install of wchisp failed. "
+            "[console] BinaryKeyboard ISP build failed. "
+            "Install Rust/cargo and run `python tools/scripts/setup.py`. "
             "The console will continue and show ISP tools as unavailable.",
             file=sys.stderr,
         )
@@ -124,16 +125,19 @@ def _ensure_windows_isp_assets_ready(python_exe: Path) -> None:
             file=sys.stderr,
         )
         return
-    wchisp = find_wchisp()
-    if not wchisp:
-        print("[console] wchisp not found, skip CH375 DLL check.", file=sys.stderr)
+    isp = find_meowisp()
+    if not isp:
+        print("[console] BinaryKeyboard ISP not found, skip CH375 DLL check.", file=sys.stderr)
         return
-    dll_path = wchisp.parent / "CH375DLL64.dll"
+    embedded_dll = PROJECT_ROOT / "tools" / "meowisp" / ".cache" / "windows-assets" / "CH375DLL64.dll"
+    if embedded_dll.is_file() and PROJECT_ROOT in isp.resolve().parents:
+        return
+    dll_path = isp.parent / "CH375DLL64.dll"
     if dll_path.is_file():
         return
 
     print(
-        f"[console] CH375DLL64.dll not found next to wchisp, fetching to {dll_path}...",
+        f"[console] CH375DLL64.dll not found next to BinaryKeyboard ISP, fetching to {dll_path}...",
         file=sys.stderr,
     )
     result = subprocess.run(
@@ -158,7 +162,7 @@ def main() -> None:
     if not _same_python(python_exe):
         _reexec_in_venv(python_exe)
     os.environ.update(_venv_env())
-    _ensure_wchisp_ready(python_exe)
+    _ensure_isp_ready(python_exe)
     _ensure_windows_isp_assets_ready(python_exe)
 
     try:

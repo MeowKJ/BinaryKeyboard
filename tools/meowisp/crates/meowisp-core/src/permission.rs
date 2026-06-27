@@ -3,7 +3,7 @@ use std::process::Command;
 
 const UDEV_RULES_PATH: &str = "/etc/udev/rules.d/50-wchisp.rules";
 
-const UDEV_RULES: &str = r#"# WCH ISP bootloader devices - for MeowISP / wchisp
+const UDEV_RULES: &str = r#"# WCH ISP bootloader devices - for BinaryKeyboard ISP / wchisp
 SUBSYSTEM=="usb", ATTRS{idVendor}=="4348", ATTRS{idProduct}=="55e0", MODE="0666"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55e0", MODE="0666"
 "#;

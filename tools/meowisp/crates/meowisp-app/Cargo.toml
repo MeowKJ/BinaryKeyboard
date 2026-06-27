@@ -1,6 +1,6 @@
 [package]
 name = "meowisp"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 default-run = "meowisp"
 build = "build.rs"
@@ -10,6 +10,7 @@ anyhow = "1"
 arboard = "3.6"
 clap = { version = "4", features = ["derive"] }
 hxdmp = "0.2"
+icu_provider = { version = "2.2", features = ["logging"] }
 log = "0.4"
 meowisp-core = { path = "../meowisp-core" }
 png = "0.18"

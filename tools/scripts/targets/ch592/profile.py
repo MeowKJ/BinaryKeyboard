@@ -38,12 +38,15 @@ def _build_dir(state: dict) -> Path:
 
 
 def _artifact_path(state: dict) -> Path:
-    """Return the -full.hex (JumpIAP + app + IAP merged) for ISP flashing."""
+    """Return the merged JumpIAP + app + IAP image for ISP flashing."""
     build_dir = _build_dir(state)
     arts = _artifact_paths(build_dir, state["keyboard"])
-    full = arts["full_hex"]
+    full = arts["full_bin"]
     if full.is_file():
         return full
+    full_hex = arts["full_hex"]
+    if full_hex.is_file():
+        return full_hex
     for filename in ch592_full_filenames_for_keyboard(state["keyboard"], "bin"):
         candidate = build_dir / filename
         if candidate.is_file():

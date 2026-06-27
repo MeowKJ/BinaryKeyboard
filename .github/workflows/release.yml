@@ -1,4 +1,4 @@
-name: Release Firmware and MeowISP
+name: Release Firmware and BinaryKeyboard ISP
 
 on:
   push:
@@ -136,9 +136,9 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install SDCC 4.5.0
+      - name: Install SDCC 4.6.0
         run: |
-          SDCC_VER="4.5.0"
+          SDCC_VER="4.6.0"
           wget -q "https://sourceforge.net/projects/sdcc/files/sdcc-linux-amd64/${SDCC_VER}/sdcc-${SDCC_VER}-amd64-unknown-linux2.5.tar.bz2/download" -O sdcc.tar.bz2
           tar xjf sdcc.tar.bz2
           echo "${PWD}/sdcc-${SDCC_VER}/bin" >> "$GITHUB_PATH"
@@ -185,12 +185,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.0
+          version: 11.9.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: tools/studio/pnpm-lock.yaml
 
@@ -202,7 +202,7 @@ jobs:
         run: pnpm --dir tools/studio run build
 
   build-meowisp:
-    name: Package MeowISP (${{ matrix.label }})
+    name: Package BinaryKeyboard ISP (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     needs: [compute-versions]
     strategy:
@@ -213,27 +213,27 @@ jobs:
             label: Linux amd64
             platform: linux
             arch: amd64
-            artifact_name: MeowISP-linux-amd64-*.tar.gz
+            artifact_name: BinaryKeyboard-ISP-linux-amd64-*.tar.gz
           - runner: ubuntu-24.04-arm
             label: Linux arm64
             platform: linux
             arch: arm64
-            artifact_name: MeowISP-linux-arm64-*.tar.gz
+            artifact_name: BinaryKeyboard-ISP-linux-arm64-*.tar.gz
           - runner: macos-14
             label: macOS Apple Silicon
             platform: macos
             arch: apple-silicon
-            artifact_name: MeowISP-macos-apple-silicon-*.zip
+            artifact_name: BinaryKeyboard-ISP-macos-apple-silicon-*.zip
           - runner: macos-15-intel
             label: macOS Intel
             platform: macos
             arch: intel
-            artifact_name: MeowISP-macos-intel-*.zip
+            artifact_name: BinaryKeyboard-ISP-macos-intel-*.zip
           - runner: windows-latest
             label: Windows amd64
             platform: windows
             arch: amd64
-            artifact_name: MeowISP-windows-amd64-*.exe
+            artifact_name: BinaryKeyboard-ISP-windows-amd64-*.exe
 
     steps:
       - name: Checkout
@@ -241,7 +241,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reuse previous MeowISP release asset
+      - name: Reuse previous BinaryKeyboard ISP release asset
         id: reuse_meowisp
         if: needs.compute-versions.outputs.meowisp_changed != 'true'
         shell: bash
@@ -255,19 +255,19 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           case "$PLATFORM-$ARCH" in
-            linux-amd64) ASSET="MeowISP-linux-amd64-${VERSION}-portable.tar.gz" ;;
-            linux-arm64) ASSET="MeowISP-linux-arm64-${VERSION}-portable.tar.gz" ;;
-            macos-apple-silicon) ASSET="MeowISP-macos-apple-silicon-${VERSION}-portable.zip" ;;
-            macos-intel) ASSET="MeowISP-macos-intel-${VERSION}-portable.zip" ;;
-            windows-amd64) ASSET="MeowISP-windows-amd64-${VERSION}.exe" ;;
-            *) echo "Unsupported MeowISP target: $PLATFORM-$ARCH" >&2; exit 1 ;;
+            linux-amd64) ASSET="BinaryKeyboard-ISP-linux-amd64-${VERSION}-portable.tar.gz" ;;
+            linux-arm64) ASSET="BinaryKeyboard-ISP-linux-arm64-${VERSION}-portable.tar.gz" ;;
+            macos-apple-silicon) ASSET="BinaryKeyboard-ISP-macos-apple-silicon-${VERSION}-portable.zip" ;;
+            macos-intel) ASSET="BinaryKeyboard-ISP-macos-intel-${VERSION}-portable.zip" ;;
+            windows-amd64) ASSET="BinaryKeyboard-ISP-windows-amd64-${VERSION}.exe" ;;
+            *) echo "Unsupported BinaryKeyboard ISP target: $PLATFORM-$ARCH" >&2; exit 1 ;;
           esac
           LATEST_TAG=$(gh release view --repo "$REPO" --json tagName -q .tagName)
           if gh release download "$LATEST_TAG" --repo "$REPO" --pattern "$ASSET" --dir dist; then
             echo "reused=true" >> "$GITHUB_OUTPUT"
             echo "fallback_build=false" >> "$GITHUB_OUTPUT"
           else
-            echo "MeowISP asset not found in latest release; fallback to local build for $PLATFORM-$ARCH"
+            echo "BinaryKeyboard ISP asset not found in latest release; fallback to local build for $PLATFORM-$ARCH"
             echo "reused=false" >> "$GITHUB_OUTPUT"
             echo "fallback_build=true" >> "$GITHUB_OUTPUT"
           fi
@@ -309,13 +309,13 @@ jobs:
             --tag toolchain-linux `
             --asset CH375DLL64.dll
 
-      - name: Build MeowISP
+      - name: Build BinaryKeyboard ISP
         if: needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true'
         env:
           BK_MEOWISP_VERSION: ${{ needs.compute-versions.outputs.meowisp_version }}
         run: cargo build --release --manifest-path tools/meowisp/Cargo.toml --bin meowisp
 
-      - name: Package MeowISP (Unix)
+      - name: Package BinaryKeyboard ISP (Unix)
         if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform != 'windows'
         run: |
           python3 tools/meowisp/scripts/package_portable.py \
@@ -325,7 +325,7 @@ jobs:
             --binary "tools/meowisp/target/release/meowisp" \
             --out-dir dist
 
-      - name: Package MeowISP (Windows)
+      - name: Package BinaryKeyboard ISP (Windows)
         if: (needs.compute-versions.outputs.meowisp_changed == 'true' || steps.reuse_meowisp.outputs.fallback_build == 'true') && matrix.platform == 'windows'
         shell: pwsh
         run: |
@@ -336,7 +336,7 @@ jobs:
             --binary "tools/meowisp/target/release/meowisp.exe" `
             --out-dir dist
 
-      - name: Upload MeowISP package
+      - name: Upload BinaryKeyboard ISP package
         uses: actions/upload-artifact@v4
         with:
           name: release-meowisp-${{ matrix.platform }}-${{ matrix.arch }}-${{ github.sha }}
@@ -469,7 +469,7 @@ jobs:
             echo "| 组件 | 版本 | 说明 |"
             echo "|:-----|:-----|:-----|"
             echo "| 🎹 Studio | \`v${STUDIO_VERSION}\` | 改键工具（Web） |"
-            echo "| 🐱 MeowISP | \`v${MEOWISP_VERSION}\` | 首刷工具（Desktop） |"
+            echo "| 🐱 BinaryKeyboard ISP | \`v${MEOWISP_VERSION}\` | 首刷工具（Desktop） |"
             echo "| 📡 CH592F | \`v${CH592_VERSION}\` | 无线固件（BLE） |"
             echo "| 🔌 CH552G | \`v${CH552_VERSION}\` | 有线固件（USB） |"
             echo
@@ -755,7 +755,7 @@ jobs:
         run: |
           mkdir -p dist/firmware/ch592f dist/firmware/ch552g
           cp dist/CH592F-*-app.bin dist/firmware/ch592f/ 2>/dev/null || true
-          cp dist/CH592F-*-full.hex dist/firmware/ch592f/ 2>/dev/null || true
+          cp dist/CH592F-*-full.bin dist/firmware/ch592f/ 2>/dev/null || true
           cp dist/CH552G-*.hex dist/firmware/ch552g/ 2>/dev/null || true
 
       - name: Upload pages-firmware artifact
@@ -777,8 +777,8 @@ jobs:
           files: |
             dist/CH592F-*-full.bin
             dist/CH552G-*.bin
-            dist/MeowISP-linux-amd64-*-portable.tar.gz
-            dist/MeowISP-linux-arm64-*-portable.tar.gz
-            dist/MeowISP-macos-apple-silicon-*-portable.zip
-            dist/MeowISP-macos-intel-*-portable.zip
-            dist/MeowISP-windows-amd64-*.exe
+            dist/BinaryKeyboard-ISP-linux-amd64-*-portable.tar.gz
+            dist/BinaryKeyboard-ISP-linux-arm64-*-portable.tar.gz
+            dist/BinaryKeyboard-ISP-macos-apple-silicon-*-portable.zip
+            dist/BinaryKeyboard-ISP-macos-intel-*-portable.zip
+            dist/BinaryKeyboard-ISP-windows-amd64-*.exe

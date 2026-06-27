@@ -87,9 +87,9 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Install SDCC 4.5.0
+      - name: Install SDCC 4.6.0
         run: |
-          SDCC_VER="4.5.0"
+          SDCC_VER="4.6.0"
           wget -q "https://sourceforge.net/projects/sdcc/files/sdcc-linux-amd64/${SDCC_VER}/sdcc-${SDCC_VER}-amd64-unknown-linux2.5.tar.bz2/download" -O sdcc.tar.bz2
           tar xjf sdcc.tar.bz2
           echo "${PWD}/sdcc-${SDCC_VER}/bin" >> "$GITHUB_PATH"
@@ -127,12 +127,12 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.0
+          version: 11.9.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 24
           cache: "pnpm"
           cache-dependency-path: tools/studio/pnpm-lock.yaml
 

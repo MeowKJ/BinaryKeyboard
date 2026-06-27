@@ -91,10 +91,22 @@ firmware/CH552G/.clangd_intellisense.h
 
 *.tsbuildinfo
 
-#other
+# Local tool caches
 build/
-.claude/
 .cache/
+
+# AI/local agent tooling
+.aider*
+.augment/
+.claude/
+.codex/
+.codex-logs/
+.continue/
+.cursor/
+.gemini/
+.qodo/
+.roo/
+.windsurf/
 
 # Downloaded wchisp binaries (run setup.py to fetch)
 tools/scripts/wchisp
