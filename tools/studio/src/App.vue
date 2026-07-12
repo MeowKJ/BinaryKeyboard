@@ -91,6 +91,19 @@ const {
 // 主题系统
 const { themeId, themeMode, toggleMode, init: initTheme } = useTheme();
 
+async function cleanupLegacyPwa() {
+  if (!("serviceWorker" in navigator)) return;
+
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  if (registrations.length === 0) return;
+
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+  if ("caches" in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+  }
+}
+
 // PWA
 const { needRefresh: pwaNeedRefresh, updateServiceWorker } = useRegisterSW({
   onRegistered(r: ServiceWorkerRegistration | undefined) {
@@ -108,6 +121,9 @@ async function onPwaUpdate() {
 
 // 生命周期
 onMounted(async () => {
+  await cleanupLegacyPwa().catch((error) => {
+    console.warn("[PWA] 清理历史 Service Worker 失败", error);
+  });
   initTheme();
   void releaseStore.loadLatestVersions();
   if (HidService.isSupported()) {
