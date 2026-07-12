@@ -61,8 +61,8 @@ https://meowkj.github.io/BinaryKeyboard/
 ```bash
 # Firmware + manifest are now provided via the pages-firmware workflow artifact
 # from the latest successful Release Firmware run. Place them manually:
-#   docs/public/firmware/ch592f/  — full.hex + app.bin
-#   docs/public/firmware/ch552g/  — hex
+#   docs/public/firmware/ch592f/  — full.bin + app.bin
+#   docs/public/firmware/ch552g/  — bin
 #   docs/public/api/release-manifest.json
 
 cd docs
