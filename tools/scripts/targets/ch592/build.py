@@ -256,7 +256,7 @@ def _ensure_writable_build_dir(build_dir: Path, action: str) -> None:
     die(
         f"Cannot {action}: build directory is not writable: {build_dir}\n"
         f"Owner: {owner_text}\n"
-        "This usually happens after running ./run.sh with sudo and leaving root-owned CH592F build artifacts behind.\n"
+        "This usually happens after running the console launcher with sudo and leaving root-owned CH592F build artifacts behind.\n"
         f"Fix it with:\n  sudo chown -R $USER '{build_root}'\n"
         f"Or remove '{build_root}' and rebuild without sudo."
     )

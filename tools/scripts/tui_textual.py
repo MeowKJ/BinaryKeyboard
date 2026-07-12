@@ -30,7 +30,7 @@ from textual.widgets import (
 )
 
 from targets.ch552.build import VALID_KEYBOARDS as CH552_KEYBOARDS
-from common import display_path, find_cmake, find_sdcc, find_wchisp
+from common import display_path, find_cmake, find_meowisp, find_sdcc
 from i18n import t, get_lang, set_lang, toggle_lang
 from targets.ch592.profile import _find_gcc_in_toolchain
 from targets.registry import TARGET_ORDER, TARGET_PROFILES, get_target_profile
@@ -226,8 +226,8 @@ def doctor_lines(state: dict) -> list[str]:
 
     # ── Flash tools ──────────────────────────────────────────────────────
     items.append(t("doctor.sec_flash"))
-    wchisp_path = find_wchisp()
-    _check("wchisp", wchisp_path, [str(wchisp_path), "--version"] if wchisp_path else None)
+    meowisp_path = find_meowisp()
+    _check("meowisp", meowisp_path, [str(meowisp_path), "--version"] if meowisp_path else None)
 
     # ── CH552 compiler ───────────────────────────────────────────────────
     items.append(t("doctor.sec_ch552"))
@@ -278,10 +278,10 @@ def _param_bar_text(state: dict) -> str:
 
 
 def isp_lines(state: dict) -> list[str]:
-    wchisp_path = str(find_wchisp() or t("missing"))
+    meowisp_path = str(find_meowisp() or t("missing"))
     return [
         f"{t('isp.target')}: {state['target']}",
-        f"{t('isp.wchisp')}: {wchisp_path}",
+        f"{t('isp.meowisp')}: {meowisp_path}",
         f"{t('isp.flash_wrapper')}: {FLASH_SCRIPT}",
         f"{t('isp.default_image')}: {display_path(_artifact_path(state))}",
         "",

@@ -165,6 +165,8 @@ def _candidate_windows_ninja_paths() -> list[Path]:
 def _candidate_windows_sdcc_paths() -> list[Path]:
     home = Path.home()
     return [
+        Path(r"C:\Apps\Env\sdcc\bin\sdcc.exe"),
+        Path(r"C:\Apps\Env\SDCC\bin\sdcc.exe"),
         Path(r"C:\App\Environment\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files\SDCC\bin\sdcc.exe"),
         Path(r"C:\Program Files (x86)\SDCC\bin\sdcc.exe"),
@@ -193,42 +195,38 @@ def find_sdcc() -> Optional[Path]:
     return resolve_tool_path("sdcc", binary, env_name="SDCC_PATH", candidates=candidates)
 
 
-def _candidate_wchisp_paths() -> list[Path]:
-    system = platform.system()
-    home = Path.home()
-    if system == "Darwin":
-        return [
-            home / "Downloads/wchisp-macos-arm64/wchisp",
-            home / "Downloads/wchisp-macos-x64/wchisp",
-            Path("/opt/homebrew/bin/wchisp"),
-            Path("/usr/local/bin/wchisp"),
-        ]
-    if system == "Linux":
-        return [
-            home / ".local/bin/wchisp",
-            Path("/usr/local/bin/wchisp"),
-            Path("/usr/bin/wchisp"),
-            home / "Downloads/wchisp-linux-x64/wchisp",
-            home / "Downloads/wchisp-linux-aarch64/wchisp",
-        ]
-    if system == "Windows":
-        appdata = Path(os.environ.get("APPDATA", ""))
-        return [
-            appdata / "wchisp/wchisp.exe",
-            Path("C:/Program Files/wchisp/wchisp.exe"),
-        ]
-    return []
+def _resolve_binary_path(value: str | Path, binary_name: str) -> Optional[Path]:
+    candidate = Path(value)
+    if candidate.is_file():
+        return candidate.resolve()
+    if candidate.is_dir():
+        binary = candidate / binary_name
+        if binary.is_file():
+            return binary.resolve()
+    return None
+
+
+def find_meowisp() -> Optional[Path]:
+    binary = "meowisp.exe" if platform.system() == "Windows" else "meowisp"
+    for env_name in ("BINARYKEYBOARD_ISP_PATH", "WCHISP_PATH"):
+        env_path = os.environ.get(env_name, "")
+        if env_path:
+            resolved = _resolve_binary_path(env_path, binary)
+            if resolved:
+                return resolved
+
+    # Only use the local BinaryKeyboard ISP build by default. Do not fall back
+    # to PATH, Downloads, Program Files, or tools/scripts/wchisp.exe because
+    # upstream prebuilt Windows wchisp uses the WinUSB/Zadig route.
+    for candidate in (
+        PROJECT_ROOT / "tools" / "meowisp" / "target" / "release" / binary,
+        PROJECT_ROOT / "tools" / "meowisp" / "target" / "debug" / binary,
+    ):
+        resolved = _resolve_binary_path(candidate, binary)
+        if resolved:
+            return resolved
+    return None
 
 
 def find_wchisp() -> Optional[Path]:
-    binary = "wchisp.exe" if platform.system() == "Windows" else "wchisp"
-    meowisp_release = PROJECT_ROOT / "tools" / "meowisp" / "target" / "release" / binary
-    meowisp_debug = PROJECT_ROOT / "tools" / "meowisp" / "target" / "debug" / binary
-    local = SCRIPT_DIR / binary
-    candidates = _candidate_wchisp_paths()
-    return resolve_tool_path(
-        "wchisp", binary, env_name="WCHISP_PATH",
-        preferred_candidates=[meowisp_release, meowisp_debug, local],
-        preferred_before_cache=True,
-        candidates=candidates,
-    )
+    return find_meowisp()

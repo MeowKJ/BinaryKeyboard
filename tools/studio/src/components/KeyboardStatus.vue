@@ -57,7 +57,7 @@
 
       <div v-if="supportsOsMode" class="status-card os-mode-card">
         <div class="status-icon">
-          <i class="pi pi-desktop"></i>
+          <i class="pi" :class="osModeIcon"></i>
         </div>
         <div class="status-content">
           <span class="status-label">系统</span>
@@ -156,6 +156,7 @@ const rgbStatus = computed(() => {
 });
 
 const osMode = computed(() => deviceStore.osModeConfig.mode);
+const osModeIcon = computed(() => (osMode.value === OsMode.MAC ? 'pi-apple' : 'pi-microsoft'));
 
 async function setOsMode(mode: OsMode) {
   if (isSavingOsMode.value || osMode.value === mode) return;

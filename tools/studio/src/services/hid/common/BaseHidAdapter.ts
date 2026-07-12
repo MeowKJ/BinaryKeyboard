@@ -10,7 +10,6 @@ import type { HidAdapter, HidDeviceEventHandler, HidOptionalOperations } from ".
 export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
   readonly protocol: DeviceProtocol;
   readonly filters: HIDDeviceFilter[];
-  readonly optional: HidOptionalOperations;
 
   protected readonly codec: DeviceCodec<TResponse>;
   protected device: HIDDevice | null = null;
@@ -42,7 +41,10 @@ export abstract class BaseHidAdapter<TResponse> implements HidAdapter {
       sendAndWait: (frame, options) => this.sendAndWait(frame, options),
       sendNoWait: (frame, options) => this.sendNoWait(frame, options),
     };
-    this.optional = codec.getOptionalOperations(this.transport);
+  }
+
+  get optional(): HidOptionalOperations {
+    return this.codec.getOptionalOperations(this.transport);
   }
 
   abstract matches(device: HIDDevice): boolean;

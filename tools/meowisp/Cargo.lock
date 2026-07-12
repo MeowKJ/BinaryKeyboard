@@ -2366,6 +2366,7 @@ checksum = "139c4cf31c8b5f33d7e199446eff9c1e02decfc2f0eec2c8d71f65befa45b421"
 dependencies = [
  "displaydoc",
  "icu_locale_core",
+ "log",
  "serde",
  "stable_deref_trait",
  "writeable",
@@ -2923,12 +2924,13 @@ dependencies = [
 
 [[package]]
 name = "meowisp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "arboard",
  "clap",
  "hxdmp",
+ "icu_provider",
  "log",
  "meowisp-core",
  "png 0.18.1",
@@ -2941,7 +2943,7 @@ dependencies = [
 
 [[package]]
 name = "meowisp-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",

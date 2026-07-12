@@ -40,7 +40,7 @@ STUDIO_ASSET_RE = re.compile(
     r"^BinaryKeyboard(?:[ .-])Studio-(?P<version>\d+\.\d+\.\d+)-"
 )
 MEOWISP_ASSET_RE = re.compile(
-    r"^MeowISP-(?:linux-(?:amd64|arm64)|macos-(?:apple-silicon|intel))-(?P<version>\d+\.\d+)-portable\.(?:tar\.gz|zip)$|^MeowISP-windows-amd64-(?P<win_version>\d+\.\d+)\.exe$"
+    r"^(?:BinaryKeyboard-ISP|MeowISP)-(?:linux-(?:amd64|arm64)|macos-(?:apple-silicon|intel))-(?P<version>\d+\.\d+(?:\.\d+)?)-portable\.(?:tar\.gz|zip)$|^(?:BinaryKeyboard-ISP|MeowISP)-windows-amd64-(?P<win_version>\d+\.\d+(?:\.\d+)?)\.exe$"
 )
 CH592_RELEASE_ASSET_RE = re.compile(
     r"^CH592F-(?:BASIC|KNOB|5KEY)-(?P<version>\d+\.\d+\.\d+)(?:-(?:app|full|iap))?\.(?:bin|hex)$"
@@ -50,11 +50,13 @@ CH552_RELEASE_ASSET_RE = re.compile(
 )
 
 
-def _split_base_version(value: str) -> tuple[int, int]:
+def _split_base_version(value: str) -> tuple[int, int, int | None]:
     parts = [int(part, 10) for part in value.strip().split(".")]
-    if len(parts) != 2:
-        raise ValueError(f"Expected base version 'x.y', got: {value}")
-    return parts[0], parts[1]
+    if len(parts) == 2:
+        return parts[0], parts[1], None
+    if len(parts) == 3:
+        return parts[0], parts[1], parts[2]
+    raise ValueError(f"Expected base version 'x.y' or 'x.y.z', got: {value}")
 
 
 def _version_parts(component: str) -> int:
@@ -242,7 +244,7 @@ def _is_local_build() -> bool:
 
 def component_version(component: str, build_number: int | None = None) -> str:
     meta = component_meta(component)
-    major, minor = _split_base_version(str(meta["base_version"]))
+    major, minor, base_patch = _split_base_version(str(meta["base_version"]))
     version_parts = int(meta.get("version_parts", 3))
 
     # Per-component override (e.g. BK_VERSION_CH592=3.0.34)
@@ -254,6 +256,11 @@ def component_version(component: str, build_number: int | None = None) -> str:
         if _is_local_build():
             return "dev"
         return f"{major}.{minor}"
+
+    if base_patch is not None:
+        if _is_local_build():
+            return "dev"
+        return f"{major}.{minor}.{base_patch}"
 
     if build_number is not None:
         return f"{major}.{minor}.{build_number}"
@@ -357,7 +364,7 @@ def release_artifact_manifest(build_number: int | None = None) -> tuple[dict[str
             "channel": "release",
             "version": version,
             "appBinUrl": f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-app.bin",
-            "fullHexUrl": f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-full.hex",
+            "fullBinUrl": f"{base_url}/firmware/ch592f/CH592F-{model}-{version}-full.bin",
         }
 
     def ch552_asset(model: str) -> dict[str, str]:
