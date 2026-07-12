@@ -372,7 +372,7 @@ def release_artifact_manifest(build_number: int | None = None) -> tuple[dict[str
         return {
             "channel": "release",
             "version": version,
-            "hexUrl": f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.hex",
+            "binUrl": f"{base_url}/firmware/ch552g/CH552G-{model}-{version}.bin",
         }
 
     return ({

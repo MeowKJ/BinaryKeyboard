@@ -78,6 +78,8 @@ struct ManifestCh592Artifact {
 #[derive(Debug, Deserialize)]
 struct ManifestCh552Artifact {
     version: String,
+    #[serde(rename = "binUrl")]
+    bin_url: Option<String>,
     #[serde(rename = "hexUrl")]
     hex_url: Option<String>,
 }
@@ -321,10 +323,15 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
     }
 
     for (keyboard, artifact) in &manifest.artifacts.ch552 {
-        let Some(url) = artifact.hex_url.as_ref() else {
+        let Some(url) = artifact.bin_url.as_ref().or(artifact.hex_url.as_ref()) else {
             continue;
         };
         let name = filename_from_url(url);
+        let flavor = if name.to_ascii_lowercase().ends_with(".hex") {
+            "hex"
+        } else {
+            "bin"
+        };
         let (category, family) = categorize("CH552G");
         assets.push(manifest_asset(
             name,
@@ -335,7 +342,7 @@ fn fetch_manifest_assets() -> Result<Vec<ReleaseAsset>, String> {
                 chip: "CH552G".into(),
                 keyboard: keyboard.to_ascii_uppercase(),
                 version: artifact.version.clone(),
-                flavor: "hex".into(),
+                flavor: flavor.into(),
                 category,
                 family,
             },
