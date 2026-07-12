@@ -66,13 +66,7 @@ const linkButtons = [
             <CatEmoji type="hourglass-not-done-animated" class="connecting-hourglass" />
             <span class="connecting-text">正在连接...</span>
           </div>
-          <template v-else>
-            <Button label="连接键盘" icon="pi pi-usb" size="large" @click="emit('connect')" class="connect-button" />
-            <p class="connect-hint">
-              <i class="pi pi-info-circle"></i>
-              无线款可保持蓝牙模式，插入 USB 后直接配置
-            </p>
-          </template>
+          <Button v-else label="连接键盘" icon="pi pi-usb" size="large" @click="emit('connect')" class="connect-button" />
         </div>
       </div>
 
@@ -271,16 +265,6 @@ const linkButtons = [
   font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;
   justify-content: center;
-}
-
-.connect-hint {
-  margin: 1rem 0 0;
-  font-size: 0.85rem;
-  color: var(--c-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
 }
 
 /* 连接中覆盖层 */
