@@ -102,7 +102,7 @@ const linkButtons = [
         </div>
         <div class="version-badges">
           <div class="version-badge studio-badge">
-            <div class="badge-icon"><CatEmoji /></div>
+            <div class="badge-icon"><CatEmoji type="desktop-computer-3d" /></div>
             <div class="badge-info">
               <span class="badge-label">Studio 最新</span>
               <span class="badge-version">v{{ releaseStore.latestStudioVersion }}</span>
@@ -264,8 +264,9 @@ const linkButtons = [
 }
 
 .connect-button {
-  width: calc(100% - 2rem);
-  margin-inline: 1rem;
+  width: 11rem;
+  max-width: 100%;
+  margin-inline: 0;
   font-size: 1.1rem !important;
   font-weight: 700 !important;
   padding: 0.875rem 1.5rem !important;
