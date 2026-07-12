@@ -100,11 +100,14 @@ export function useConnection() {
 
   async function connectAuthorizedDevice(
     successTitle: string,
+    notifyMissingDevice = true,
   ): Promise<boolean> {
     const device = await hidService.getAuthorizedDevice();
     if (!device) {
-      showToast("error", "连接失败", "未找到已授权设备");
-      onConnectionResult(false);
+      if (notifyMissingDevice) {
+        showToast("error", "连接失败", "未找到已授权设备");
+        onConnectionResult(false);
+      }
       return false;
     }
     return connectAndInitialize(device, successTitle);
@@ -130,7 +133,8 @@ export function useConnection() {
   }
 
   async function autoConnect() {
-    await connectAuthorizedDevice("自动连接");
+    // 首次打开 Studio 时没有授权过设备是正常状态，不应以错误提示遮挡欢迎页。
+    await connectAuthorizedDevice("自动连接", false);
   }
 
   async function disconnect() {
